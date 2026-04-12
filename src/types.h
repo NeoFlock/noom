@@ -1,1 +1,1 @@
-typedef unsigned long int noom_uint_t;
+typedef unsigned long long int noom_uint_t;
