@@ -21,8 +21,9 @@ runCommand('rm -r build')
 runCommand('mkdir build')
 
 local files = {
-	'src/lexer.c',
 	'src/helper.c',
+	'src/lexer.c',
+	'src/parser.c',
 	'src/main.c',
 }
 

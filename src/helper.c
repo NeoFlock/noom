@@ -20,3 +20,17 @@ int noom_streql(const char* stra, noom_uint_t lena, const char* strb, noom_uint_
 
 	return 1;
 }
+
+#include <stdlib.h> // TODO: remove
+
+void* noom_alloc(noom_uint_t size) {
+	return malloc(size);
+}
+
+void noom_free(void* ptr) {
+	free(ptr);
+}
+
+void* noom_realloc(void* ptr, noom_uint_t size) {
+	return realloc(ptr, size);
+}
