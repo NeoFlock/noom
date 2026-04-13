@@ -146,7 +146,7 @@ noomP_Node* noomP_parseStatement(noomP_Parser* parser) {
 	return 0;
 }
 
-int noomP_parse(const char* code, const char* filename, noomP_Node** outpointer) {
+int noomP_parse(const char* code, const char* filename, noomP_Node** outpointer, noomP_Node** last_node) {
 	noomP_Parser parser;
 	noomP_initParser(&parser, code, filename);
 
@@ -168,6 +168,7 @@ int noomP_parse(const char* code, const char* filename, noomP_Node** outpointer)
 	}
 
 	*outpointer = node;
+	*last_node = parser.last_node;
 
 	return 0;
 }

@@ -1,6 +1,7 @@
 #include <stdio.h> // for now
 // #include "lexer.h"
 #include "parser.h"
+#include "helper.h"
 
 void tab(noom_uint_t amount) {
 	amount *= 2;
@@ -54,11 +55,21 @@ int main(int argc, char** argv) {
 	printf("\nPARSE OUTPUT:\n");
 
 	noomP_Node *program;
+	noomP_Node *last_node;
 
-	int success = noomP_parse(code, "shitass", &program);
+	int success = noomP_parse(code, "shitass", &program, &last_node);
 	if (success != 0) return success;
 
 	print_node(program, 0);
+
+	// freeing time
+
+	while (last_node) {
+		noomP_Node* next = last_node->previous_node;
+		noom_free(last_node->subnodes);
+		noom_free(last_node);
+		last_node = next;
+	}
 	
 	return 0;
 }

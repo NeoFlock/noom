@@ -35,7 +35,7 @@ noomP_Node* noomP_allocNode(noomP_Parser* parser);
 noomP_Node* noomP_parseStatement(noomP_Parser* parser);
 noomP_Node* noomP_parseExpression(noomP_Parser* parser);
 
-int noomP_parse(const char* code, const char* filename, noomP_Node** outpointer);
+int noomP_parse(const char* code, const char* filename, noomP_Node** outpointer, noomP_Node** last_node);
 
 int noomP_initParser(noomP_Parser* parser, const char* code, const char* filename);
 
