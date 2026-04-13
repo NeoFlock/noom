@@ -69,7 +69,7 @@ int noomP_parse(const char* code, const char* filename, noomP_Node** outpointer)
 
 	while (1) {
 		noomP_peek(&parser, &token);
-		if (token.type == NOOML_TOKEN_EOF) return 0;
+		if (token.type == NOOML_TOKEN_EOF) break;
 
 		noomP_Node* child = noomP_parseStatement(&parser);
 		if (child == 0) return -1;
