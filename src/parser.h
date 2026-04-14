@@ -6,7 +6,10 @@ typedef enum noomP_NodeType {
 	NOOMP_NODE_VARNAME,
 	NOOMP_NODE_NUMBERLITERAL,
 	NOOMP_NODE_LOCALDECLARATION,
+	NOOMP_NODE_IFSTATEMENT,
+	NOOMP_NODE_BLOCK,
 } noomP_NodeType;
+
 typedef struct noomP_Node {
 	noomP_NodeType type;
 

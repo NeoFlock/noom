@@ -74,7 +74,38 @@ noomP_Node* noomP_parseExpression(noomP_Parser* parser) {
 	return 0;
 }
 
-noomP_Node* noomP_parseStatement(noomP_Parser* parser) {
+noomP_Node* noomP_parseBlock(noomP_Parser* parser) { // todo: maybe specify the ending keyword? how do we end on elseif, else?
+	// block starter has been eaten already; we just go until end
+	noomP_Node* node = noomP_allocNode(parser);
+	if (node == 0) return 0; // OOM :(
+	
+	node->type = NOOMP_NODE_BLOCK;
+	node->source_offset = parser->lex_offset;
+
+	noomL_Token token;
+	
+	while (1) {
+		// check if end reached
+		noomP_peek(parser, &token);
+
+		if (token.type == NOOML_TOKEN_KEYWORD) {
+			if (noom_streql(parser->code + token.offset, token.length, "end", 3)) {
+				// it's so joever
+				noomP_skip(parser, &token);
+				break;
+			}
+		}
+	
+		noomP_Node* stmt = noomP_parseStatement(parser);
+		if (stmt == 0) return 0;
+
+		noomP_addSubnode(node, stmt);
+	}
+
+	return node;
+}
+
+noomP_Node* noomP_parseRawStatement(noomP_Parser* parser) {
 	noomL_Token token;
 	noomP_peek(parser, &token);
 
@@ -140,10 +171,68 @@ noomP_Node* noomP_parseStatement(noomP_Parser* parser) {
 			}
 
 			return localNode;
+		} else if (noom_streql(parser->code + token.offset, token.length, "if", 2)) {
+			noomP_skip(parser, &token);
+
+			noomP_Node* ifStatement = noomP_allocNode(parser);
+			if (ifStatement == 0) return 0;
+
+			ifStatement->type = NOOMP_NODE_IFSTATEMENT;
+			ifStatement->source_offset = token.offset;
+
+			noomP_Node* condition = noomP_parseExpression(parser);
+			if (condition == 0) return 0;
+
+			noomP_addSubnode(ifStatement, condition);
+
+			noomP_peek(parser, &token);
+
+			if (token.type != NOOML_TOKEN_KEYWORD) return 0; // unexpected
+			if (!noom_streql(parser->code + token.offset, token.length, "then", 4)) return 0; // unexpected
+
+			noomP_skip(parser, &token);
+
+			noomP_Node* block = noomP_parseBlock(parser); // TODO: elseif, else
+			if (block == 0) return 0;
+
+			noomP_addSubnode(ifStatement, block);
+
+			return ifStatement;
 		}
 	}
 
+	while (1) {
+		noomP_peek(parser, &token);
+		if (token.type == NOOML_TOKEN_SYMBOL) {
+			if (noom_streql(parser->code + token.offset, token.length, ";", 1)) {
+				noomP_skip(parser, &token);
+				continue;
+			}
+		}
+		break;
+	}
+
 	return 0;
+}
+
+noomP_Node* noomP_parseStatement(noomP_Parser* parser) {
+	noomL_Token token;
+	
+	noomP_Node* stmt = noomP_parseRawStatement(parser);
+	if (stmt == 0) return 0;
+
+	while (1) {
+		noomP_peek(parser, &token);
+		if (token.type == NOOML_TOKEN_SYMBOL) {
+			if (noom_streql(parser->code + token.offset, token.length, ";", 1)) {
+				noomP_skip(parser, &token);
+				continue;
+			}
+		}
+		break;
+	}
+
+	return stmt;
 }
 
 int noomP_parse(const char* code, const char* filename, noomP_Node** outpointer, noomP_Node** last_node) {
