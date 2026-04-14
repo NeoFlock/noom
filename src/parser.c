@@ -54,7 +54,7 @@ int noomP_addSubnode(noomP_Node* node, noomP_Node* subnode) {
 	return 0;
 }
 
-noomP_Node* noomP_parseExpression(noomP_Parser* parser) {
+noomP_Node* noomP_parseRawExpression(noomP_Parser* parser) {
 	noomL_Token token;
 	noomP_peek(parser, &token);
 
@@ -69,9 +69,187 @@ noomP_Node* noomP_parseExpression(noomP_Parser* parser) {
 		numNode->source_offset = token.offset;
 
 		return numNode;
+	} else if (token.type == NOOML_TOKEN_IDENTIFIER) {
+		noomP_skip(parser, &token);
+
+		noomP_Node* varNode = noomP_allocNode(parser);
+		if (varNode == 0) return 0;
+
+		varNode->type = NOOMP_NODE_VARIABLE;
+		varNode->source_offset = token.offset;
+
+		return varNode;
 	}
 
 	return 0;
+}
+
+int noomP_infixOperatorBP(noomP_Parser* parser, noomL_Token* token, noom_uint_t* a, noom_uint_t* b) { // todo: maybe make this not pointer? we'll see
+	if (token->type == NOOML_TOKEN_SYMBOL) {
+		if (noom_streql(parser->code + token->offset, token->length, "+", 1)) {
+			*a = 90;
+			*b = 100;
+			return 1;
+		} else if (noom_streql(parser->code + token->offset, token->length, "-", 1)) {
+			*a = 90;
+			*b = 100;
+			return 1;
+
+		} else if (noom_streql(parser->code + token->offset, token->length, "*", 1)) {
+			*a = 110;
+			*b = 120;
+			return 1;
+		} else if (noom_streql(parser->code + token->offset, token->length, "/", 1)) {
+			*a = 110;
+			*b = 120;
+			return 1;
+		} else if (noom_streql(parser->code + token->offset, token->length, "%", 1)) {
+			*a = 110;
+			*b = 120;
+			return 1;
+
+		} else if (noom_streql(parser->code + token->offset, token->length, "^", 1)) {
+			*a = 140;
+			*b = 130; // right associative
+			return 1;
+
+		} else if (noom_streql(parser->code + token->offset, token->length, "..", 2)) {
+			*a = 80;
+			*b = 70; // right ass.
+			return 1;
+
+
+		// oh boy.
+		} else if (noom_streql(parser->code + token->offset, token->length, "<", 1)) {
+			*a = 50;
+			*b = 60;
+			return 1;
+		} else if (noom_streql(parser->code + token->offset, token->length, ">", 1)) {
+			*a = 50;
+			*b = 60;
+			return 1;
+		} else if (noom_streql(parser->code + token->offset, token->length, "<=", 2)) {
+			*a = 50;
+			*b = 60;
+			return 1;
+		} else if (noom_streql(parser->code + token->offset, token->length, ">=", 2)) {
+			*a = 50;
+			*b = 60;
+			return 1;
+		} else if (noom_streql(parser->code + token->offset, token->length, "~=", 2)) {
+			*a = 50;
+			*b = 60;
+			return 1;
+		} else if (noom_streql(parser->code + token->offset, token->length, "==", 2)) {
+			*a = 50;
+			*b = 60;
+			return 1;
+		}
+	} else if (token->type == NOOML_TOKEN_KEYWORD) {
+		if (noom_streql(parser->code + token->offset, token->length, "and", 3)) {
+			*a = 30;
+			*b = 40;
+			return 1;
+		} else if (noom_streql(parser->code + token->offset, token->length, "or", 2)) {
+			*a = 10;
+			*b = 20;
+			return 1;
+		}
+	}
+
+	return 0;
+}
+
+noom_uint_t noomP_prefixOperatorBP(noomP_Parser* parser, noomL_Token* token) { // todo: maybe make this not pointer? we'll see
+	if (token->type == NOOML_TOKEN_SYMBOL) {
+		if (noom_streql(parser->code + token->offset, token->length, "-", 1)) {
+			return 125;
+		} else if (noom_streql(parser->code + token->offset, token->length, "#", 1)) {
+			return 125;
+		} else if (noom_streql(parser->code + token->offset, token->length, "~", 1)) {
+			return 125;
+		}
+	} else if (token->type == NOOML_TOKEN_KEYWORD) {
+		if (noom_streql(parser->code + token->offset, token->length, "not", 3)) {
+			return 125;
+		}
+	}
+
+	return 0;
+}
+
+noomP_Node* noomP_parseOperatorExpression(noomP_Parser* parser, noom_uint_t min_bp, noomP_Node* predlhs) {
+	noomL_Token token;
+
+	noomP_peek(parser, &token);
+
+	noomP_Node* lhs = predlhs;
+
+	// eof check is 2 hard
+
+	if (lhs == 0) { // prefix operator?
+		noom_uint_t bp = noomP_prefixOperatorBP(parser, &token);
+
+		if (bp != 0) {
+			noomP_skip(parser, &token);
+
+			noomP_Node* child = noomP_parseOperatorExpression(parser, bp, 0);
+			if (child == 0) return 0;
+
+			lhs = noomP_allocNode(parser);
+			if (lhs == 0) return 0;
+			
+			lhs->type = NOOMP_NODE_UNARYOPERATOR;
+			lhs->source_offset = token.offset; // the operator! we need this to check what it was when compiling.
+
+			noomP_addSubnode(lhs, child);
+		}
+	}
+
+	// wasn't prefix op, raw?
+	if (lhs == 0) {
+		noomP_Node* raw = noomP_parseRawExpression(parser);
+		if (raw == 0) return 0;
+
+		lhs = raw;
+	}
+
+	noom_uint_t lbp;
+	noom_uint_t rbp;
+
+	while (1) { // infix operator time!!
+		noomP_peek(parser, &token);
+		noom_uint_t op_loc = token.offset;
+
+		// also sets lbp and rbp
+		int is_op = noomP_infixOperatorBP(parser, &token, &lbp, &rbp);
+
+		if (is_op == 0) break;
+
+		if (lbp < min_bp) break; // joever
+
+		noomP_skip(parser, &token); // remove operator
+
+		noomP_Node* rhs = noomP_parseOperatorExpression(parser, rbp, 0);
+		if (rhs == 0) return 0;
+
+		noomP_Node* new_node = noomP_allocNode(parser);
+		if (new_node == 0) return 0;
+
+		new_node->type = NOOMP_NODE_BINARYOPERATOR;
+		new_node->source_offset = op_loc;
+
+		noomP_addSubnode(new_node, lhs);
+		noomP_addSubnode(new_node, rhs);
+
+		lhs = new_node;
+	}
+
+	return lhs;
+}
+
+noomP_Node* noomP_parseExpression(noomP_Parser* parser) {
+	return noomP_parseOperatorExpression(parser, 0, 0);
 }
 
 noomP_Node* noomP_parseBlock(noomP_Parser* parser) { // todo: maybe specify the ending keyword? how do we end on elseif, else?
