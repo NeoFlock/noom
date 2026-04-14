@@ -15,7 +15,7 @@ int noomL_isalphanum(char c) {
 }
 
 int noomL_iswhitespace(char c) {
-	return c == ' ' || c == '\r' || c == '\n' || c == '\t';
+	return c == ' ' || c == '\r' || c == '\n' || c == '\t' || c == '\v' || c == '\f';
 }
 
 noom_uint_t noomL_getsymbol(const char* s) { // TODO: maybe find some less shit crap holy crap
@@ -26,6 +26,13 @@ noom_uint_t noomL_getsymbol(const char* s) { // TODO: maybe find some less shit 
 	if (noom_startswith(s, "<=")) return 2;
 	if (noom_startswith(s, ">=")) return 2;
 	if (noom_startswith(s, "..")) return 2;
+
+	if (noom_startswith(s, "::")) return 2;
+	
+	if (noom_startswith(s, "//")) return 2;
+
+	if (noom_startswith(s, ">>")) return 2;
+	if (noom_startswith(s, "<<")) return 2;
 	
 	if (noom_startswith(s, "+")) return 1;
 	if (noom_startswith(s, "-")) return 1;
@@ -51,6 +58,10 @@ noom_uint_t noomL_getsymbol(const char* s) { // TODO: maybe find some less shit 
 	if (noom_startswith(s, ".")) return 1;
 	
 	if (noom_startswith(s, ";")) return 1;
+
+	if (noom_startswith(s, "&")) return 1;
+	if (noom_startswith(s, "|")) return 1;
+	if (noom_startswith(s, "~")) return 1;
 
 	return 0; // no symbol
 }

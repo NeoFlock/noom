@@ -79,6 +79,38 @@ noomP_Node* noomP_parseRawExpression(noomP_Parser* parser) {
 		varNode->source_offset = token.offset;
 
 		return varNode;
+	} else if (token.type == NOOML_TOKEN_KEYWORD) {
+		if (noom_streql(parser->code + token.offset, token.length, "true", 4)) {
+			noomP_skip(parser, &token);
+		
+			noomP_Node* litNode = noomP_allocNode(parser);
+			if (litNode == 0) return 0;
+
+			litNode->type = NOOMP_NODE_BOOLEANLITERAL;
+			litNode->source_offset = token.offset;
+
+			return litNode;
+		} else if (noom_streql(parser->code + token.offset, token.length, "false", 5)) {
+			noomP_skip(parser, &token);
+		
+			noomP_Node* litNode = noomP_allocNode(parser);
+			if (litNode == 0) return 0;
+
+			litNode->type = NOOMP_NODE_BOOLEANLITERAL;
+			litNode->source_offset = token.offset;
+
+			return litNode;
+		} else if (noom_streql(parser->code + token.offset, token.length, "nil", 3)) {
+			noomP_skip(parser, &token);
+		
+			noomP_Node* litNode = noomP_allocNode(parser);
+			if (litNode == 0) return 0;
+
+			litNode->type = NOOMP_NODE_NILLITERAL;
+			litNode->source_offset = token.offset;
+
+			return litNode;
+		}
 	}
 
 	return 0;
