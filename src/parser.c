@@ -459,6 +459,37 @@ noomP_Node* noomP_parseRawStatement(noomP_Parser* parser) {
 			noomP_skip(parser, &token);
 
 			return ifStatement;
+		} else if (noom_streql(parser->code + token.offset, token.length, "while", 5)) {
+			noomP_skip(parser, &token); // skip `while`
+
+			noomP_Node* node = noomP_allocNode(parser);
+			if (node == 0) return 0;
+
+			node->type = NOOMP_NODE_WHILELOOP;
+			node->source_offset = token.offset;
+
+			noomP_Node* cond = noomP_parseExpression(parser);
+			if (cond == 0) return 0;
+
+			noomP_addSubnode(node, cond);
+
+			noomP_peek(parser, &token);
+
+			if (token.type != NOOML_TOKEN_KEYWORD) return 0; // unexpected
+			if (!noom_streql(parser->code + token.offset, token.length, "do", 2)) return 0; // unexpected
+			noomP_skip(parser, &token); // skip `do`
+
+			noomP_Node* block = noomP_parseBlock(parser);
+			if (block == 0) return 0;
+
+			noomP_addSubnode(node, block);
+
+			noomP_peek(parser, &token);
+			if (token.type != NOOML_TOKEN_KEYWORD) return 0; // unexpected
+			if (!noom_streql(parser->code + token.offset, token.length, "end", 3)) return 0; // unexpected
+			noomP_skip(parser, &token); // skip `end`
+
+			return node;
 		}
 	}
 
