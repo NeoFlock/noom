@@ -284,8 +284,8 @@ noomP_Node* noomP_parseExpression(noomP_Parser* parser) {
 	return noomP_parseOperatorExpression(parser, 0, 0);
 }
 
-noomP_Node* noomP_parseBlock(noomP_Parser* parser) { // todo: maybe specify the ending keyword? how do we end on elseif, else?
-	// block starter has been eaten already; we just go until end
+noomP_Node* noomP_parseBlock(noomP_Parser* parser) { // stops on end, else or elseif.
+	// block starter has been eaten already; we just go until ending keyword
 	noomP_Node* node = noomP_allocNode(parser);
 	if (node == 0) return 0; // OOM :(
 	
@@ -300,8 +300,10 @@ noomP_Node* noomP_parseBlock(noomP_Parser* parser) { // todo: maybe specify the 
 
 		if (token.type == NOOML_TOKEN_KEYWORD) {
 			if (noom_streql(parser->code + token.offset, token.length, "end", 3)) {
-				// it's so joever
-				noomP_skip(parser, &token);
+				break;
+			} else if (noom_streql(parser->code + token.offset, token.length, "elseif", 6)) {
+				break;
+			} else if (noom_streql(parser->code + token.offset, token.length, "else", 4)) {
 				break;
 			}
 		}
@@ -402,10 +404,59 @@ noomP_Node* noomP_parseRawStatement(noomP_Parser* parser) {
 
 			noomP_skip(parser, &token);
 
-			noomP_Node* block = noomP_parseBlock(parser); // TODO: elseif, else
+			noomP_Node* block = noomP_parseBlock(parser);
 			if (block == 0) return 0;
 
 			noomP_addSubnode(ifStatement, block);
+
+			while (1) { // else, elseif
+				noomP_peek(parser, &token);
+
+				if (token.type != NOOML_TOKEN_KEYWORD) return 0; // unexpected
+
+				if (noom_streql(parser->code + token.offset, token.length, "elseif", 6)) {
+					noomP_skip(parser, &token);
+					noomP_Node* elseIfCondition = noomP_parseExpression(parser);
+					if (elseIfCondition == 0) return 0;
+
+					noomP_addSubnode(ifStatement, elseIfCondition);
+
+					// now we need to check for "then"
+					noomP_peek(parser, &token);
+
+					if (token.type != NOOML_TOKEN_KEYWORD) return 0; // unexpected
+					if (!noom_streql(parser->code + token.offset, token.length, "then", 4)) return 0; // unexpected
+					noomP_skip(parser, &token);
+
+					// now the block
+					noomP_Node* elseIfBlock = noomP_parseBlock(parser);
+					if (elseIfBlock == 0) return 0;
+
+					noomP_addSubnode(ifStatement, elseIfBlock);
+
+					// could be even more
+				} else if (noom_streql(parser->code + token.offset, token.length, "else", 4)) {
+					noomP_skip(parser, &token);
+
+					noomP_Node* elseBlock = noomP_parseBlock(parser);
+					if (elseBlock == 0) return 0;
+
+					// we know it's an else if it's an odd number. no need to do anything special.
+					noomP_addSubnode(ifStatement, elseBlock);
+				
+					break; // this must be the last one; end is handled after the loop
+				} else if (noom_streql(parser->code + token.offset, token.length, "end", 3)) {
+					break; // will check for end outside the loop because else and things
+				} else {
+					// unexpected
+					return 0;
+				}
+			}
+
+			noomP_peek(parser, &token);
+			if (token.type != NOOML_TOKEN_KEYWORD) return 0; // unexpected
+			if (!noom_streql(parser->code + token.offset, token.length, "end", 3)) return 0; // unexpected
+			noomP_skip(parser, &token);
 
 			return ifStatement;
 		}
