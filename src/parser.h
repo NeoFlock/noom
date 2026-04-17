@@ -19,7 +19,9 @@ typedef enum noomP_NodeType {
 	NOOMP_NODE_NILLITERAL,
 
 	NOOMP_NODE_UNARYOPERATOR,
-	NOOMP_NODE_BINARYOPERATOR
+	NOOMP_NODE_BINARYOPERATOR,
+
+	NOOMP_NODE_NCOUNT,
 } noomP_NodeType;
 
 typedef struct noomP_Node {
@@ -41,6 +43,8 @@ typedef struct noomP_Parser { // todo: track location in code with line/column?
 
 	noomP_Node* last_node;
 } noomP_Parser;
+
+const char *noomP_formatNodeType(noomP_NodeType node_type);
 
 int noomP_peek(noomP_Parser* parser, noomL_Token* token);
 void noomP_skip(noomP_Parser* parser, noomL_Token* token);

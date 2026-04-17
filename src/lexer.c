@@ -106,6 +106,28 @@ int noomL_iskeyword(const char* s, noom_uint_t len) {
 	return 0;
 }
 
+const char *noomL_formatTokenType(noomL_TokenType token_type) {
+	switch (token_type) {
+		case NOOML_TOKEN_EOF:
+			return "EOF";
+		case NOOML_TOKEN_KEYWORD:
+			return "keyword";
+		case NOOML_TOKEN_WHITESPACE:
+			return "whitespace";
+		case NOOML_TOKEN_IDENTIFIER:
+			return "identifier";
+		case NOOML_TOKEN_STRING:
+			return "string";
+		case NOOML_TOKEN_SYMBOL:
+			return "symbol";
+		case NOOML_TOKEN_NUMBER:
+			return "number";
+		default:
+			return "unknown";
+	}
+
+}
+
 noomL_ErrorType noomL_lex(const char* s, noom_uint_t start, noomL_Token* token) {
 	const char* str = s + start;
 

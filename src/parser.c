@@ -1,6 +1,39 @@
 #include "parser.h"
 #include "helper.h"
 
+const char *noomP_formatNodeType(noomP_NodeType node_type) {
+	switch (node_type) {
+		case NOOMP_NODE_PROGRAM:
+			return "program";
+		case NOOMP_NODE_VARNAME:
+			return "varname";
+		case NOOMP_NODE_LOCALDECLARATION:
+			return "local declaration";
+		case NOOMP_NODE_IFSTATEMENT:
+			return "if statement";
+		case NOOMP_NODE_WHILELOOP:
+			return "while loop";
+		case NOOMP_NODE_BLOCK:
+			return "block";
+		case NOOMP_NODE_BREAK:
+			return "break";
+		case NOOMP_NODE_VARIABLE:
+			return "variable";
+		case NOOMP_NODE_NUMBERLITERAL:
+			return "number literal";
+		case NOOMP_NODE_BOOLEANLITERAL:
+			return "boolean literal";
+		case NOOMP_NODE_NILLITERAL:
+			return "nil literal";
+		case NOOMP_NODE_UNARYOPERATOR:
+			return "unary operator";
+		case NOOMP_NODE_BINARYOPERATOR:
+			return "binary operator";
+		default:
+			return "unknown";
+	}
+}
+
 int noomP_peek(noomP_Parser* parser, noomL_Token* token) {
 	while (1) {
 		int success = noomL_lex(parser->code, parser->lex_offset, token);

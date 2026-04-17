@@ -15,7 +15,7 @@ void print_node(noomP_Node* node, noom_uint_t depth) {
 	printf("{\n");
 
 	tab(depth+1);
-	printf("type: %d\n", node->type);
+	printf("type: %s\n", noomP_formatNodeType(node->type));
 
 	tab(depth+1);
 	printf("location: %lld\n", node->source_offset);
@@ -42,7 +42,7 @@ int main(int argc, char** argv) {
 	while (1) {
 		noomL_lex(code, pos, &token);
 
-		printf("%d ", token.type);
+		printf("%s ", noomL_formatTokenType(token.type));
 		for (noom_uint_t i = 0; i < token.length; i++) putchar((code + token.offset)[i]);
 		putchar('\n');
 

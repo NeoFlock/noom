@@ -32,5 +32,7 @@ int noomL_iswhitespace(char c);
 noom_uint_t noomL_getsymbol(const char* s);
 noom_uint_t noomL_getnumber(const char* s);
 
+const char *noomL_formatTokenType(noomL_TokenType token_type);
+
 noomL_ErrorType noomL_lex(const char* s, noom_uint_t start, noomL_Token* token); // TODO: add more error data
 
