@@ -349,17 +349,26 @@ noomP_Node* noomP_parseRawStatement(noomP_Parser* parser) {
 
 				if (token.type == NOOML_TOKEN_SYMBOL) {
 					if (noom_streql(parser->code + token.offset, token.length, "=", 1)) {
-						noomP_skip(parser, &token);
+						// noomP_skip(parser, &token);
 						break;
 					} else if (noom_streql(parser->code + token.offset, token.length, ",", 1)) {
 						noomP_skip(parser, &token);
 					} else {
-						return 0; // unexpected token
+						break;
 					}
 				} else {
-					return 0; // unexpected token
+					break;
 				}
 			}
+
+			noomP_peek(parser, &token);
+
+			// local with no equals initializes to nil
+			if (token.type != NOOML_TOKEN_SYMBOL) return localNode;
+			if (!noom_streql(parser->code + token.offset, token.length, "=", 1)) {
+				return localNode;
+			}
+			noomP_skip(parser, &token);
 
 			// equals has already been eaten by loop (thank you loop)
 
@@ -490,7 +499,19 @@ noomP_Node* noomP_parseRawStatement(noomP_Parser* parser) {
 			noomP_skip(parser, &token); // skip `end`
 
 			return node;
-		}
+		} else if (noom_streql(parser->code + token.offset, token.length, "break", 5)) {
+			noomP_skip(parser, &token); // skip `break`
+
+			// uhh yeah that's it i guess? idk. maybe parsers should figure out what loop?
+			// sounds like a thing for the compiler to bytecode though
+			noomP_Node* node = noomP_allocNode(parser);
+			if (node == 0) return 0;
+			
+			node->type = NOOMP_NODE_BREAK;
+			node->source_offset = token.offset;
+
+			return node;
+		} else if (noom_streql(parser->code + token.offset, token.length, "break", 5)) {}
 	}
 
 	while (1) {
