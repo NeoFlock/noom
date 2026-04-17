@@ -348,10 +348,7 @@ noomP_Node* noomP_parseRawStatement(noomP_Parser* parser) {
 				noomP_peek(parser, &token);
 
 				if (token.type == NOOML_TOKEN_SYMBOL) {
-					if (noom_streql(parser->code + token.offset, token.length, "=", 1)) {
-						// noomP_skip(parser, &token);
-						break;
-					} else if (noom_streql(parser->code + token.offset, token.length, ",", 1)) {
+					if (noom_streql(parser->code + token.offset, token.length, ",", 1)) {
 						noomP_skip(parser, &token);
 					} else {
 						break;
