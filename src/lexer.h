@@ -1,4 +1,5 @@
 #include "types.h"
+#include "noom.h"
 
 typedef enum noomL_TokenType {
 	NOOML_TOKEN_EOF = 0,
@@ -34,5 +35,5 @@ noom_uint_t noomL_getnumber(const char* s);
 
 const char *noomL_formatTokenType(noomL_TokenType token_type);
 
-noomL_ErrorType noomL_lex(const char* s, noom_uint_t start, noomL_Token* token); // TODO: add more error data
+noomL_ErrorType noomL_lex(const char* s, noom_uint_t start, noomL_Token* token, noom_LuaVersion version); // TODO: add more error data
 

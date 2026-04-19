@@ -128,7 +128,7 @@ const char *noomL_formatTokenType(noomL_TokenType token_type) {
 
 }
 
-noomL_ErrorType noomL_lex(const char* s, noom_uint_t start, noomL_Token* token) {
+noomL_ErrorType noomL_lex(const char* s, noom_uint_t start, noomL_Token* token, noom_LuaVersion version) {
 	const char* str = s + start;
 
 	if (str[0] == '\0') {

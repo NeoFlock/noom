@@ -36,7 +36,7 @@ const char *noomP_formatNodeType(noomP_NodeType node_type) {
 
 int noomP_peek(noomP_Parser* parser, noomL_Token* token) {
 	while (1) {
-		int success = noomL_lex(parser->code, parser->lex_offset, token);
+		int success = noomL_lex(parser->code, parser->lex_offset, token, parser->version);
 		if (success != 0) return -1; // TODO: proper error propogation and stuff
 
 		if (token->type == NOOML_TOKEN_WHITESPACE) {
@@ -578,9 +578,9 @@ noomP_Node* noomP_parseStatement(noomP_Parser* parser) {
 	return stmt;
 }
 
-int noomP_parse(const char* code, const char* filename, noomP_Node** outpointer, noomP_Node** last_node) {
+int noomP_parse(const char* code, const char* filename, noom_LuaVersion version, noomP_Node** outpointer, noomP_Node** last_node) {
 	noomP_Parser parser;
-	noomP_initParser(&parser, code, filename);
+	noomP_initParser(&parser, code, filename, version);
 
 	noomL_Token token;
 	noomP_Node* node = noomP_allocNode(&parser);
@@ -605,11 +605,12 @@ int noomP_parse(const char* code, const char* filename, noomP_Node** outpointer,
 	return 0;
 }
 
-int noomP_initParser(noomP_Parser* parser, const char* code, const char* filename) {
+int noomP_initParser(noomP_Parser* parser, const char* code, const char* filename, noom_LuaVersion version) {
 	parser->code = code;
 	parser->filename = filename;
 	parser->lex_offset = 0;
 	parser->last_node = (void *)0;
+	parser->version = version;
 
 	return 0;
 }
