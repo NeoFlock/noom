@@ -33,7 +33,7 @@ void print_node(noomP_Node* node, noom_uint_t depth) {
 
 int main(int argc, char** argv) {
 	// uhh uhhh uhhhhh
-	const char* code = "local a, b = true, false\nif a == b then elseif a or b then end";
+	const char* code = "local a = 0xff + 5e-2 + .1e2";
 	noom_uint_t pos = 0;
 
 	printf("LEX OUTPUT:\n");

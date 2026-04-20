@@ -18,6 +18,17 @@ int noomL_iswhitespace(char c) {
 	return c == ' ' || c == '\r' || c == '\n' || c == '\t' || c == '\v' || c == '\f';
 }
 
+int noomL_lower(char c) {
+	if (c >= 'A' && c <= 'Z') {
+		return c - 'A' + 'a';
+	}
+	return c;
+}
+
+int noomL_ishex(char c) {
+	return noomL_isnumber(c) || (noomL_lower(c) >= 'a' && noomL_lower(c) <= 'f');
+}
+
 noom_uint_t noomL_getsymbol(const char* s, noom_LuaVersion version) { // TODO: maybe find some less shit crap holy crap
 	if (noom_startswith(s, "...")) return 3;
 	
@@ -70,13 +81,64 @@ noom_uint_t noomL_getsymbol(const char* s, noom_LuaVersion version) { // TODO: m
 	return 0; // no symbol
 }
 
-noom_uint_t noomL_getnumber(const char* s, noom_LuaVersion version) { // TODO: more number kinds idk
+noom_uint_t noomL_getnumber(const char* s, noomL_ErrorType* error, noom_LuaVersion version) { // TODO: more number kinds idk
 	// lazy af rn
 	noom_uint_t len = 0;
+	
+	if (s[0] == '0' && noomL_lower(s[1]) == 'x') {
+		len = 2;
 
-	while (noomL_isnumber(s[len])) len++;
+		while (noomL_ishex(s[len])) {
+			len++;
+		}
 
-	return len;
+		if (len == 2) { // nothing after the x; malformed number.
+			*error = NOOML_ERROR_MALFORMED_NUM;
+			return 0;
+		}
+
+		return len;
+	} else {
+		while (noomL_isnumber(s[len])) { // int part
+			len++;
+		}
+
+		if (s[len] == '.') { // it's-a me, decimal number
+			len++;
+
+			while (noomL_isnumber(s[len])) { // decimal numbering
+				len++;
+			}
+
+			if (len == 1) { // only a . is an invalid number (it's a symbol instead!)
+				// don't error; it's just a symbol, everything's okay.
+				return 0;
+			}
+		}
+
+		if (noomL_lower(s[len]) == 'e') { // exponent
+			len++;
+
+			// sign for exponent
+			if (s[len] == '-' || s[len] == '+') len++;
+
+			noom_uint_t slen = len;
+					
+			while (noomL_isnumber(s[len])) { // the exponent
+				len++;
+			}
+
+			// exponent has no numbers in it, malformed
+			if (slen == len) {
+				*error = NOOML_ERROR_MALFORMED_NUM;
+				return 0;
+			}
+		}
+
+		return len;
+	}
+
+	return 0;
 }
 
 int noomL_iskeyword(const char* s, noom_uint_t len, noom_LuaVersion version) {
@@ -168,6 +230,21 @@ noomL_ErrorType noomL_lex(const char* s, noom_uint_t start, noomL_Token* token, 
 		return NOOML_ERROR_NONE;
 	}
 
+	{ // must be above symbols because `.2` is a number
+		noomL_ErrorType err = NOOML_ERROR_NONE;
+		noom_uint_t numberLen = noomL_getnumber(str, &err, version);
+
+		if (numberLen) {
+			token->type = NOOML_TOKEN_NUMBER;
+			token->offset = start;
+			token->length = numberLen;
+
+			return NOOML_ERROR_NONE;
+		} else {
+			if (err != NOOML_ERROR_NONE) return err;
+		}
+	}
+	
 	{
 		noom_uint_t symbolLen = noomL_getsymbol(str, version);
 
@@ -180,17 +257,6 @@ noomL_ErrorType noomL_lex(const char* s, noom_uint_t start, noomL_Token* token, 
 		}
 	}
 
-	{
-		noom_uint_t numberLen = noomL_getnumber(str, version);
-
-		if (numberLen) {
-			token->type = NOOML_TOKEN_NUMBER;
-			token->offset = start;
-			token->length = numberLen;
-
-			return NOOML_ERROR_NONE;
-		}
-	}
 
 	// god damn it we errorrreed
 	return NOOML_ERROR_UNKNOWN;

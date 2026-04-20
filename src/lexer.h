@@ -15,7 +15,8 @@ typedef enum noomL_TokenType {
 
 typedef enum noomL_ErrorType {
 	NOOML_ERROR_NONE = 0,
-	NOOML_ERROR_UNKNOWN = 1,
+	NOOML_ERROR_UNKNOWN,
+	NOOML_ERROR_MALFORMED_NUM,
 } noomL_ErrorType;
 
 typedef struct noomL_Token {
@@ -29,9 +30,11 @@ int noomL_isalpha(char c);
 int noomL_isnumber(char c);
 int noomL_isalphanum(char c);
 int noomL_iswhitespace(char c);
+int noomL_lower(char c);
+int noomL_ishex(char c);
 
 noom_uint_t noomL_getsymbol(const char* s, noom_LuaVersion version);
-noom_uint_t noomL_getnumber(const char* s, noom_LuaVersion version);
+noom_uint_t noomL_getnumber(const char* s, noomL_ErrorType* error, noom_LuaVersion version);
 
 const char *noomL_formatTokenType(noomL_TokenType token_type);
 
