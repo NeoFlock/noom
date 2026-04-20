@@ -18,7 +18,7 @@ int noomL_iswhitespace(char c) {
 	return c == ' ' || c == '\r' || c == '\n' || c == '\t' || c == '\v' || c == '\f';
 }
 
-noom_uint_t noomL_getsymbol(const char* s) { // TODO: maybe find some less shit crap holy crap
+noom_uint_t noomL_getsymbol(const char* s, noom_LuaVersion version) { // TODO: maybe find some less shit crap holy crap
 	if (noom_startswith(s, "...")) return 3;
 	
 	if (noom_startswith(s, "==")) return 2;
@@ -27,12 +27,20 @@ noom_uint_t noomL_getsymbol(const char* s) { // TODO: maybe find some less shit 
 	if (noom_startswith(s, ">=")) return 2;
 	if (noom_startswith(s, "..")) return 2;
 
-	if (noom_startswith(s, "::")) return 2;
-	
-	if (noom_startswith(s, "//")) return 2;
+	if (version >= NOOM_VERSION_52) {
+		if (noom_startswith(s, "::")) return 2;
+	}
 
-	if (noom_startswith(s, ">>")) return 2;
-	if (noom_startswith(s, "<<")) return 2;
+	if (version >= NOOM_VERSION_53) {
+		if (noom_startswith(s, "//")) return 2;
+
+		if (noom_startswith(s, ">>")) return 2;
+		if (noom_startswith(s, "<<")) return 2;
+	
+		if (noom_startswith(s, "&")) return 1;
+		if (noom_startswith(s, "|")) return 1;
+		if (noom_startswith(s, "~")) return 1;
+	}
 	
 	if (noom_startswith(s, "+")) return 1;
 	if (noom_startswith(s, "-")) return 1;
@@ -59,14 +67,10 @@ noom_uint_t noomL_getsymbol(const char* s) { // TODO: maybe find some less shit 
 	
 	if (noom_startswith(s, ";")) return 1;
 
-	if (noom_startswith(s, "&")) return 1;
-	if (noom_startswith(s, "|")) return 1;
-	if (noom_startswith(s, "~")) return 1;
-
 	return 0; // no symbol
 }
 
-noom_uint_t noomL_getnumber(const char* s) { // TODO: more number kinds idk
+noom_uint_t noomL_getnumber(const char* s, noom_LuaVersion version) { // TODO: more number kinds idk
 	// lazy af rn
 	noom_uint_t len = 0;
 
@@ -75,7 +79,7 @@ noom_uint_t noomL_getnumber(const char* s) { // TODO: more number kinds idk
 	return len;
 }
 
-int noomL_iskeyword(const char* s, noom_uint_t len) {
+int noomL_iskeyword(const char* s, noom_uint_t len, noom_LuaVersion version) {
 	if (noom_streql(s, len, "true", 4)) return 1;
 	if (noom_streql(s, len, "false", 5)) return 1;
 	if (noom_streql(s, len, "nil", 3)) return 1;
@@ -95,7 +99,6 @@ int noomL_iskeyword(const char* s, noom_uint_t len) {
 	if (noom_streql(s, len, "function", 8)) return 1;
 	if (noom_streql(s, len, "do", 2)) return 1;
 	if (noom_streql(s, len, "until", 5)) return 1;
-	if (noom_streql(s, len, "goto", 4)) return 1;
 	if (noom_streql(s, len, "while", 5)) return 1;
 	if (noom_streql(s, len, "repeat", 6)) return 1;
 	if (noom_streql(s, len, "end", 3)) return 1;
@@ -103,6 +106,10 @@ int noomL_iskeyword(const char* s, noom_uint_t len) {
 	if (noom_streql(s, len, "return", 6)) return 1;
 	if (noom_streql(s, len, "break", 5)) return 1;
 
+	if (version >= NOOM_VERSION_52) {
+		if (noom_streql(s, len, "goto", 4)) return 1;
+	}
+	
 	return 0;
 }
 
@@ -153,7 +160,7 @@ noomL_ErrorType noomL_lex(const char* s, noom_uint_t start, noomL_Token* token, 
 			len++;
 
 		token->type = NOOML_TOKEN_IDENTIFIER;
-		if (noomL_iskeyword(str, len)) token->type = NOOML_TOKEN_KEYWORD;
+		if (noomL_iskeyword(str, len, version)) token->type = NOOML_TOKEN_KEYWORD;
 		
 		token->offset = start;
 		token->length = len;
@@ -162,7 +169,7 @@ noomL_ErrorType noomL_lex(const char* s, noom_uint_t start, noomL_Token* token, 
 	}
 
 	{
-		noom_uint_t symbolLen = noomL_getsymbol(str);
+		noom_uint_t symbolLen = noomL_getsymbol(str, version);
 
 		if (symbolLen) {
 			token->type = NOOML_TOKEN_SYMBOL;
@@ -174,7 +181,7 @@ noomL_ErrorType noomL_lex(const char* s, noom_uint_t start, noomL_Token* token, 
 	}
 
 	{
-		noom_uint_t numberLen = noomL_getnumber(str);
+		noom_uint_t numberLen = noomL_getnumber(str, version);
 
 		if (numberLen) {
 			token->type = NOOML_TOKEN_NUMBER;

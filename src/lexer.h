@@ -30,8 +30,8 @@ int noomL_isnumber(char c);
 int noomL_isalphanum(char c);
 int noomL_iswhitespace(char c);
 
-noom_uint_t noomL_getsymbol(const char* s);
-noom_uint_t noomL_getnumber(const char* s);
+noom_uint_t noomL_getsymbol(const char* s, noom_LuaVersion version);
+noom_uint_t noomL_getnumber(const char* s, noom_LuaVersion version);
 
 const char *noomL_formatTokenType(noomL_TokenType token_type);
 
