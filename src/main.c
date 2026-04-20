@@ -33,14 +33,14 @@ void print_node(noomP_Node* node, noom_uint_t depth) {
 
 int main(int argc, char** argv) {
 	// uhh uhhh uhhhhh
-	const char* code = "local a = 0xff + 5e-2 + .1e2";
+	const char* code = "local a = 0x0.1E";
 	noom_uint_t pos = 0;
 
 	printf("LEX OUTPUT:\n");
 
 	noomL_Token token;
 	while (1) {
-		noomL_lex(code, pos, &token, NOOM_VERSION_51);
+		noomL_lex(code, pos, &token, NOOM_VERSION_54);
 
 		printf("%s ", noomL_formatTokenType(token.type));
 		for (noom_uint_t i = 0; i < token.length; i++) putchar((code + token.offset)[i]);

@@ -92,11 +92,46 @@ noom_uint_t noomL_getnumber(const char* s, noomL_ErrorType* error, noom_LuaVersi
 			len++;
 		}
 
+		if (version >= NOOM_VERSION_52) { // 5.2 added exponent and decimal to hex literals.
+
+			if (s[len] == '.') { // decimals in hex. smh.
+				len++;
+
+				while (noomL_ishex(s[len])) {
+					len++;
+				}
+
+				if (len == 3) { // only 0x. is a malformed number, even if followed by an exponent
+					*error = NOOML_ERROR_MALFORMED_NUM;
+					return 0;
+				}
+			}
+
+			if (noomL_lower(s[len]) == 'p') {
+				len++;
+
+				// sign for exponent
+				if (s[len] == '-' || s[len] == '+') len++;
+
+				noom_uint_t slen = len;
+
+				while (noomL_ishex(s[len])) {
+					len++;
+				}
+
+				if (slen == len) { // nothing after `p`
+					*error = NOOML_ERROR_MALFORMED_NUM;
+					return 0;
+				}
+			}
+			
+		}
+
 		if (len == 2) { // nothing after the x; malformed number.
 			*error = NOOML_ERROR_MALFORMED_NUM;
 			return 0;
 		}
-
+		
 		return len;
 	} else {
 		while (noomL_isnumber(s[len])) { // int part
