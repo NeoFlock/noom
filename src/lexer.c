@@ -115,7 +115,7 @@ noom_uint_t noomL_getnumber(const char* s, noomL_ErrorType* error, noom_LuaVersi
 
 				noom_uint_t slen = len;
 
-				while (noomL_ishex(s[len])) {
+				while (noomL_isnumber(s[len])) {
 					len++;
 				}
 
