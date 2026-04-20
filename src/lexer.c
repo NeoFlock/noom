@@ -131,6 +131,14 @@ noom_uint_t noomL_getnumber(const char* s, noomL_ErrorType* error, noom_LuaVersi
 			*error = NOOML_ERROR_MALFORMED_NUM;
 			return 0;
 		}
+
+		// check if identifier starter, if so, it's malformed (you can't do a=0xffl=2 or whatevs)
+		if (version >= NOOM_VERSION_51) { // always true for now, but if 5.0 this shouldn't happen.
+			if (noomL_isalpha(s[len]) || s[len] == '_') {
+				*error = NOOML_ERROR_MALFORMED_NUM;
+				return 0;
+			}
+		}
 		
 		return len;
 	} else {
@@ -165,6 +173,14 @@ noom_uint_t noomL_getnumber(const char* s, noomL_ErrorType* error, noom_LuaVersi
 
 			// exponent has no numbers in it, malformed
 			if (slen == len) {
+				*error = NOOML_ERROR_MALFORMED_NUM;
+				return 0;
+			}
+		}
+
+		// check if identifier starter, if so, it's malformed (you can't do a=53b=2 or whatevs)
+		if (version >= NOOM_VERSION_51) { // always true for now, but if 5.0 this shouldn't happen.
+			if (noomL_isalpha(s[len]) || s[len] == '_') {
 				*error = NOOML_ERROR_MALFORMED_NUM;
 				return 0;
 			}
