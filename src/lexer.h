@@ -9,6 +9,7 @@ typedef enum noomL_TokenType {
 	NOOML_TOKEN_STRING,
 	NOOML_TOKEN_SYMBOL,
 	NOOML_TOKEN_NUMBER,
+	NOOML_TOKEN_COMMENT,
 
 	NOOML_TOKEN_TCOUNT,
 } noomL_TokenType;
@@ -17,6 +18,8 @@ typedef enum noomL_ErrorType {
 	NOOML_ERROR_NONE = 0,
 	NOOML_ERROR_UNKNOWN,
 	NOOML_ERROR_MALFORMED_NUM,
+	
+	NOOML_ERROR_UNFINISHED_COMMENT
 } noomL_ErrorType;
 
 typedef struct noomL_Token {

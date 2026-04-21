@@ -82,7 +82,6 @@ noom_uint_t noomL_getsymbol(const char* s, noom_LuaVersion version) { // TODO: m
 }
 
 noom_uint_t noomL_getnumber(const char* s, noomL_ErrorType* error, noom_LuaVersion version) { // TODO: more number kinds idk
-	// lazy af rn
 	noom_uint_t len = 0;
 	
 	if (s[0] == '0' && noomL_lower(s[1]) == 'x') {
@@ -192,6 +191,74 @@ noom_uint_t noomL_getnumber(const char* s, noomL_ErrorType* error, noom_LuaVersi
 	return 0;
 }
 
+noom_uint_t noomL_getcomment(const char* str, noomL_ErrorType* error) {
+	if (str[0] == '-' && str[1] == '-') {
+		noom_uint_t len = 2;
+		noom_uint_t longb_len = 0;
+	
+		// check for long bracket
+		int is_long = 0; // int for bools :fire:
+
+		if (str[len] == '[') {
+			len++;
+
+			while (str[len] == '=') { longb_len++; len++; }
+
+			if (str[len] == '[') {
+				// yay long bracket!
+				is_long = 1;
+				len++;
+			}
+		}
+
+		if (is_long) {
+
+			// oh boy.
+
+			while (1) {
+				if (str[len] == ']') { // maybe this is it!
+					len++;
+
+					int success = 0;
+					noom_uint_t spos = len; // after the ] intentionally
+					noom_uint_t testlong = 0;
+
+					while (str[len] == '=') { testlong++; len++; }
+
+					if (str[len] == ']') { // actual long bracket! holy shit!
+						len++;
+						if (testlong == longb_len) {
+							// we're done!
+							success = 1;
+						}
+					}
+
+					if (success) {
+						return len;
+					} else {
+						len = spos;
+					}
+				} else if (str[len] == '\0') { // comment never finished
+					*error = NOOML_ERROR_UNFINISHED_COMMENT;
+					return 0;
+				} else {
+					len++; // just some character.
+				}
+			}
+		
+		} else {
+			// reset to remove stuff, in case we hit like --[===hello, technically not required but a good idea
+			len = 2;
+
+			while (str[len] != '\0' && str[len] != '\n') len++;
+
+			return len;
+		}
+	}
+
+	return 0;
+}
+
 int noomL_iskeyword(const char* s, noom_uint_t len, noom_LuaVersion version) {
 	if (noom_streql(s, len, "true", 4)) return 1;
 	if (noom_streql(s, len, "false", 5)) return 1;
@@ -242,6 +309,8 @@ const char *noomL_formatTokenType(noomL_TokenType token_type) {
 			return "symbol";
 		case NOOML_TOKEN_NUMBER:
 			return "number";
+		case NOOML_TOKEN_COMMENT:
+			return "comment";
 		default:
 			return "unknown";
 	}
@@ -289,6 +358,21 @@ noomL_ErrorType noomL_lex(const char* s, noom_uint_t start, noomL_Token* token, 
 			token->type = NOOML_TOKEN_NUMBER;
 			token->offset = start;
 			token->length = numberLen;
+
+			return NOOML_ERROR_NONE;
+		} else {
+			if (err != NOOML_ERROR_NONE) return err;
+		}
+	}
+
+	{
+		noomL_ErrorType err = NOOML_ERROR_NONE;
+		noom_uint_t commentLen = noomL_getcomment(str, &err);
+
+		if (commentLen) {
+			token->type = NOOML_TOKEN_COMMENT;
+			token->offset = start;
+			token->length = commentLen;
 
 			return NOOML_ERROR_NONE;
 		} else {

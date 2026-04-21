@@ -39,7 +39,7 @@ int noomP_peek(noomP_Parser* parser, noomL_Token* token) {
 		int success = noomL_lex(parser->code, parser->lex_offset, token, parser->version);
 		if (success != 0) return -1; // TODO: proper error propogation and stuff
 
-		if (token->type == NOOML_TOKEN_WHITESPACE) {
+		if (token->type == NOOML_TOKEN_WHITESPACE || token->type == NOOML_TOKEN_COMMENT) {
 			// peek changes state, but only if it's one of these useless tokens anyway.
 			parser->lex_offset += token->length;
 			continue;
