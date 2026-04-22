@@ -1,6 +1,5 @@
 #include "types.h"
 #include "helper.h"
-#include <stdio.h>
 #include "lexer.h"
 
 int noomL_isalpha(char c) {
