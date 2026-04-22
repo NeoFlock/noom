@@ -25,6 +25,8 @@ const char *noomP_formatNodeType(noomP_NodeType node_type) {
 			return "boolean literal";
 		case NOOMP_NODE_NILLITERAL:
 			return "nil literal";
+		case NOOMP_NODE_STRINGLITERAL:
+			return "string literal";
 		case NOOMP_NODE_UNARYOPERATOR:
 			return "unary operator";
 		case NOOMP_NODE_BINARYOPERATOR:
@@ -92,13 +94,22 @@ noomP_Node* noomP_parseRawExpression(noomP_Parser* parser) {
 	noomP_peek(parser, &token);
 
 	if (token.type == NOOML_TOKEN_NUMBER) {
-		// uhh figure it out, future me!
 		noomP_skip(parser, &token);
 
 		noomP_Node* numNode = noomP_allocNode(parser);
 		if (numNode == 0) return 0;
 		
 		numNode->type = NOOMP_NODE_NUMBERLITERAL;
+		numNode->source_offset = token.offset;
+
+		return numNode;
+	} else if (token.type == NOOML_TOKEN_STRING) {
+		noomP_skip(parser, &token);
+
+		noomP_Node* numNode = noomP_allocNode(parser);
+		if (numNode == 0) return 0;
+		
+		numNode->type = NOOMP_NODE_STRINGLITERAL;
 		numNode->source_offset = token.offset;
 
 		return numNode;
