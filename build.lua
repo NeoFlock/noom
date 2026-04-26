@@ -24,6 +24,7 @@ local files = {
 	'src/helper.c',
 	'src/lexer.c',
 	'src/parser.c',
+	'src/compiler.c',
 	'src/main.c',
 }
 
