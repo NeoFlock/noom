@@ -43,6 +43,10 @@ const char *noomP_formatNodeType(noomP_NodeType node_type) {
 			return "fieldname";
 		case NOOMP_NODE_PARENTHESIZED:
 			return "parenthesized";
+		case NOOMP_NODE_ASSIGNMENT:
+			return "assignment";
+		case NOOMP_NODE_ASSIGNPLACE:
+			return "assignment place";
 		default:
 			return "unknown";
 	}
@@ -751,19 +755,101 @@ noomP_Node* noomP_parseRawStatement(noomP_Parser* parser) {
 			node->source_offset = token.offset;
 
 			return node;
-		} else if (noom_streql(parser->code + token.offset, token.length, "break", 5)) {}
+		}
 	}
 
-	while (1) {
-		noomP_peek(parser, &token);
-		if (token.type == NOOML_TOKEN_SYMBOL) {
-			if (noom_streql(parser->code + token.offset, token.length, ";", 1)) {
-				noomP_skip(parser, &token);
-				continue;
+	if (token.type == NOOML_TOKEN_IDENTIFIER || (token.type == NOOML_TOKEN_SYMBOL && noom_streql(parser->code + token.offset, token.length, "(", 1))) {
+		noomP_Node* base = noomP_parseRawExpression(parser);
+		if (base == 0) return 0;
+
+		if (base->type == NOOMP_NODE_INDEX || base->type == NOOMP_NODE_GETFIELD || base->type == NOOMP_NODE_VARIABLE) {
+			// always assignment i think
+			noomP_Node* assignment = noomP_allocNode(parser);
+			if (assignment == 0) return 0;
+
+			noomP_peek(parser, &token);
+			assignment->type = NOOMP_NODE_ASSIGNMENT;
+			assignment->source_offset = token.offset; // probably set this to the `=` later.
+
+			noomP_Node* initial_place = noomP_allocNode(parser);
+			if (initial_place == 0) return 0;
+
+			initial_place->type = NOOMP_NODE_ASSIGNPLACE;
+			initial_place->source_offset = base->source_offset;
+			
+			noomP_addSubnode(initial_place, base);
+
+			noomP_addSubnode(assignment, initial_place);
+
+			while (1) {
+				noomP_peek(parser, &token);
+
+				if (token.type == NOOML_TOKEN_SYMBOL) {
+					if (noom_streql(parser->code + token.offset, token.length, ",", 1)) {
+						noomP_skip(parser, &token);
+						
+						noomP_peek(parser, &token);
+						
+						if (token.type != NOOML_TOKEN_IDENTIFIER && (token.type != NOOML_TOKEN_SYMBOL || !noom_streql(parser->code + token.offset, token.length, "(", 1))) {
+							// unexpected
+							return 0;
+						}
+						
+						// more thingers
+						noomP_Node* item = noomP_parseRawExpression(parser);
+						if (item == 0) return 0;
+
+						if (item->type != NOOMP_NODE_INDEX && item->type != NOOMP_NODE_GETFIELD && item->type != NOOMP_NODE_VARIABLE) {
+							return 0; // unexpected
+						}
+
+						noomP_Node* container = noomP_allocNode(parser);
+						if (container == 0) return 0;
+
+						container->type = NOOMP_NODE_ASSIGNPLACE;
+						container->source_offset = item->source_offset;
+
+						noomP_addSubnode(container, item);
+
+						noomP_addSubnode(assignment, container);
+					} else if (noom_streql(parser->code + token.offset, token.length, "=", 1)) {
+						assignment->source_offset = token.offset;
+						noomP_skip(parser, &token);
+						break;
+					}
+				} else {
+					return 0; // unexpected
+				}
 			}
+
+			// `=` has already been eaten at this point.
+			// time for the values.
+
+			while (1) {
+				noomP_Node* expr = noomP_parseExpression(parser);
+				if (expr == 0) return 0;
+
+				noomP_addSubnode(assignment, expr);
+
+				noomP_peek(parser, &token);
+
+				if (token.type == NOOML_TOKEN_SYMBOL && noom_streql(parser->code + token.offset, token.length, ",", 1)) {
+					noomP_skip(parser, &token);
+					continue; // explicit cause felt like it
+				} else {
+					break;
+				}
+			}
+
+			return assignment;
+		} else if (base->type == NOOMP_NODE_CALL || base->type == NOOMP_NODE_METHODCALL) {
+			// this expression is now a statement.
+			return base; // no need to eat any more.
+		} else {
+			return 0; // unexpected. e.g. random string or whatever
 		}
-		break;
 	}
+
 
 	return 0;
 }
