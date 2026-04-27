@@ -37,6 +37,8 @@ const char *noomP_formatNodeType(noomP_NodeType node_type) {
 			return "index";
 		case NOOMP_NODE_CALL:
 			return "call";
+		case NOOMP_NODE_METHODCALL:
+			return "method call";
 		case NOOMP_NODE_FIELDNAME:
 			return "fieldname";
 		default:
@@ -191,8 +193,61 @@ noomP_Node* noomP_parseComplexExpression(noomP_Parser* parser, noomP_Node* snode
 				noomP_skip(parser, &token);
 
 				node = new;
-				
-			} else { // TODO: method call
+			} else if (noom_streql(parser->code + token.offset, token.length, ":", 1)) { // method call
+				noomP_skip(parser, &token);
+				noom_uint_t sym_loc = token.offset;
+
+				noomP_peek(parser, &token); // get method name
+				noom_uint_t method = token.offset;
+				noomP_skip(parser, &token);
+
+				noomP_Node* new = noomP_allocNode(parser);
+				if (new == 0) return 0;
+
+				new->type = NOOMP_NODE_METHODCALL;
+				new->source_offset = sym_loc;
+
+				noomP_Node* method_node = noomP_allocNode(parser);
+				if (method_node == 0) return 0;
+
+				method_node->type = NOOMP_NODE_FIELDNAME;
+				method_node->source_offset = method;
+
+				noomP_addSubnode(new, node);
+				noomP_addSubnode(new, method_node);
+
+				noomP_peek(parser, &token);
+				if (token.type != NOOML_TOKEN_SYMBOL || (!noom_streql(parser->code + token.offset, token.length, "(", 1))) {
+					return 0;
+				}
+				noomP_skip(parser, &token);
+
+				noomP_peek(parser, &token);
+				if (token.type != NOOML_TOKEN_SYMBOL || (!noom_streql(parser->code + token.offset, token.length, ")", 1))) {
+					while (1) {
+						noomP_Node* expr = noomP_parseExpression(parser);
+						if (expr == 0) return 0;
+
+						noomP_addSubnode(new, expr);
+
+						noomP_peek(parser, &token);
+						if (token.type != NOOML_TOKEN_SYMBOL || (!noom_streql(parser->code + token.offset, token.length, ",", 1))) {
+							break;
+						}
+						noomP_skip(parser, &token);
+					}
+				}
+
+				// check for )
+				noomP_peek(parser, &token);
+				if (token.type != NOOML_TOKEN_SYMBOL || (!noom_streql(parser->code + token.offset, token.length, ")", 1))) {
+					return 0;
+				}
+
+				noomP_skip(parser, &token);
+
+				node = new;
+			} else {
 				return node; // done
 			}
 		} else {
