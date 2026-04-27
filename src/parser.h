@@ -29,6 +29,8 @@ typedef enum noomP_NodeType {
 
 	NOOMP_NODE_FIELDNAME,
 
+	NOOMP_NODE_PARENTHESIZED,
+
 	NOOMP_NODE_NCOUNT,
 } noomP_NodeType;
 

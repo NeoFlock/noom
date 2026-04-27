@@ -41,6 +41,8 @@ const char *noomP_formatNodeType(noomP_NodeType node_type) {
 			return "method call";
 		case NOOMP_NODE_FIELDNAME:
 			return "fieldname";
+		case NOOMP_NODE_PARENTHESIZED:
+			return "parenthesized";
 		default:
 			return "unknown";
 	}
@@ -324,6 +326,33 @@ noomP_Node* noomP_parseRawExpression(noomP_Parser* parser) {
 			litNode->source_offset = token.offset;
 
 			return litNode;
+		}
+	} else if (token.type == NOOML_TOKEN_SYMBOL) {
+		if (noom_streql(parser->code + token.offset, token.length, "(", 1)) { // parenthesized
+			noomP_skip(parser, &token);
+			noom_uint_t sym_loc = token.offset;
+
+			noomP_Node* expr = noomP_parseExpression(parser);
+			if (expr == 0) return 0;
+
+			// now to close the parentheses
+
+			noomP_peek(parser, &token);
+			if (token.type != NOOML_TOKEN_SYMBOL) return 0; // unexpected
+			if (!noom_streql(parser->code + token.offset, token.length, ")", 1)) return 0; // unexpected
+			noomP_skip(parser, &token);
+
+			noomP_Node* paren = noomP_allocNode(parser); // it has to be a node cause it limits to one value
+			if (paren == 0) return 0;
+
+			paren->type = NOOMP_NODE_PARENTHESIZED;
+			paren->source_offset = sym_loc;
+
+			noomP_addSubnode(paren, expr);
+
+			// buttt we're not done YET! it could still go :dsg().dsdh():dsh()
+
+			return noomP_parseComplexExpression(parser, paren); // thank you for being a function :heart:
 		}
 	}
 
