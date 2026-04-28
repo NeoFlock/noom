@@ -43,6 +43,8 @@ const char *noomP_formatNodeType(noomP_NodeType node_type) {
 			return "method call";
 		case NOOMP_NODE_FUNCTIONDECLARATION:
 			return "function declaration";
+		case NOOMP_NODE_LOCALFUNCTIONDECLARATION:
+			return "local function declaration";
 		case NOOMP_NODE_FUNCTIONPARAMETERS:
 			return "function parameters";
 		case NOOMP_NODE_FUNCTIONNAME:
@@ -646,6 +648,46 @@ noomP_Node* noomP_parseRawStatement(noomP_Parser* parser) {
 	if (token.type == NOOML_TOKEN_KEYWORD) {
 		if (noom_streql(parser->code + token.offset, token.length, "local", 5)) {
 			noomP_skip(parser, &token);
+
+			noomP_peek(parser, &token);
+
+			if (token.type == NOOML_TOKEN_KEYWORD && noom_streql(parser->code + token.offset, token.length, "function", 8)) {
+				noomP_skip(parser, &token);
+				
+				noomP_Node* funcNode = noomP_allocNode(parser);
+				if (funcNode == 0) return 0;
+
+				funcNode->type = NOOMP_NODE_LOCALFUNCTIONDECLARATION;
+				funcNode->source_offset = token.offset;
+				
+				noomP_peek(parser, &token);
+				if (token.type != NOOML_TOKEN_IDENTIFIER) return 0;
+				noomP_skip(parser, &token);
+				
+				noomP_Node* nameNode = noomP_allocNode(parser);
+				if (nameNode == 0) return 0;
+
+				nameNode->type = NOOMP_NODE_VARNAME;
+				nameNode->source_offset = token.offset;
+
+				noomP_addSubnode(funcNode, nameNode);
+
+				noomP_Node* params = noomP_parseFunctionParameters(parser);
+				if (params == 0) return 0;
+				noomP_addSubnode(funcNode, params);
+
+				noomP_Node* block = noomP_parseBlock(parser);
+				if (block == 0) return 0;
+				noomP_addSubnode(funcNode, block);
+
+				noomP_peek(parser, &token);
+				if (token.type != NOOML_TOKEN_KEYWORD || !noom_streql(parser->code + token.offset, token.length, "end", 3)) {
+					return 0;
+				}
+				noomP_skip(parser, &token);
+
+				return funcNode;
+			}
 
 			noomP_Node* localNode = noomP_allocNode(parser);
 			if (localNode == 0) return 0; // no memory :(
