@@ -41,6 +41,8 @@ const char *noomP_formatNodeType(noomP_NodeType node_type) {
 			return "call";
 		case NOOMP_NODE_METHODCALL:
 			return "method call";
+		case NOOMP_NODE_LAMBDAFUNCTIONLITERAL:
+			return "lambda function literal";
 		case NOOMP_NODE_FUNCTIONDECLARATION:
 			return "function declaration";
 		case NOOMP_NODE_LOCALFUNCTIONDECLARATION:
@@ -344,6 +346,30 @@ noomP_Node* noomP_parseRawExpression(noomP_Parser* parser) {
 			litNode->source_offset = token.offset;
 
 			return litNode;
+		} else if (noom_streql(parser->code + token.offset, token.length, "function", 8)) {
+			noomP_skip(parser, &token);
+
+			noomP_Node* funcNode = noomP_allocNode(parser);
+			if (funcNode == 0) return 0;
+
+			funcNode->type = NOOMP_NODE_LAMBDAFUNCTIONLITERAL;
+			funcNode->source_offset = token.offset;
+
+			noomP_Node* params = noomP_parseFunctionParameters(parser);
+			if (params == 0) return 0;
+			noomP_addSubnode(funcNode, params);
+
+			noomP_Node* block = noomP_parseBlock(parser);
+			if (block == 0) return 0;
+			noomP_addSubnode(funcNode, block);
+
+			noomP_peek(parser, &token);
+			if (token.type != NOOML_TOKEN_KEYWORD || !noom_streql(parser->code + token.offset, token.length, "end", 3)) {
+				return 0;
+			}
+			noomP_skip(parser, &token);
+
+			return funcNode;
 		}
 	} else if (token.type == NOOML_TOKEN_SYMBOL) {
 		if (noom_streql(parser->code + token.offset, token.length, "(", 1)) { // parenthesized

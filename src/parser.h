@@ -29,6 +29,7 @@ typedef enum noomP_NodeType {
 	NOOMP_NODE_CALL,
 	NOOMP_NODE_METHODCALL,
 
+	NOOMP_NODE_LAMBDAFUNCTIONLITERAL,
 	NOOMP_NODE_FUNCTIONDECLARATION,
 	NOOMP_NODE_LOCALFUNCTIONDECLARATION,
 	NOOMP_NODE_FUNCTIONPARAMETERS,
@@ -76,8 +77,11 @@ void noomP_skip(noomP_Parser* parser, noomL_Token* token);
 
 noomP_Node* noomP_allocNode(noomP_Parser* parser);
 
-noomP_Node* noomP_parseStatement(noomP_Parser* parser);
+noomP_Node* noomP_parseFunctionParameters(noomP_Parser* parser);
+noomP_Node* noomP_parseBlock(noomP_Parser* parser);
+
 noomP_Node* noomP_parseExpression(noomP_Parser* parser);
+noomP_Node* noomP_parseStatement(noomP_Parser* parser);
 
 int noomP_parse(const char* code, const char* filename, noom_LuaVersion version, noomP_Node** outpointer, noomP_Node** last_node);
 
