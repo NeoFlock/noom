@@ -15,6 +15,8 @@ const char *noomP_formatNodeType(noomP_NodeType node_type) {
 			return "while loop";
 		case NOOMP_NODE_BLOCK:
 			return "block";
+		case NOOMP_NODE_ATTRIBUTE:
+			return "attribute";
 		case NOOMP_NODE_BREAK:
 			return "break";
 		case NOOMP_NODE_VARIABLE:
@@ -590,6 +592,38 @@ noomP_Node* noomP_parseRawStatement(noomP_Parser* parser) {
 				varname->type = NOOMP_NODE_VARNAME;
 				varname->source_offset = token.offset;
 
+				if (parser->version >= NOOM_VERSION_54) {
+					noomP_peek(parser, &token);
+
+					if (token.type == NOOML_TOKEN_SYMBOL && noom_streql(parser->code + token.offset, token.length, "<", 1)) {
+						// attribute yay
+						noomP_skip(parser, &token);
+
+						// the attribute is an identifier.
+						noomP_peek(parser, &token);
+						if (token.type != NOOML_TOKEN_IDENTIFIER) return 0; // unexpected
+						noom_uint_t attr = token.offset;
+						noomP_skip(parser, &token);
+
+						if (!noom_streql(parser->code + token.offset, token.length, "const", 5) && !noom_streql(parser->code + token.offset, token.length, "close", 5)) {
+							return 0; // not a real attribute smh my head
+						}
+
+						noomP_peek(parser, &token);
+						if (token.type != NOOML_TOKEN_SYMBOL) return 0;
+						if (!noom_streql(parser->code + token.offset, token.length, ">", 1)) return 0;
+						noomP_skip(parser, &token);
+
+						noomP_Node* attrn = noomP_allocNode(parser);
+						if (attr == 0) return 0;
+
+						attrn->type = NOOMP_NODE_ATTRIBUTE;
+						attrn->source_offset = attr;
+
+						noomP_addSubnode(varname, attrn);
+					}
+				}
+				
 				noomP_addSubnode(localNode, varname);
 
 				noomP_peek(parser, &token);
