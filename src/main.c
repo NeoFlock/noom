@@ -33,7 +33,7 @@ void print_node(noomP_Node* node, noom_uint_t depth) {
 
 int main(int argc, char** argv) {
 	// uhh uhhh uhhhhh
-	const char* code = "local a = function(a,b,c,...) print('hi'); end";
+	const char* code = "function fact(n) if n == 0 then return 1 end return n*fact(n-1) end";
 	noom_uint_t pos = 0;
 
 	printf("LEX OUTPUT:\n");

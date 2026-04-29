@@ -51,6 +51,8 @@ const char *noomP_formatNodeType(noomP_NodeType node_type) {
 			return "function parameters";
 		case NOOMP_NODE_FUNCTIONNAME:
 			return "function name";
+		case NOOMP_NODE_RETURN:
+			return "return";
 		case NOOMP_NODE_FIELDNAME:
 			return "field name";
 		case NOOMP_NODE_METHODNAME:
@@ -655,6 +657,8 @@ noomP_Node* noomP_parseBlock(noomP_Parser* parser) { // stops on end, else or el
 				break;
 			} else if (noom_streql(parser->code + token.offset, token.length, "else", 4)) {
 				break;
+			} else if (noom_streql(parser->code + token.offset, token.length, "until", 5)) {
+				break;
 			}
 		}
 	
@@ -1022,6 +1026,87 @@ noomP_Node* noomP_parseRawStatement(noomP_Parser* parser) {
 			noomP_skip(parser, &token);
 
 			return func;
+		} else if (noom_streql(parser->code + token.offset, token.length, "return", 6)) {
+			noomP_skip(parser, &token);
+
+			noomP_Node* ret = noomP_allocNode(parser);
+			if (ret == 0) return 0;
+
+			ret->type = NOOMP_NODE_RETURN;
+			ret->source_offset = token.offset;
+
+			// return is special; it must explicitly handle semicolons.
+			// this is because it must check for a block ender (end, elseif, else, until, eof) TODO: make sure this is correct.
+			// could also just make this return (or outpointer) some value that says "no more allowed in this block" instead?
+
+			noomP_peek(parser, &token);
+
+			int is_empty = 0;
+			if (token.type == NOOML_TOKEN_SYMBOL) {
+				if (noom_streql(parser->code + token.offset, token.length, ";", 1)) {
+					is_empty = 1;
+				}
+			} else if (token.type == NOOML_TOKEN_KEYWORD) {
+				if (noom_streql(parser->code + token.offset, token.length, "end", 3)) {
+					is_empty = 1;
+				} else if (noom_streql(parser->code + token.offset, token.length, "elseif", 6)) {
+					is_empty = 1;
+				} else if (noom_streql(parser->code + token.offset, token.length, "else", 4)) {
+					is_empty = 1;
+				} else if (noom_streql(parser->code + token.offset, token.length, "until", 1)) {
+					is_empty = 1;
+				}
+			} else if (token.type == NOOML_TOKEN_EOF) {
+				is_empty = 1;
+			}
+
+			if (!is_empty) {
+				while (1) {
+					noomP_Node* expr = noomP_parseExpression(parser);
+					if (expr == 0) return 0;
+
+					noomP_addSubnode(ret, expr);
+
+					noomP_peek(parser, &token);
+
+					if (token.type == NOOML_TOKEN_SYMBOL && noom_streql(parser->code + token.offset, token.length, ",", 1)) {
+						noomP_skip(parser, &token);
+					} else {
+						break;
+					}
+				}
+			}
+
+			while (1) { // remove semis so we can check for ender after.
+				noomP_peek(parser, &token);
+
+				if (token.type == NOOML_TOKEN_SYMBOL && noom_streql(parser->code + token.offset, token.length, ";", 1)) {
+					noomP_skip(parser, &token);
+				} else {
+					break;
+				}
+			}
+
+			noomP_peek(parser, &token);
+			// now we have to make sure we he have an ender;
+			int is_done = 0;
+			if (token.type == NOOML_TOKEN_KEYWORD) {
+				if (noom_streql(parser->code + token.offset, token.length, "end", 3)) {
+					is_done = 1;
+				} else if (noom_streql(parser->code + token.offset, token.length, "elseif", 6)) {
+					is_done = 1;
+				} else if (noom_streql(parser->code + token.offset, token.length, "else", 4)) {
+					is_done = 1;
+				} else if (noom_streql(parser->code + token.offset, token.length, "until", 1)) {
+					is_done = 1;
+				}
+			} else if (token.type == NOOML_TOKEN_EOF) {
+				is_done = 1;
+			}
+
+			if (!is_done) return 0; //darn it
+
+			return ret;
 		}
 	}
 
