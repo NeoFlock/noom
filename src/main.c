@@ -33,7 +33,7 @@ void print_node(noomP_Node* node, noom_uint_t depth) {
 
 int main(int argc, char** argv) {
 	// uhh uhhh uhhhhh
-	const char* code = "function fact(n) if n == 0 then return 1 end return n*fact(n-1) end";
+	const char* code = "for k,v,a,b,c in 8,5,6,3,2,5 do end";
 	noom_uint_t pos = 0;
 
 	printf("LEX OUTPUT:\n");

@@ -13,6 +13,10 @@ const char *noomP_formatNodeType(noomP_NodeType node_type) {
 			return "if statement";
 		case NOOMP_NODE_WHILELOOP:
 			return "while loop";
+		case NOOMP_NODE_FORLOOP:
+			return "for loop";
+		case NOOMP_NODE_FORLOOPIN:
+			return "for loop (in)";
 		case NOOMP_NODE_BLOCK:
 			return "block";
 		case NOOMP_NODE_ATTRIBUTE:
@@ -1107,6 +1111,125 @@ noomP_Node* noomP_parseRawStatement(noomP_Parser* parser) {
 			if (!is_done) return 0; //darn it
 
 			return ret;
+		} else if (noom_streql(parser->code + token.offset, token.length, "for", 3)) {
+			// yay...
+			noomP_skip(parser, &token);
+
+			noomP_Node* forl = noomP_allocNode(parser);
+			if (forl == 0) return 0;
+
+			forl->type = NOOMP_NODE_FORLOOP; // might be changed to FORLOOPIN later.
+			forl->source_offset = token.offset;
+
+			noomP_peek(parser, &token);
+			if (token.type != NOOML_TOKEN_IDENTIFIER) return 0;
+			noom_uint_t vname = token.offset;
+			noomP_skip(parser, &token);
+
+			noomP_Node* name_node = noomP_allocNode(parser);
+			if (name_node == 0) return 0;
+
+			name_node->type = NOOMP_NODE_VARNAME;
+			name_node->source_offset = vname;
+
+			noomP_addSubnode(forl, name_node);
+
+			noomP_peek(parser, &token);
+
+			if (token.type == NOOML_TOKEN_SYMBOL && noom_streql(parser->code + token.offset, token.length, "=", 1)) {
+				noomP_skip(parser, &token);
+
+				// ehhh i'll do a stupid
+				noom_uint_t numc = 0;
+				while (1) {
+					noomP_Node* expr = noomP_parseExpression(parser);
+					if (expr == 0) return 0;
+
+					noomP_addSubnode(forl, expr);
+					numc++;
+
+					noomP_peek(parser, &token);
+
+					if (token.type == NOOML_TOKEN_SYMBOL && noom_streql(parser->code + token.offset, token.length, ",", 1)) {
+						noomP_skip(parser, &token);
+					} else {
+						break;
+					}
+				}
+
+				if (numc < 2 || numc > 3) return 0; // damn :(
+			} else {
+				forl->type = NOOMP_NODE_FORLOOPIN;
+			
+				if (token.type == NOOML_TOKEN_SYMBOL && noom_streql(parser->code + token.offset, token.length, ",", 1)) {
+					noomP_skip(parser, &token);
+
+					while (1) {
+						noomP_peek(parser, &token);
+						if (token.type != NOOML_TOKEN_IDENTIFIER) return 0;
+						noomP_skip(parser, &token);
+
+						noomP_Node* namemoment = noomP_allocNode(parser);
+						if (namemoment == 0) return 0;
+
+						namemoment->type = NOOMP_NODE_VARNAME;
+						namemoment->source_offset = token.offset;
+
+						noomP_addSubnode(forl, namemoment);
+
+						noomP_peek(parser, &token);
+
+						if (token.type == NOOML_TOKEN_SYMBOL && noom_streql(parser->code + token.offset, token.length, ",", 1)) {
+							noomP_skip(parser, &token);
+						} else {
+							break;
+						}
+					}
+				}
+
+				// okay. that took a while. now for the in and the expressions
+				noomP_peek(parser, &token);
+				if (token.type != NOOML_TOKEN_KEYWORD || !noom_streql(parser->code + token.offset, token.length, "in", 2)) {
+					return 0;
+				}
+				noomP_skip(parser, &token);
+
+				// exprlist time
+				while (1) {
+					noomP_Node* expr = noomP_parseExpression(parser);
+					if (expr == 0) return 0;
+
+					noomP_addSubnode(forl, expr);
+
+					noomP_peek(parser, &token);
+
+					if (token.type == NOOML_TOKEN_SYMBOL && noom_streql(parser->code + token.offset, token.length, ",", 1)) {
+						noomP_skip(parser, &token);
+					} else {
+						break;
+					}
+				}
+			}
+
+			// making this the same for all of them: do [block] end
+			noomP_peek(parser, &token);
+			if (token.type != NOOML_TOKEN_KEYWORD || !noom_streql(parser->code + token.offset, token.length, "do", 2)) {
+				return 0;
+			}
+			noomP_skip(parser, &token);
+
+			noomP_Node* block = noomP_parseBlock(parser);
+			if (block == 0) return 0;
+
+			noomP_addSubnode(forl, block);
+
+			noomP_peek(parser, &token);
+			if (token.type != NOOML_TOKEN_KEYWORD || !noom_streql(parser->code + token.offset, token.length, "end", 3)) {
+				return 0;
+			}
+			noomP_skip(parser, &token);
+			
+			return forl;
 		}
 	}
 
