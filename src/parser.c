@@ -17,6 +17,8 @@ const char *noomP_formatNodeType(noomP_NodeType node_type) {
 			return "for loop";
 		case NOOMP_NODE_FORLOOPIN:
 			return "for loop (in)";
+		case NOOMP_NODE_REPEAT:
+			return "repeat loop";
 		case NOOMP_NODE_BLOCK:
 			return "block";
 		case NOOMP_NODE_ATTRIBUTE:
@@ -644,7 +646,7 @@ noomP_Node* noomP_parseFunctionParameters(noomP_Parser* parser) {
 	return params;
 }
 
-noomP_Node* noomP_parseBlock(noomP_Parser* parser) { // stops on end, else or elseif.
+noomP_Node* noomP_parseBlock(noomP_Parser* parser) { // stops on end, else or elseif OR UNTIL.
 	// block starter has been eaten already; we just go until ending keyword
 	noomP_Node* node = noomP_allocNode(parser);
 	if (node == 0) return 0; // OOM :(
@@ -1234,7 +1236,7 @@ noomP_Node* noomP_parseRawStatement(noomP_Parser* parser) {
 			noomP_skip(parser, &token);
 			
 			return forl;
-		} else if (noom_streql(parser->code + token.offset, token.length, "goto", 4)) {
+		} else if (noom_streql(parser->code + token.offset, token.length, "goto", 4)) { // this keyword can't exist if not on the right version
 			noomP_skip(parser, &token);
 
 			noomP_Node* thing = noomP_allocNode(parser);
@@ -1256,9 +1258,36 @@ noomP_Node* noomP_parseRawStatement(noomP_Parser* parser) {
 			noomP_addSubnode(thing, name);
 
 			return thing;
+		} else if (noom_streql(parser->code + token.offset, token.length, "repeat", 6)) {
+			noomP_skip(parser, &token);
+
+			noomP_Node* repeat = noomP_allocNode(parser);
+			if (repeat == 0) return 0;
+
+			repeat->type = NOOMP_NODE_REPEAT;
+			repeat->source_offset = token.offset;
+
+			noomP_Node* block = noomP_parseBlock(parser);
+			if (block == 0) return 0;
+
+			noomP_addSubnode(repeat, block);
+
+			noomP_peek(parser, &token);
+			if (token.type != NOOML_TOKEN_KEYWORD || !noom_streql(parser->code + token.offset, token.length, "until", 5)) {
+				return 0;
+			}
+			noomP_skip(parser, &token);
+
+			// condition
+			noomP_Node* condition = noomP_parseExpression(parser);
+			if (condition == 0) return 0;
+
+			noomP_addSubnode(repeat, condition);
+
+			return repeat;
 		}
 	} else if (token.type == NOOML_TOKEN_SYMBOL) {
-		if (noom_streql(parser->code + token.offset, token.length, "::", 2)) {
+		if (noom_streql(parser->code + token.offset, token.length, "::", 2)) { // symbol doesn't exist on wrong versions
 			noomP_skip(parser, &token);
 
 			noomP_Node* thing = noomP_allocNode(parser);
