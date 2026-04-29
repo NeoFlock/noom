@@ -39,6 +39,9 @@ typedef enum noomP_NodeType {
 
 	NOOMP_NODE_RETURN,
 
+	NOOMP_NODE_GOTO,
+	NOOMP_NODE_LABEL,
+
 	NOOMP_NODE_FIELDNAME,
 	NOOMP_NODE_METHODNAME, // only used in function decl as of right now.
 

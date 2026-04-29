@@ -33,7 +33,7 @@ void print_node(noomP_Node* node, noom_uint_t depth) {
 
 int main(int argc, char** argv) {
 	// uhh uhhh uhhhhh
-	const char* code = "for k,v,a,b,c in 8,5,6,3,2,5 do end";
+	const char* code = "::lol:: print('hi') goto lol";
 	noom_uint_t pos = 0;
 
 	printf("LEX OUTPUT:\n");

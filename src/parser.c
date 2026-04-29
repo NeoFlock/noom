@@ -57,6 +57,10 @@ const char *noomP_formatNodeType(noomP_NodeType node_type) {
 			return "function name";
 		case NOOMP_NODE_RETURN:
 			return "return";
+		case NOOMP_NODE_GOTO:
+			return "goto";
+		case NOOMP_NODE_LABEL:
+			return "label";
 		case NOOMP_NODE_FIELDNAME:
 			return "field name";
 		case NOOMP_NODE_METHODNAME:
@@ -1230,6 +1234,58 @@ noomP_Node* noomP_parseRawStatement(noomP_Parser* parser) {
 			noomP_skip(parser, &token);
 			
 			return forl;
+		} else if (noom_streql(parser->code + token.offset, token.length, "goto", 4)) {
+			noomP_skip(parser, &token);
+
+			noomP_Node* thing = noomP_allocNode(parser);
+			if (thing == 0) return 0;
+
+			thing->type = NOOMP_NODE_GOTO;
+			thing->source_offset = token.offset;
+			
+			noomP_peek(parser, &token);
+			if (token.type != NOOML_TOKEN_IDENTIFIER) return 0;
+			noomP_skip(parser, &token);
+
+			noomP_Node* name = noomP_allocNode(parser);
+			if (name == 0) return 0;
+
+			name->type = NOOMP_NODE_VARNAME; // eh good enough
+			name->source_offset = token.offset;
+
+			noomP_addSubnode(thing, name);
+
+			return thing;
+		}
+	} else if (token.type == NOOML_TOKEN_SYMBOL) {
+		if (noom_streql(parser->code + token.offset, token.length, "::", 2)) {
+			noomP_skip(parser, &token);
+
+			noomP_Node* thing = noomP_allocNode(parser);
+			if (thing == 0) return 0;
+
+			thing->type = NOOMP_NODE_LABEL;
+			thing->source_offset = token.offset;
+			
+			noomP_peek(parser, &token);
+			if (token.type != NOOML_TOKEN_IDENTIFIER) return 0;
+			noomP_skip(parser, &token);
+
+			noomP_Node* name = noomP_allocNode(parser);
+			if (name == 0) return 0;
+
+			name->type = NOOMP_NODE_VARNAME; // eh good enough
+			name->source_offset = token.offset;
+
+			noomP_addSubnode(thing, name);
+
+			noomP_peek(parser, &token);
+			if (token.type != NOOML_TOKEN_SYMBOL || !noom_streql(parser->code + token.offset, token.length, "::", 2)) {
+				return 0;
+			}
+			noomP_skip(parser, &token);
+
+			return thing;
 		}
 	}
 
