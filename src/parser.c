@@ -37,6 +37,8 @@ const char *noomP_formatNodeType(noomP_NodeType node_type) {
 			return "nil literal";
 		case NOOMP_NODE_STRINGLITERAL:
 			return "string literal";
+		case NOOMP_NODE_VARARGLITERAL:
+			return "vararg literal";
 		case NOOMP_NODE_TABLELITERAL:
 			return "table literal";
 		case NOOMP_NODE_TABLEENTRY:
@@ -597,6 +599,16 @@ noomP_Node* noomP_parseRawExpression(noomP_Parser* parser) {
 			if (table == 0) return 0;
 
 			return table;
+		} else if (noom_streql(parser->code + token.offset, token.length, "...", 3)) {
+			noomP_skip(parser, &token);
+
+			noomP_Node* new = noomP_allocNode(parser);
+			if (new == 0) return 0;
+
+			new->type = NOOMP_NODE_VARARGLITERAL;
+			new->source_offset = token.offset;
+
+			return new;
 		}
 	}
 
