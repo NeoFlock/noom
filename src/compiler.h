@@ -44,7 +44,9 @@ typedef enum noomC_InstrType : unsigned char {
 	NOOMC_INSTR_SET,
 	NOOMC_INSTR_SETI,
 
+#ifdef NOOM_USE_NFT
 	NOOMC_INSTR_LOAD_NFT,
+#endif
 
 	NOOMC_INSTR_NOP2 = 0xff,
 } noomC_InstrType;

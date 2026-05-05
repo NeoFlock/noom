@@ -1,4 +1,4 @@
-#define NOOM_USE_NFT 0
+// #define NOOM_USE_NFT
 
 typedef enum noom_LuaVersion {
 	// no 5.0, at least for now, cause it doesn't seem to be used much and is a bit *weird*
