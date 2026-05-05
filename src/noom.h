@@ -1,5 +1,8 @@
 // #define NOOM_USE_NFT
 
+#ifndef NOOM_H
+#define NOOM_H
+
 typedef enum noom_LuaVersion {
 	// no 5.0, at least for now, cause it doesn't seem to be used much and is a bit *weird*
 	NOOM_VERSION_51,
@@ -9,4 +12,37 @@ typedef enum noom_LuaVersion {
 	// no you don't get 5.5; if someone wants to do it and maintain it, they can, i'm not gonna.
 } noom_LuaVersion;
 
+typedef enum noom_LuaType {
+	NOOM_LUA_TNIL,
+	NOOM_LUA_TBOOL,
+	NOOM_LUA_TNUM,
+	NOOM_LUA_TSTR,
+	NOOM_LUA_TTABLE,
+	NOOM_LUA_TFUNCTION,
+	NOOM_LUA_TTHREAD,
+	NOOM_LUA_TUSERDATA,
+} noom_LuaType;
 
+typedef enum noom_Exit {
+	NOOM_OK = 0,
+	NOOM_YIELD,
+	// out of memory
+	NOOM_ENOMEM,
+	// runtime error
+	NOOM_ERUNTIME,
+	// stack overflow
+	NOOM_ENOSTACK,
+	// I/O error
+	NOOM_EIO,
+	// buffer overflow
+	NOOM_ELIMIT,
+	// error in error handler
+	NOOM_EERROR,
+} noom_Exit;
+
+typedef struct noom_LuaVM noom_LuaVM;
+
+typedef noom_Exit noom_CFunction(noom_LuaVM *vm);
+typedef noom_Exit noom_KFunction(noom_LuaVM *vm, noom_Exit status, void *ctx);
+
+#endif

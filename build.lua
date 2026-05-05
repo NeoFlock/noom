@@ -2,6 +2,8 @@
 
 -- TODO: script the build
 
+local isBlendi = os.getenv("USER") == "blendi"
+
 local function filename(path)
 	local s,e = 1, #path
 	for i = 1,#path do
@@ -29,14 +31,17 @@ local files = {
 }
 
 local objects = {}
+	
+local coolArgs = {}
+if not isBlendi then table.insert(coolArgs, '-fsanitize=undefined,address') end
 
 for i = 1,#files do
 	local fname = files[i]
 	local out = "build/" .. filename(fname) .. '.o'
 
-	runCommand('clang -c -o ' .. out .. ' ' .. fname)
+	runCommand('clang -c -o ' .. out .. ' ' .. fname .. ' ' .. table.concat(coolArgs, ' '))
 
 	objects[#objects+1] = out;
 end
 
-runCommand('clang -o noom ' .. table.concat(objects, ' '))
+runCommand('clang -o noom ' .. table.concat(objects, ' ') .. ' ' .. table.concat(coolArgs, ' '))
