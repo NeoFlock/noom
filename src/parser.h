@@ -68,6 +68,18 @@ typedef enum noomP_NodeType {
 	NOOMP_NODE_NCOUNT,
 } noomP_NodeType;
 
+typedef enum noomP_Error {
+	NOOMP_ERROR_NONE = 0,
+	NOOMP_ERROR_OOM,
+	
+	NOOMP_ERROR_UNEXPECTED, // TODO: maybe split into multiple for better errors?
+	NOOMP_ERROR_FAKEATTRIBUTE,
+	NOOMP_ERROR_RETURN_NOT_END,
+	NOOMP_ERROR_FOR_WRONG_AMOUNT,
+
+	NOOMP_ERROR_LEXER = 1 << 31, // bitwise or'd with the lexer error number
+} noomP_Error;
+
 typedef struct noomP_Node {
 	noomP_NodeType type;
 
@@ -86,6 +98,8 @@ typedef struct noomP_Parser { // todo: track location in code with line/column?
 	const char* code;
 	const char* filename;
 	noom_uint_t lex_offset;
+
+	noom_uint_t error_state;
 
 	noomP_Node* last_node;
 } noomP_Parser;

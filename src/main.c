@@ -66,7 +66,8 @@ int main(int argc, char** argv) {
 
 	while (last_node) {
 		noomP_Node* next = last_node->previous_node;
-		noom_free(last_node->subnodes);
+		// subnodes could be null if we OOM'd during a realloc of it
+		if (last_node->subnodes) noom_free(last_node->subnodes);
 		noom_free(last_node);
 		last_node = next;
 	}
