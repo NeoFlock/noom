@@ -270,6 +270,8 @@ noomP_Node* noomP_parseTableLiteral(noomP_Parser* parser) {
 		if (noomP_peek(parser, &token)) return 0;
 		if (token.type == NOOML_TOKEN_SYMBOL && noom_streql(parser->code + token.offset, token.length, ",", 1)) {
 			noomP_skip(parser, &token);
+		} else if (token.type == NOOML_TOKEN_SYMBOL && noom_streql(parser->code + token.offset, token.length, ";", 1)) {
+			noomP_skip(parser, &token);
 		} else {
 			break;
 		}
