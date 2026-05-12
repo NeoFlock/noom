@@ -1,69 +1,5 @@
 #include "types.h"
 
-typedef enum noomC_InstrType : unsigned char {
-	NOOMC_INSTR_NOP = 0,
-	NOOMC_INSTR_LOADC,
-	NOOMC_INSTR_LOAD_NIL,
-	NOOMC_INSTR_LOAD_TRUE,
-	NOOMC_INSTR_LOAD_FALSE,
-	NOOMC_INSTR_COPY,
-	
-	NOOMC_INSTR_JMP,
-	NOOMC_INSTR_JC,
-
-
-	NOOMC_INSTR_ADD,
-	NOOMC_INSTR_SUB,
-	NOOMC_INSTR_NEG,
-	NOOMC_INSTR_MUL,
-	NOOMC_INSTR_DIV,
-	NOOMC_INSTR_MOD,
-	NOOMC_INSTR_FLOOR_DIV,
-	NOOMC_INSTR_POW,
-
-	NOOMC_INSTR_EQ,
-	NOOMC_INSTR_NEQ,
-	NOOMC_INSTR_LT,
-	NOOMC_INSTR_LTE,
-	NOOMC_INSTR_GT,
-	NOOMC_INSTR_GTE,
-
-	NOOMC_INSTR_NOT,
-
-	NOOMC_INSTR_BAND,
-	NOOMC_INSTR_BOR,
-	NOOMC_INSTR_BXOR,
-	NOOMC_INSTR_BNOT,
-	NOOMC_INSTR_LSHIFT,
-	NOOMC_INSTR_RSHIFT,
-	
-	NOOMC_INSTR_CONCAT,
-	NOOMC_INSTR_LEN,
-	NOOMC_INSTR_GET,
-	NOOMC_INSTR_GETI,
-	NOOMC_INSTR_SET,
-	NOOMC_INSTR_SETI,
-
-#ifdef NOOM_USE_NFT
-	NOOMC_INSTR_LOAD_NFT,
-#endif
-
-	NOOMC_INSTR_NOP2 = 0xff,
-} noomC_InstrType;
-
-typedef struct noomC_Instr {
-	noomC_InstrType type;
-	unsigned char a;
-	union {
-		struct {
-			unsigned char b;
-			unsigned char c;
-		};
-		unsigned short u;
-		short s;
-	};
-} noomC_Instr;
-
 typedef enum noomC_ImmType {
 	NOOMC_IMM_INT,
 	NOOMC_IMM_FLOAT,
@@ -140,12 +76,3 @@ typedef struct noomC_Imm {
 //          ░░                                                                                        	
 	};
 } noomC_Imm;
-
-typedef struct noomC_Function {
-	noomC_Imm *immediates;
-	noomC_Instr *instructions;
-} noomC_Function;
-
-typedef struct noomC_Module {
-	noomC_Function *functions;
-} noomC_Module;

@@ -61,20 +61,66 @@ typedef struct noomV_Pointer {
 } noomV_Pointer;
 
 typedef enum noomV_Opcode : unsigned char {
-	NOOMV_NOP,
-	// TODO: rest of ops
+	NOOMV_INSTR_NOP = 0,
+	NOOMV_INSTR_LOADC,
+	NOOMV_INSTR_LOAD_NIL,
+	NOOMV_INSTR_LOAD_TRUE,
+	NOOMV_INSTR_LOAD_FALSE,
+	NOOMV_INSTR_COPY,
+	
+	NOOMV_INSTR_JMP,
+	NOOMV_INSTR_JC,
+
+
+	NOOMV_INSTR_ADD,
+	NOOMV_INSTR_SUB,
+	NOOMV_INSTR_NEG,
+	NOOMV_INSTR_MUL,
+	NOOMV_INSTR_DIV,
+	NOOMV_INSTR_MOD,
+	NOOMV_INSTR_FLOOR_DIV,
+	NOOMV_INSTR_POW,
+
+	NOOMV_INSTR_EQ,
+	NOOMV_INSTR_NEQ,
+	NOOMV_INSTR_LT,
+	NOOMV_INSTR_LTE,
+	NOOMV_INSTR_GT,
+	NOOMV_INSTR_GTE,
+
+	NOOMV_INSTR_NOT,
+
+	NOOMV_INSTR_BAND,
+	NOOMV_INSTR_BOR,
+	NOOMV_INSTR_BXOR,
+	NOOMV_INSTR_BNOT,
+	NOOMV_INSTR_LSHIFT,
+	NOOMV_INSTR_RSHIFT,
+	
+	NOOMV_INSTR_CONCAT,
+	NOOMV_INSTR_LEN,
+	NOOMV_INSTR_GET,
+	NOOMV_INSTR_GETI,
+	NOOMV_INSTR_SET,
+	NOOMV_INSTR_SETI,
+
+#ifdef NOOM_USE_NFT
+	NOOMV_INSTR_LOAD_NFT,
+#endif
+
+	NOOMV_INSTR_NOP2 = 0xff,
 } noomV_Opcode;
 
 typedef struct noomV_Inst {
 	noomV_Opcode op;
-	unsigned char A;
+	unsigned char a;
 	union {
 		struct {
-			unsigned char B;
-			unsigned char C;
+			unsigned char b;
+			unsigned char c;
 		};
-		short sD;
-		unsigned short uD;
+		short ss;
+		unsigned short us;
 	};
 } noomV_Inst;
 
