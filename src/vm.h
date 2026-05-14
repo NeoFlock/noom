@@ -2,6 +2,15 @@
 #define NOOM_VM
 
 #include "types.h"
+#include "noom.h"
+
+#ifndef NOOM_MAXSTACK
+#define NOOM_MAXSTACK 4096
+#endif
+
+#ifndef NOOM_MAXCALL
+#define NOOM_MAXCALL (NOOM_MAXSTACK/32)
+#endif
 
 // Defines values, threads, bullshit, idc
 
@@ -21,7 +30,7 @@ typedef struct noomV_Object {
 	struct noomV_Object *nextGray;
 } noomV_Object;
 
-typedef enum noomV_ValueTag {
+typedef enum noomV_ValueTag : unsigned char {
 	NOOMV_VNIL,
 	NOOMV_VBOOL,
 	NOOMV_VINT,
@@ -33,6 +42,10 @@ typedef enum noomV_ValueTag {
 
 typedef struct noomV_Value {
 	noomV_ValueTag tag;
+	// for stack slots
+	bool autoclose;
+	// pointer to value
+	bool isptr;
 	union {
 		noom_bool_t boolean;
 		noom_int_t integer;
@@ -52,6 +65,7 @@ typedef struct noomV_Table {
 	noomV_Object obj;
 	struct noomV_Table *meta;
 	noom_uint_t entries;
+	noom_uint_t len;
 	noomV_Value *entrydata;
 } noomV_Table;
 
@@ -62,51 +76,76 @@ typedef struct noomV_Pointer {
 
 typedef enum noomV_Opcode : unsigned char {
 	NOOMV_INSTR_NOP = 0,
+	// A = consts[uD]
 	NOOMV_INSTR_LOADC,
-	NOOMV_INSTR_LOAD_NIL,
-	NOOMV_INSTR_LOAD_TRUE,
-	NOOMV_INSTR_LOAD_FALSE,
+	// load from A an array of uD nils
+	NOOMV_INSTR_LOAD_NILARR,
+	// load from A an array of uD/2 booleans, stored in uD&1
+	NOOMV_INSTR_LOAD_BOOLARR,
+	// A = B
 	NOOMV_INSTR_COPY,
-	
+
+	// pc = uD
 	NOOMV_INSTR_JMP,
+	// if(A) pc = uD
 	NOOMV_INSTR_JC,
+	// if(not A) pc = uD
+	NOOMV_INSTR_JNC,
 
-
+	// A = B + C
 	NOOMV_INSTR_ADD,
+	// A = B - C
 	NOOMV_INSTR_SUB,
+	// A = -B
 	NOOMV_INSTR_NEG,
+	// A = B * C
 	NOOMV_INSTR_MUL,
+	// A = B / C
 	NOOMV_INSTR_DIV,
+	// A = B % C
 	NOOMV_INSTR_MOD,
+	// A = B // C
 	NOOMV_INSTR_FLOOR_DIV,
+	// A = B ^ C
 	NOOMV_INSTR_POW,
 
+	// A = B == C
 	NOOMV_INSTR_EQ,
+	// A = B ~= C
 	NOOMV_INSTR_NEQ,
+	// A = B < C
 	NOOMV_INSTR_LT,
+	// A = B <= C
 	NOOMV_INSTR_LTE,
+	// A = B > C
 	NOOMV_INSTR_GT,
+	// A = B >= C
 	NOOMV_INSTR_GTE,
 
+	// A = not B
 	NOOMV_INSTR_NOT,
 
+	// A = B & C
 	NOOMV_INSTR_BAND,
+	// A = B | C
 	NOOMV_INSTR_BOR,
+	// A = B ~ C
 	NOOMV_INSTR_BXOR,
+	// A = ~B
 	NOOMV_INSTR_BNOT,
+	// A = B << C
 	NOOMV_INSTR_LSHIFT,
+	// A = B >> C
 	NOOMV_INSTR_RSHIFT,
-	
-	NOOMV_INSTR_CONCAT,
-	NOOMV_INSTR_LEN,
-	NOOMV_INSTR_GET,
-	NOOMV_INSTR_GETI,
-	NOOMV_INSTR_SET,
-	NOOMV_INSTR_SETI,
 
-#ifdef NOOM_USE_NFT
-	NOOMV_INSTR_LOAD_NFT,
-#endif
+	// A = B .. C
+	NOOMV_INSTR_CONCAT,
+	// A = #B
+	NOOMV_INSTR_LEN,
+	// A = B[C]
+	NOOMV_INSTR_GET,
+	// A[B] = C
+	NOOMV_INSTR_SET,
 
 	NOOMV_INSTR_NOP2 = 0xff,
 } noomV_Opcode;
@@ -151,12 +190,109 @@ typedef struct noomV_Function {
 	unsigned int codesize;
 	unsigned int linedefined;
 	unsigned int lastlinedefined;
+	// very size limited
+	//       ░░░░░░░░░                                                         ░ ▒░░▒    ▒░   ░░  ░       
+	//       ░░░░░░░░░                                                         █░█░▓▓   ░█▒████▒░ █░░████▓
+	//       ░░░░░░░░░                                                        ▓████████░█░▒████▓░████  ░█░
+	//       ░░░░░░░░░           ░░░                                         ░█▓░█▒█░█░▒▒█▓████▒ ░█▒█ ░█░░
+	//       ░░░░░░░░░         ░░░░░                                         ░█▓▓███▒█  ▓▓▒▒▒▓▓▒ ▒█▒█▓██▓▓
+	//       ░░░░░░░░░           ░░                                          ░▓▓███▓█▒░░█▒▓█▓██▓ ▒▓█▓▓▓█▒▒
+	//       ░░░░░░░░░░          ░░                                           ▒▓█░█▒█░ ░▓▓██████░░██░░▒█  
+	//       ░░░░░░░░░░    ░░░░  ░░                                           ▓▓█▒█▓█▒░ ▒▒▒█▒░█░  ███░░█  
+	//       ░░░░░░░░░░          ░░                                           ▓▒▓███░█▒ ▒░░░▓▓█░░██░▓▒██  
+	//       ░░░░░░░░░░          ░░        ░                                  ░░  ░░ ░░ ░░   ▒░ ░░░  ░░   
+	//       ░░░░░░░░░░  ░       ░░░       ░                                    ░ ░                  ░    
+	//       ░░░░░░░░░░    ░░░░  ░░        ░                                                              
+	// ░     ░░░░░░░░░     ░░░░                      ░         ░  ░         ░░     ░░░   ░░░ ░    ░░      
+	//       ░░░░░░░░░        ░             █████  ▒████  ░▓███▓░ ░████░ ░████▓  ░████░ ░▓███▓  ░████░    
+	//░░     ░░░░░░░░░                      █▓▒██░░██▓██▒░░██▒██░░██▒▓██░▒██▒██  ██▓▓██ ░██▒██░ ██▒▓██    
+	//░░    ░░░░░░░░░░                         ██░▒█▓ ░██░██▒ ▒█▒░██ ░██ ██░ ▓█▒░██ ░██░██░ ▓█▒░██  ██░   
+	//     ░░░░░░░░░░░                      ░▓███░▒█▓  ██░██░ ▒██▒██ ░██░██  ▒█▒░██ ░██░██░ ▒█▓▒█▓ ░██░   
+	//      ░░░░░░░░░░        ░     ░▒███░  ▓████░▓█▒ ░██░██░ ▒██▒█▓ ░██░██ ░▒█▒░██ ░██░██░ ░██▒█▓ ░██░░  
+	//       ░░░░░░░░░     ░░ ░              ░░██▓▓█▓░░██ ██░ ▒█▓▒█▓  ██░██░ ▒█▒░██ ░██░██░ ░██▒█▓ ░██░░  
+	//      ░░░░░░░░░░   ░░░░               ░ ░███▒██ ░██ ██▒ ▓█▒▒██ ░██░██░ ██░░██░░██ ██▒ ▓█░░██ ░██    
+	//       ░░░░░░░░░   ░░░               ░█████▒░█████▒▒▓█████ ░█████▒ ▒█████▓██████▓ ▒██▓██░ █████▒    
+	//       ░░░░░░░░░   ░░                ░████▒ ░░███▒░█▒▒███░  ░███▓   ▓███░▓█░███▓░  ▒███░  ░███▒     
+	//       ░░░░░░░░░░                                 ░█░    ░   ░           ▒▒          ░              
+	//       ░░░░░░░░░                                   ░                                           ░    
+	//       ░░░░░░░░░   ░░░░                                                                             
+	//       ░░░░░░░░░   ░░░░░                     ░░                 ░          ░                 ░    ░ 
+	//       ░░░░░░░░░   ░░   ░░▒░░               ░▓▒       ░█▓       ░                            ░    ░ 
+	//       ░░░░░░░░░   ░░  ▒█████░              ░██       ░██     ░                               ░     
+	//      ░░░░░░░░░░░░░    ██▒▒███   ░░   ░ ░ ░░ ░░       ░██                                           
+	//   ░  ░░░░░░░░░░░░░░░  ██░ ░▓▓ ░████  ░████░░█▓ ▒███▓░░██                                           
+	//  ░░░░░░░░░░░░░░░░░░░░░▓███░░ ░██████░██▓██▓▒██░██▓██▒▒██░                                          
+	// ░░░░░░░░░░░░░░░░░░░░   ░████░░█▓  ██░██  ▓▓░██ ░░▒██▓▒██░     ░                                    
+	// ░░░░░░░░░░░░░░░░░░░   ░░░░███▒█▓  ██▒██   ░░██░█████▓▒██░    ░░         ░                          
+	//  ░░░░░░░░░░░░░░░░░░  ░██▒ ░██▒██░░██░██ ░█▓░██░██░▓█▓░██░    ░          ██▓████████▓▒██▒           
+	//   ░░░░░░░░░░░░░░░░░  ░██████▓ █████▓ █████▓▒██░█████▓░██░    ░          ░░░███████████▓█▓          
+	//    ░░░░░░░░░░░░░░░░░░ ░▓███▒  ░███▒  ░▓██▓ ░█▓ ▒██▓█▓░██░                 ░████████████▓█░         
+	//    ░░░░░░░░░░░░░░░░░  ░                             ░                        ░█████████▓██         
+	//    ░░░░░░░░░░░░░░ ░░                                                           ▒███████▓█▓         
+	//   ░ ░░░░░░░░░░░░░░   ░░░░                                                      ██▓██▓▓▓███   ░     
+	//   ░░░░░░░░░░░░░░░     ░░           ░                                          ░███████████         
+	//     ░░░░░░░░░░░░    ░░                        ░                               ████████████    ▒    
+	//     ░░░░░░░░░░░░       ░░▒▒░░         ░      ░██░▓█░                    ░   ░░████ ▒██████    █    
+	//      ░░░░░░░░░░░       ▓█████░               ░██ ██░░█▓░                     ▓████  ▓█████   ░█  ▒▒
+	//      ░░░░░░░░░░░      ▒██░░██▒░░░░░ ░░░░░ ░░░░██  ░░░██░                     █████  ▒█████   ▒█ ▒█░
+	//    ░░░░░░░░░░░░░      ██▒  ░█▓░████░████░ ░█████ ██▒████                     █████  ▓████▒   ████░ 
+	//    ░░░░░░░░░░░░       ██░     ▒███▓██▓▓██ ██▒▒██ ██░▒██░                     ████▒  █████ ▒████████
+	//      ░░░░░░░░░░       ██░  ░  ▒██░ ██▒▒██░██ ░██ ██ ░██░                    ░████  ░█████   ▓██▓▒░░
+	//      ░░░░░░░░░░       ██▒  ░▒░▒██ ░██████▒██ ░██░██░░██                     ▒███▒  █████▒          
+	//   ░   ░░░░░░░░░       ▓█▓░ ▓█▓▒██ ░██░ ░░░██ ░██ ██░░██░                    ░███░░░█████           
+	//       ░░░░░░░░░        ██████ ▒█▓  ▓█████ ██████ ██░░███░                   ░██▒  █████▒           
+	//       ░░░░░░░░░        ░▓███░░░█▓ ░░▒███░░░██▓█▓ ▓█░ ▒█▓░                    ▓▓  ░█████            
+	//       ░░░░░░░░░         ░░░░          ░░         ░░ ░ ░                      ▓▒  ▓████░            
+	//       ░░░░░░░░            ░░          ░░      ░                              ▒▓  ████▒             
+	//       ░ ░░░░░ ░                 ░                                             ▒░▓███▒              
+	//         ░░░░             ░                                                    ░▓▓██                
+	//          ░░░                                                                                       
+	//          ░░░                                                                                       
+	//          ░░                                                                                        	
 	unsigned char argc;
 	unsigned char flags;
-	unsigned char constsize;
+	unsigned short constsize;
 	unsigned char protosize;
 	unsigned char upvalsize;
 	unsigned char localsize;
 } noomV_Function;
+
+typedef struct noomV_CallFrame {
+	// stack index of function
+	unsigned int funcIdx;
+	bool isC;
+	union {
+		struct {
+			// 
+			unsigned int pc;
+			// amount of varargs
+			unsigned int varargc;
+		} lua;
+		struct {
+			noom_KFunction *resumeFunc;
+			void *resumeCtx;
+		} c;
+	};
+} noomV_CallFrame;
+
+typedef struct noomV_Thread {
+	noomV_Object obj;
+	unsigned int stacklen, calldepth;
+	unsigned int stackcap, callcap;
+	// can have pointers!
+	noomV_Value *stack;
+	noomV_CallFrame *calls;
+	struct noomV_Thread *resumedBy;
+	struct noomV_Thread *resuming;
+} noomV_Thread;
+
+struct noom_LuaVM {
+	noomV_Object *heap;
+	noomV_Object *graySet;
+	noomV_Table *globals;
+	noomV_Table *registry;
+	noomV_Thread *mainThread;
+	noomV_Thread *currentThread;
+};
 
 #endif
