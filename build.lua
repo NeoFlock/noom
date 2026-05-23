@@ -1,7 +1,7 @@
 -- i love build scripts i love build scripts i love build scripts scripts build love i script build love me i love script build i script love build
 
 local isBlendi = os.getenv("USER") == "blendi"
-local seperator = package.config:sub(1,1)
+local separator = package.config:sub(1,1)
 
 local function filename(path)
 	local s,e = 1, #path
@@ -22,19 +22,17 @@ local function fixPath(path)
 	local new = ""
 	for i = 1,#path do
 		local ch = path:sub(i,i)
-		if ch == '/' then new = new .. seperator
+		if ch == '/' then new = new .. separator
 		else new = new .. ch end
 	end
 	return new
 end
 
-if seperator == '\\' then
-	runCommand('rmdir /S /Q build')
+if separator == '\\' then
+	runCommand('mkdir build 2>nul')
 else
-	runCommand('rm -rf build')
+	runCommand('mkdir -p build')
 end
-
-runCommand('mkdir build')
 
 local files = {
 	'src/helper.c',
@@ -47,7 +45,24 @@ local files = {
 local objects = {}
 
 local coolArgs = {}
+
+local function getTime(path)
+	local handle = io.popen('stat -c %Y "' .. path .. '" 2>/dev/null')
+	local result = handle:read("*a")
+	handle:close()
+	return tonumber(result) or 0
+end
+
+local function needsRebuild(src, obj)
+	if separator == '\\' then return true end
+	local srcTime = getTime(src)
+	local objTime = getTime(obj)
+	return srcTime > objTime
+end
+
 if not isBlendi then table.insert(coolArgs, '-fsanitize=undefined,address') end
+
+local needsLinking = false
 
 for i = 1,#files do
 	local fname = files[i]
@@ -56,11 +71,16 @@ for i = 1,#files do
 	fname = fixPath(fname)
 	out = fixPath(out)
 
-	runCommand('clang -c -o ' .. out .. ' ' .. fname .. ' ' .. table.concat(coolArgs, ' '))
+	if needsRebuild(fname, out) then
+		needsLinking = true
+		runCommand('clang -c -o ' .. out .. ' ' .. fname .. ' ' .. table.concat(coolArgs, ' '))
+	end
 
 	objects[#objects+1] = out;
 end
 
-local exe = seperator == '\\' and "noom.exe" or "noom"
+local exe = separator == '\\' and "noom.exe" or "noom"
 
-runCommand('clang -o ' .. exe .. ' ' .. table.concat(objects, ' ') .. ' ' .. table.concat(coolArgs, ' '))
+if needsLinking then
+	runCommand('clang -o ' .. exe .. ' ' .. table.concat(objects, ' ') .. ' ' .. table.concat(coolArgs, ' '))
+end
