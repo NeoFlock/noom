@@ -1,5 +1,5 @@
+#!/usr/bin/env lua
 -- i love build scripts i love build scripts i love build scripts scripts build love i script build love me i love script build i script love build
-
 local isBlendi = os.getenv("USER") == "blendi"
 local separator = package.config:sub(1,1)
 
@@ -28,10 +28,33 @@ local function fixPath(path)
 	return new
 end
 
+if arg[1] == "clean" then
+	if separator == '\\' then
+		runCommand("rmdir /s /q build 2>nul")
+	else
+		runCommand("rm -r build")
+	end
+	return
+end
+
+local needsDir = false
+
 if separator == '\\' then
-	runCommand('mkdir build 2>nul')
+	needsDir = true
 else
-	runCommand('mkdir -p build')
+	-- My favorite coreutil is /usr/bin/[
+	local handle = io.popen('[ -d "build" ] && echo 1')
+	local result = handle:read("*a")
+	handle:close()
+	needsDir = result:match("1") ~= nil
+end
+
+if not needsDir then
+	if separator == '\\' then
+		runCommand('mkdir build 2>nul')
+	else
+		runCommand('mkdir -p build')
+	end
 end
 
 local files = {
@@ -73,14 +96,18 @@ for i = 1,#files do
 
 	if needsRebuild(fname, out) then
 		needsLinking = true
-		runCommand('clang -c -g -o ' .. out .. ' ' .. fname .. ' ' .. table.concat(coolArgs, ' '))
+		runCommand('clang -g -c -o ' .. out .. ' ' .. fname .. ' ' .. table.concat(coolArgs, ' '))
 	end
 
 	objects[#objects+1] = out;
 end
 
-local exe = separator == '\\' and "noom.exe" or "noom"
+local exe = separator == '\\' and ".\\noom.exe" or "./noom"
 
 if needsLinking then
 	runCommand('clang -g -o ' .. exe .. ' ' .. table.concat(objects, ' ') .. ' ' .. table.concat(coolArgs, ' '))
+end
+
+if arg[1] == "run" then
+	runCommand(exe)
 end
