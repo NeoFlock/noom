@@ -33,7 +33,7 @@ void print_node(noomP_Node* node, noom_uint_t depth) {
 
 int main(int argc, char** argv) {
 	// uhh uhhh uhhhhh
-	const char* code = "local t = {'a'; 2; 6}";
+	const char* code = "local t = {'a'; 2; 6}}";
 	noom_uint_t pos = 0;
 
 	printf("LEX OUTPUT:\n");
@@ -54,16 +54,15 @@ int main(int argc, char** argv) {
 	// time for parser testing
 	printf("\nPARSE OUTPUT:\n");
 
+	noomP_Parser parser;
 	noomP_Node *program;
-	noomP_Node *last_node;
 
-	int success = noomP_parse(code, "shitass", NOOM_VERSION_54, &program, &last_node);
-	if (success != 0) return success;
-
-	print_node(program, 0);
+	int success = noomP_parse(code, "shitass", NOOM_VERSION_54, &program, &parser);
+	if (success == 0)
+		print_node(program, 0);
 
 	// freeing time
-
+	noomP_Node *last_node = parser.last_node;
 	while (last_node) {
 		noomP_Node* next = last_node->previous_node;
 		// subnodes could be null if we OOM'd during a realloc of it

@@ -73,7 +73,7 @@ for i = 1,#files do
 
 	if needsRebuild(fname, out) then
 		needsLinking = true
-		runCommand('clang -c -o ' .. out .. ' ' .. fname .. ' ' .. table.concat(coolArgs, ' '))
+		runCommand('clang -c -g -o ' .. out .. ' ' .. fname .. ' ' .. table.concat(coolArgs, ' '))
 	end
 
 	objects[#objects+1] = out;
@@ -82,5 +82,5 @@ end
 local exe = separator == '\\' and "noom.exe" or "noom"
 
 if needsLinking then
-	runCommand('clang -o ' .. exe .. ' ' .. table.concat(objects, ' ') .. ' ' .. table.concat(coolArgs, ' '))
+	runCommand('clang -g -o ' .. exe .. ' ' .. table.concat(objects, ' ') .. ' ' .. table.concat(coolArgs, ' '))
 end

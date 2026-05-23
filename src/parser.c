@@ -127,8 +127,6 @@ noomP_Node* noomP_allocNode(noomP_Parser* parser) {
 		return 0;
 	}
 
-	node->previous_node = parser->last_node;
-
 	node->subnodec = 0;
 	node->subnodes = noom_alloc(sizeof(noomP_Node*) * 2);
 	node->subnode_cap = 2;
@@ -137,7 +135,8 @@ noomP_Node* noomP_allocNode(noomP_Parser* parser) {
 		noom_free(node);
 		return 0;
 	}
-
+	
+	node->previous_node = parser->last_node;
 	parser->last_node = node;
 
 	return node;
@@ -1767,29 +1766,27 @@ noomP_Node* noomP_parseStatement(noomP_Parser* parser) {
 	return stmt;
 }
 
-int noomP_parse(const char* code, const char* filename, noom_LuaVersion version, noomP_Node** outpointer, noomP_Node** last_node) {
-	noomP_Parser parser;
-	noomP_initParser(&parser, code, filename, version);
+int noomP_parse(const char* code, const char* filename, noom_LuaVersion version, noomP_Node** outpointer, noomP_Parser* parser) {
+	noomP_initParser(parser, code, filename, version);
 
 	noomL_Token token;
-	noomP_Node* node = noomP_allocNode(&parser);
+	noomP_Node* node = noomP_allocNode(parser);
 	if (node == 0) return -1;
 
-	node->source_offset = parser.lex_offset;
+	node->source_offset = parser->lex_offset;
 	node->type = NOOMP_NODE_PROGRAM;
 
 	while (1) {
-		if (noomP_peek(&parser, &token)) return 0;
+		if (noomP_peek(parser, &token)) return 0;
 		if (token.type == NOOML_TOKEN_EOF) break;
 
-		noomP_Node* child = noomP_parseStatement(&parser);
+		noomP_Node* child = noomP_parseStatement(parser);
 		if (child == 0) return -1;
 
-		if (noomP_addSubnode(&parser, node, child)) return 0;
+		if (noomP_addSubnode(parser, node, child)) return 0;
 	}
 
 	*outpointer = node;
-	*last_node = parser.last_node;
 
 	return 0;
 }
