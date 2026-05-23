@@ -1,7 +1,7 @@
 #include "helper.h"
 #include "types.h"
 
-int noom_startswith(const char* str, char* compare) {
+int noom_startswith(const char* str, const char* compare) {
 	noom_uint_t i = 0;
 	while (1) {
 		if (compare[i] == '\0') return 1; // we did it
