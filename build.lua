@@ -13,10 +13,10 @@ local function filename(path)
 	return path:sub(s,e)
 end
 
-local function runCommand(cmd)
+local function runCommand(cmd, ignore_fail)
 	print("> " .. cmd)
 	local result = os.execute(cmd)
-	if result ~= true then
+	if result ~= true and (not ignore_fail) then
 		os.exit(1)
 	end
 end
@@ -33,9 +33,9 @@ end
 
 if arg[1] == "clean" then
 	if separator == '\\' then
-		runCommand("rmdir /s /q build 2>nul")
+		runCommand("rmdir /s /q build 2>nul", true)
 	else
-		runCommand("rm -r build")
+		runCommand("rm -rf build")
 	end
 	return
 end
