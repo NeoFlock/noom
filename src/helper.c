@@ -21,6 +21,19 @@ int noom_streql(const char* stra, noom_uint_t lena, const char* strb, noom_uint_
 	return 1;
 }
 
+noom_uint_t noom_strlen(const char *s)
+{
+	const char *a = s;
+	while (*s) s++;
+	return s - a;
+}
+
+void noom_safe_strcpy(char* buffer, noom_uint_t* pos, noom_uint_t buffer_size, const char* src) {
+	while (*src && *pos < buffer_size - 1) {
+		buffer[(*pos)++] = *src++;
+	}
+}
+
 #include <stdlib.h> // TODO: remove
 
 void* noom_alloc(noom_uint_t size) {

@@ -15,7 +15,10 @@ end
 
 local function runCommand(cmd)
 	print("> " .. cmd)
-	return os.execute(cmd)
+	local result = os.execute(cmd)
+	if result ~= true then
+		os.exit(1)
+	end
 end
 
 local function fixPath(path)
@@ -58,6 +61,7 @@ if not needsDir then
 end
 
 local files = {
+	'src/error.c',
 	'src/helper.c',
 	'src/lexer.c',
 	'src/parser.c',
