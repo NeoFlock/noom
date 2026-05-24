@@ -74,7 +74,7 @@ local objects = {}
 local coolArgs = {}
 
 local function getTime(path)
-	local handle = io.popen('stat -c %Y "' .. path .. '" 2>/dev/null')
+	local handle = assert(io.popen('stat -c %Y "' .. path .. '" 2>/dev/null'))
 	local result = handle:read("*a")
 	handle:close()
 	return tonumber(result) or 0
