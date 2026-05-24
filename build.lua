@@ -16,7 +16,7 @@ end
 local function runCommand(cmd, ignore_fail)
 	print("> " .. cmd)
 	local result = os.execute(cmd)
-	if result ~= true and (not ignore_fail) then
+	if (result ~= true and result ~= 0) and (not ignore_fail) then
 		os.exit(1)
 	end
 end
@@ -45,14 +45,15 @@ local needsDir = false
 if separator == '\\' then
 	needsDir = true
 else
-	-- My favorite coreutil is /usr/bin/[
-	local handle = io.popen('[ -d "build" ] && echo 1')
-	local result = handle:read("*a")
-	handle:close()
-	needsDir = result:match("1") ~= nil
+	-- TODO: maybe use exit code instead of the first return value?
+	local ok, _, code = os.execute('test -d build');
+
+	local exists = (ok == 0 or (ok == true and code == 0))
+
+	needsDir = not exists;
 end
 
-if not needsDir then
+if needsDir then
 	if separator == '\\' then
 		runCommand('mkdir build 2>nul')
 	else
