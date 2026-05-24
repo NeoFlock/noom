@@ -1,4 +1,5 @@
 // js let me use include guards 🥀🥀🥀🥀🥀🥀🥀
+// ^ header guards r 4 noobz!
 #include "types.h"
 #include "parser.h"
 

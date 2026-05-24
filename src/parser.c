@@ -1685,7 +1685,7 @@ noomP_Node* noomP_parseRawStatement(noomP_Parser* parser) {
 						
 						if (token.type != NOOML_TOKEN_IDENTIFIER && (token.type != NOOML_TOKEN_SYMBOL || !noom_streql(parser->code + token.offset, token.length, "(", 1))) {
 							// unexpected
-							parser->error_state = NOOMP_ERROR_UNEXPECTED_SOMETHING1;
+							parser->error_state = NOOMP_ERROR_EXPECTED_ASSIGNABLE;
 							return 0;
 						}
 						
@@ -1694,7 +1694,7 @@ noomP_Node* noomP_parseRawStatement(noomP_Parser* parser) {
 						if (item == 0) return 0;
 
 						if (item->type != NOOMP_NODE_INDEX && item->type != NOOMP_NODE_GETFIELD && item->type != NOOMP_NODE_VARIABLE) {
-							parser->error_state = NOOMP_ERROR_UNEXPECTED_SOMETHING2;
+							parser->error_state = NOOMP_ERROR_NOT_ASSIGNABLE;
 							return 0; // unexpected
 						}
 
@@ -1713,7 +1713,7 @@ noomP_Node* noomP_parseRawStatement(noomP_Parser* parser) {
 						break;
 					}
 				} else {
-					parser->error_state = NOOMP_ERROR_UNEXPECTED_SOMETHING3;
+					parser->error_state = NOOMP_ERROR_EXPECTED_COMMA_OR_EQUAL_IN_ASSIGNMENT;
 					return 0; // unexpected
 				}
 			}
@@ -1742,12 +1742,12 @@ noomP_Node* noomP_parseRawStatement(noomP_Parser* parser) {
 			// this expression is now a statement.
 			return base; // no need to eat any more.
 		} else {
-			parser->error_state = NOOMP_ERROR_UNEXPECTED_SOMETHING4;
+			parser->error_state = NOOMP_ERROR_EXPRESSION_NOT_STATEMENT;
 			return 0; // unexpected. e.g. random string or whatever
 		}
 	}
 
-	parser->error_state = NOOMP_ERROR_UNEXPECTED_VALUE;
+	parser->error_state = NOOMP_ERROR_INVALID_STATEMENT;
 	return 0;
 }
 

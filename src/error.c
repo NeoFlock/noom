@@ -8,7 +8,7 @@ noom_uint_t noom_format_error(const noomP_Parser* parser, char* buffer, noom_uin
 	};
 
 	static const struct noom_error parser_errors[] = {
-		[NOOMP_ERROR_NONE] = {0, 0 },
+		[NOOMP_ERROR_NONE] = {0, 0},
 
 		[NOOMP_ERROR_OOM] = {"Whoops! Out of memory :(\n", 0},
 		[NOOMP_ERROR_EXPECTED_LCURLY] = {"expected '{'", 1},
@@ -41,12 +41,13 @@ noom_uint_t noom_format_error(const noomP_Parser* parser, char* buffer, noom_uin
 		[NOOMP_ERROR_EXPECTED_UNTIL] = {"expected 'until' to close repeat expression", 1},
 		[NOOMP_ERROR_EXPECTED_IDENTIFIER_AFTER_GOTO] = {"expected identifier after goto\n", 0},
 		[NOOMP_ERROR_EXPECTED_COLONCOLON] = {"expected :: to end label identifier", 1},
-		[NOOMP_ERROR_UNEXPECTED_VALUE] = {"unexpected value", 1},
+		[NOOMP_ERROR_INVALID_STATEMENT] = {"expected statement, got", 2},
 		// I want someone smarter than me [tema5002] to give these a proper description
-		[NOOMP_ERROR_UNEXPECTED_SOMETHING1] = {"", 1},
-		[NOOMP_ERROR_UNEXPECTED_SOMETHING2] = {"", 1},
-		[NOOMP_ERROR_UNEXPECTED_SOMETHING3] = {"", 1},
-		[NOOMP_ERROR_UNEXPECTED_SOMETHING4] = {"", 1},
+		// ^ alrighty then
+		[NOOMP_ERROR_EXPECTED_ASSIGNABLE] = {"expected assignable expression after comma in assignment", 1},
+		[NOOMP_ERROR_NOT_ASSIGNABLE] = {"expression in assignment is not assignable", 1},
+		[NOOMP_ERROR_EXPECTED_COMMA_OR_EQUAL_IN_ASSIGNMENT] = {"expected a comma or equals after assignable in assignment", 1},
+		[NOOMP_ERROR_EXPRESSION_NOT_STATEMENT] = {"loose expression is not a valid statement", 1},
 		[NOOMP_ERROR_FAKEATTRIBUTE] = {"invalid attribute", 2},
 		[NOOMP_ERROR_RETURN_NOT_END] = {"'return' must be the last statement in a block\n", 0},
 		[NOOMP_ERROR_FOR_WRONG_AMOUNT] = {"'for' initializer must have 2 or 3 expressions\n", 0}
@@ -91,22 +92,29 @@ noom_uint_t noom_format_error(const noomP_Parser* parser, char* buffer, noom_uin
 
 	if (buffer == 0) {
 		noom_uint_t linedig = 0;
-		for (noom_uint_t eh = row; eh; eh /= 10, linedig++);
+		for (noom_uint_t n = row; n; n /= 10, linedig++);
 
-		return
+		noom_uint_t space = 0;
+
+		space = 
 			sizeof("noom: ") - 1 +
 			noom_strlen(parser->filename) +
 			sizeof(":") - 1 +
 			linedig +
 			sizeof(":") - 1 +
 			noom_strlen(err.s) +
-			+ 1 + // \0
-			(err.near ? (
+			+ 1; // \0;
+
+		if (err.near) {
+			space += (
 				(err.near == 1 ? sizeof(" near") - 1 : 0) +
 				sizeof(" '") - 1 +
 				parser->last_token_length +
 				sizeof("'\n") - 1
-			) : 0);
+			);
+		}
+
+		return space;
 	}
 
 	noom_safe_strcpy(buffer, &pos, buffer_size, "noom: ");
@@ -115,10 +123,10 @@ noom_uint_t noom_format_error(const noomP_Parser* parser, char* buffer, noom_uin
 
 	char num_buf[20];
 	noom_uint_t num_len = 0;
+	
 	if (row == 0) {
 		num_buf[num_len++] = '0';
-	}
-	else {
+	} else {
 		noom_uint_t temp = row;
 		noom_uint_t divisor = 1;
 		while (temp / divisor >= 10) divisor *= 10;
@@ -145,6 +153,7 @@ noom_uint_t noom_format_error(const noomP_Parser* parser, char* buffer, noom_uin
 		}
 		noom_safe_strcpy(buffer, &pos, buffer_size, "'\n");
 	}
+	
 	if (pos < buffer_size) buffer[pos] = '\0';
 	return pos;
 }

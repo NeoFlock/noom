@@ -33,7 +33,7 @@ void print_node(noomP_Node *node, noom_uint_t depth) {
 
 int main(int argc, char **argv) {
 	// uhh uhhh uhhhhh
-	const char *code = "local t <close> = {'a'; 2; 6 \"\\xgg\"";
+	const char *code = "a,(\"hi\") = 2";
 	noom_uint_t pos = 0;
 
 	printf("LEX OUTPUT:\n");
@@ -41,7 +41,7 @@ int main(int argc, char **argv) {
 	fputs("\x1b[48;2;10;10;10m", stdout);
 	while (1) {
 		noomL_Token token;
-		//noomL_lex(code, pos, &token, NOOM_VERSION_54);
+
 		noomL_ErrorType err = noomL_lex(code, pos, &token, NOOM_VERSION_54);
 		if (err) break;
 
