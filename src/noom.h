@@ -3,6 +3,20 @@
 #ifndef NOOM_H
 #define NOOM_H
 
+
+#define STR(x) #x
+#define XSTR(x) STR(x)
+
+#define NOOM_VERSION_MAJOR 0
+#define NOOM_VERSION_MINOR 0
+#define NOOM_VERSION_PATCH 0
+#if NOOM_VERSION_PATCH==0
+#define NOOM_VERSION_FULL XSTR(NOOM_VERSION_MAJOR) "." XSTR(NOOM_VERSION_MINOR)
+#else
+#define NOOM_VERSION_FULL XSTR(NOOM_VERSION_MAJOR) "." XSTR(NOOM_VERSION_MINOR) "." XSTR(NOOM_VERSION_PATCH)
+#endif
+#define NOOM_VERSION_TEXT "Noom " NOOM_VERSION_FULL "  (C) 2026 NeoFlock and Noom contributors"
+
 typedef enum noom_LuaVersion {
 	// no 5.0, at least for now, cause it doesn't seem to be used much and is a bit *weird*
 	NOOM_VERSION_51,
