@@ -3,17 +3,16 @@
 #ifndef NOOM_H
 #define NOOM_H
 
-
-#define STR(x) #x
-#define XSTR(x) STR(x)
+#define NN_STR(x) #x
+#define NN_XSTR(x) NN_STR(x)
 
 #define NOOM_VERSION_MAJOR 0
 #define NOOM_VERSION_MINOR 0
 #define NOOM_VERSION_PATCH 0
 #if NOOM_VERSION_PATCH==0
-#define NOOM_VERSION_FULL XSTR(NOOM_VERSION_MAJOR) "." XSTR(NOOM_VERSION_MINOR)
+#define NOOM_VERSION_FULL NN_XSTR(NOOM_VERSION_MAJOR) "." NN_XSTR(NOOM_VERSION_MINOR)
 #else
-#define NOOM_VERSION_FULL XSTR(NOOM_VERSION_MAJOR) "." XSTR(NOOM_VERSION_MINOR) "." XSTR(NOOM_VERSION_PATCH)
+#define NOOM_VERSION_FULL NN_XSTR(NOOM_VERSION_MAJOR) "." NN_XSTR(NOOM_VERSION_MINOR) "." NN_XSTR(NOOM_VERSION_PATCH)
 #endif
 #define NOOM_VERSION_TEXT "Noom " NOOM_VERSION_FULL "  (C) 2026 NeoFlock and Noom contributors"
 
@@ -58,5 +57,8 @@ typedef struct noom_LuaVM noom_LuaVM;
 
 typedef noom_Exit noom_CFunction(noom_LuaVM *vm);
 typedef noom_Exit noom_KFunction(noom_LuaVM *vm, noom_Exit status, void *ctx);
+
+noom_LuaVM *noom_createVM(noom_LuaVersion version);
+void noom_destroyVM(noom_LuaVM *vm);
 
 #endif

@@ -25,7 +25,7 @@ typedef enum noomV_ObjTag {
 
 typedef struct noomV_Object {
 	noomV_ObjTag tag;
-	bool marked;
+	noom_bool_t marked;
 	struct noomV_Object *next;
 	struct noomV_Object *nextGray;
 } noomV_Object;
@@ -43,9 +43,9 @@ typedef enum noomV_ValueTag : unsigned char {
 typedef struct noomV_Value {
 	noomV_ValueTag tag;
 	// for stack slots
-	bool autoclose;
+	noom_bool_t autoclose;
 	// pointer to value
-	bool isptr;
+	noom_bool_t isptr;
 	union {
 		noom_bool_t boolean;
 		noom_int_t integer;
@@ -184,7 +184,7 @@ typedef struct noomV_Function {
 	noomV_String *chunkname;
 	noomV_Inst *code;
 	noomV_Value *consts;
-	noomV_Function **protos;
+	struct noomV_Function **protos;
 	noomV_UpvalDesc *upvals;
 	noomV_LocalDesc *locals;
 	unsigned int codesize;
@@ -260,7 +260,7 @@ typedef struct noomV_Function {
 typedef struct noomV_CallFrame {
 	// stack index of function
 	unsigned int funcIdx;
-	bool isC;
+	noom_bool_t isC;
 	union {
 		struct {
 			// 
@@ -293,6 +293,10 @@ struct noom_LuaVM {
 	noomV_Table *registry;
 	noomV_Thread *mainThread;
 	noomV_Thread *currentThread;
+	noom_LuaVersion version;
 };
+
+noomV_Object *noomV_allocObj(noom_LuaVM *vm, noomV_ObjTag tag, noom_uint_t size);
+void noomV_freeObj(noomV_Object *obj);
 
 #endif

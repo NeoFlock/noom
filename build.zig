@@ -21,6 +21,7 @@ pub fn build(b: *std.Build) void {
 			"src/lexer.c",
 			"src/parser.c",
 			"src/compiler.c",
+			"src/vm.c",
 			"src/main.c",
 		}
 	});
