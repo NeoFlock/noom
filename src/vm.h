@@ -51,6 +51,7 @@ typedef struct noomV_Value {
 		noom_int_t integer;
 		noom_float_t number;
 		noomV_Object *obj;
+		struct noomV_Pointer *ptr;
 	};
 } noomV_Value;
 
@@ -64,8 +65,15 @@ typedef struct noomV_String {
 typedef struct noomV_Table {
 	noomV_Object obj;
 	struct noomV_Table *meta;
+	// amount of entries allocated
 	noom_uint_t entries;
+	// how many entries are defined.
+	// Note, this includes keys with null values, which are still scanned.
+	noom_uint_t used;
+	// cache of #t, for faster subsequent fetches
 	noom_uint_t len;
+	// actual values. Given index i, V[i] is the key and V[i+entries] is the value.
+	// This is because we mostly read the key, so we should put more keys in cache.
 	noomV_Value *entrydata;
 } noomV_Table;
 
@@ -166,6 +174,7 @@ typedef struct noomV_Inst {
 typedef struct noomV_UpvalDesc {
 	char *name;
 	unsigned char idx;
+	// whether the index is a stack index
 	noom_bool_t isStack;
 } noomV_UpvalDesc;
 
@@ -188,7 +197,9 @@ typedef struct noomV_Function {
 	noomV_UpvalDesc *upvals;
 	noomV_LocalDesc *locals;
 	unsigned int codesize;
+	// line of function
 	unsigned int linedefined;
+	// line of end
 	unsigned int lastlinedefined;
 	// very size limited
 	//       ░░░░░░░░░                                                         ░ ▒░░▒    ▒░   ░░  ░       
@@ -296,6 +307,7 @@ struct noom_LuaVM {
 	noom_LuaVersion version;
 };
 
+// Allocating objects
 noomV_Object *noomV_allocObj(noom_LuaVM *vm, noomV_ObjTag tag, noom_uint_t size);
 void noomV_freeObj(noomV_Object *obj);
 
