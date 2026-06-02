@@ -149,13 +149,15 @@ noomP_Node* noomP_allocNode(noomP_Parser* parser) {
 
 int noomP_addSubnode(noomP_Parser* parser, noomP_Node* node, noomP_Node* subnode) {
 	if (node->subnodec == node->subnode_cap) {
-		node->subnode_cap = node->subnode_cap * 2;
-		node->subnodes = noom_realloc(node->subnodes, sizeof(noomP_Node*) * node->subnode_cap);
-
-		if (node->subnodes == 0) {
-			parser->error_state = NOOMP_ERROR_OOM;
+		noomP_Node** new = noom_realloc(node->subnodes, sizeof(noomP_Node*) * node->subnode_cap * 2);
+	
+		if (new == 0) {
+			parser->error_state = NOOMP_ERROR_OOM; // well fuck
 			return 1;
 		}
+		
+		node->subnodes = new;
+		node->subnode_cap = node->subnode_cap * 2;
 	}
 
 	node->subnodes[node->subnodec++] = subnode;
