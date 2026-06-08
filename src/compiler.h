@@ -5,10 +5,10 @@
 typedef struct noomC_Local {
 	unsigned int startpc;
 	unsigned int endpc;
-	char *name;
-	bool dropped;
-	bool constant;
-	bool close;
+	const char *name;
+	noom_bool_t dropped;
+	noom_bool_t constant;
+	noom_bool_t close;
 } noomC_Local;
 
 typedef struct noomC_Compiler {
@@ -23,5 +23,7 @@ typedef struct noomC_Compiler {
 	noomC_Local *locals;
 } noomC_Compiler;
 
+void noomC_compiler_init(noomC_Compiler* compiler);
+
 // pushes the compiled function on the stack, or just crashes lol
-noom_Exit noomC_compile(noom_LuaVM *vm, noomP_Node *node);
+noom_Exit noomC_compile(noom_LuaVM *vm, const noomP_Parser *parser, const noomP_Node *node);

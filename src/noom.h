@@ -38,6 +38,10 @@ typedef enum noom_LuaType {
 
 typedef enum noom_Exit {
 	NOOM_OK = 0,
+	NOOM_PLEASEHELPMEIAMSCARED,
+	NOOM_IAMNOTSCAREDJUSTLAZYTHISTIME,
+	// unknown internal error
+	NOOM_EINTERNAL,
 	NOOM_YIELD,
 	// out of memory
 	NOOM_ENOMEM,

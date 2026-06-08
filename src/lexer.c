@@ -433,34 +433,34 @@ noom_uint_t noomL_getstring(const char* s, noomL_ErrorType* error, noom_LuaVersi
 }
 
 int noomL_iskeyword(const char* s, noom_uint_t len, noom_LuaVersion version) {
-	if (noom_streql(s, len, "true", 4)) return 1;
-	if (noom_streql(s, len, "false", 5)) return 1;
-	if (noom_streql(s, len, "nil", 3)) return 1;
+	if (noom_memeq(s, len, "true", 4)) return 1;
+	if (noom_memeq(s, len, "false", 5)) return 1;
+	if (noom_memeq(s, len, "nil", 3)) return 1;
 	
-	if (noom_streql(s, len, "if", 2)) return 1;
-	if (noom_streql(s, len, "then", 4)) return 1;
-	if (noom_streql(s, len, "else", 4)) return 1;
-	if (noom_streql(s, len, "elseif", 6)) return 1;
+	if (noom_memeq(s, len, "if", 2)) return 1;
+	if (noom_memeq(s, len, "then", 4)) return 1;
+	if (noom_memeq(s, len, "else", 4)) return 1;
+	if (noom_memeq(s, len, "elseif", 6)) return 1;
 	
-	if (noom_streql(s, len, "and", 3)) return 1;
-	if (noom_streql(s, len, "or", 2)) return 1;
-	if (noom_streql(s, len, "not", 3)) return 1;
+	if (noom_memeq(s, len, "and", 3)) return 1;
+	if (noom_memeq(s, len, "or", 2)) return 1;
+	if (noom_memeq(s, len, "not", 3)) return 1;
 	
-	if (noom_streql(s, len, "local", 5)) return 1;
+	if (noom_memeq(s, len, "local", 5)) return 1;
 	
-	if (noom_streql(s, len, "for", 3)) return 1;
-	if (noom_streql(s, len, "function", 8)) return 1;
-	if (noom_streql(s, len, "do", 2)) return 1;
-	if (noom_streql(s, len, "until", 5)) return 1;
-	if (noom_streql(s, len, "while", 5)) return 1;
-	if (noom_streql(s, len, "repeat", 6)) return 1;
-	if (noom_streql(s, len, "end", 3)) return 1;
-	if (noom_streql(s, len, "in", 2)) return 1;
-	if (noom_streql(s, len, "return", 6)) return 1;
-	if (noom_streql(s, len, "break", 5)) return 1;
+	if (noom_memeq(s, len, "for", 3)) return 1;
+	if (noom_memeq(s, len, "function", 8)) return 1;
+	if (noom_memeq(s, len, "do", 2)) return 1;
+	if (noom_memeq(s, len, "until", 5)) return 1;
+	if (noom_memeq(s, len, "while", 5)) return 1;
+	if (noom_memeq(s, len, "repeat", 6)) return 1;
+	if (noom_memeq(s, len, "end", 3)) return 1;
+	if (noom_memeq(s, len, "in", 2)) return 1;
+	if (noom_memeq(s, len, "return", 6)) return 1;
+	if (noom_memeq(s, len, "break", 5)) return 1;
 
 	if (version >= NOOM_VERSION_52) {
-		if (noom_streql(s, len, "goto", 4)) return 1;
+		if (noom_memeq(s, len, "goto", 4)) return 1;
 	}
 	
 	return 0;

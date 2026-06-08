@@ -7,6 +7,9 @@ void tab(noom_uint_t amount) {
 	amount *= 2;
 	for (noom_uint_t i = 0; i < amount; i++) {
 		putchar(' ');
+		putchar(' ');
+		putchar(' ');
+		putchar(' ');
 	}
 }
 

@@ -1,4 +1,5 @@
 #include "helper.h"
+
 #include "types.h"
 
 int noom_startswith(const char* str, const char* compare) {
@@ -16,7 +17,7 @@ int noom_startswith(const char* str, const char* compare) {
 	return 0; // unreachable but whatevs
 }
 
-int noom_streql(const char* stra, noom_uint_t lena, const char* strb, noom_uint_t lenb) {
+int noom_memeq(const char* stra, noom_uint_t lena, const char* strb, noom_uint_t lenb) {
 	if (lena != lenb) return 0;
 
 	for (noom_uint_t i = 0; i < lena; i++) {
@@ -50,6 +51,29 @@ int noom_strcmp(const char *a, const char *b) {
 void noom_safe_strcpy(char* buffer, noom_uint_t* pos, noom_uint_t buffer_size, const char* src) {
 	while (*src && *pos < buffer_size - 1) {
 		buffer[(*pos)++] = *src++;
+	}
+}
+
+char *noom_strndup(const char *s, const noom_uint_t len) {
+	char *whar = noom_alloc(len + 1);
+	if (whar == 0) return 0;
+	noom_memcpy(whar, s, len);
+	whar[len] = '\0';
+	return whar;
+}
+
+void noom_memcpy(void* dst, const void* src, noom_uint_t n) {
+#ifdef __has_builtin
+#if __has_builtin(__builtin_memcpy)
+	__builtin_memcpy(dst, src, n);
+	return;
+#endif
+#endif
+	unsigned char *d = dst;
+	const unsigned char *s = src;
+
+	while (n--) {
+		*d++ = *s++;
 	}
 }
 
