@@ -3,4 +3,4 @@
 #include "types.h"
 #include "parser.h"
 
-noom_uint_t noom_format_error(const noomP_Parser* parser, char* buffer, noom_uint_t buffer_size);
+noom_uint_t noom_format_error(const noomP_Parser* parser, const char* program_name, char* buffer, noom_uint_t buffer_size);

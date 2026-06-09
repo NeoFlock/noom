@@ -34,7 +34,7 @@ void print_node(const noomP_Node *node, noom_uint_t depth) {
 	printf("}\n");
 }
 
-int the_theoretical_function_to_execute_your_code_that_should_be_replaced_later(const char *code, const char *filename) {
+int the_theoretical_function_to_execute_your_code_that_should_be_replaced_later(const char *code, const char *program_name, const char *filename) {
 	noomP_Parser parser;
 	noomP_Node *program;
 	
@@ -84,9 +84,9 @@ int the_theoretical_function_to_execute_your_code_that_should_be_replaced_later(
 		print_node(program, 0);
 	}
 	else {
-		noom_uint_t bleh = noom_format_error(&parser, NULL, 0);
+		noom_uint_t bleh = noom_format_error(&parser, program_name, NULL, 0);
 		char* buf = noom_alloc(bleh);
-		noom_format_error(&parser, buf, bleh);
+		noom_format_error(&parser, program_name, buf, bleh);
 		fputs(buf, stdout);
 		noom_free(buf);
 	}
@@ -237,23 +237,23 @@ int main(int argc, char **argv) {
 	}
 	if (params.script_exec || params.script_path) {
 		if (params.script_exec) {
-			return the_theoretical_function_to_execute_your_code_that_should_be_replaced_later(params.script_exec, "(command line)");
+			return the_theoretical_function_to_execute_your_code_that_should_be_replaced_later(params.script_exec, argv[0], "(command line)");
 		}
 		char* code = read_file(params.script_path);
 		if (code == 0) return 1;
-		return the_theoretical_function_to_execute_your_code_that_should_be_replaced_later(code, params.script_path);
+		return the_theoretical_function_to_execute_your_code_that_should_be_replaced_later(code, argv[0], params.script_path);
 	}
 	if (params.use_stdin) {
 		char* code = read_stdin();
 		if (code == 0) return 1;
-		return the_theoretical_function_to_execute_your_code_that_should_be_replaced_later(code, "stdin");
+		return the_theoretical_function_to_execute_your_code_that_should_be_replaced_later(code, argv[0], "stdin");
 	}
 	if (params.enter_repl) {
 		puts(NOOM_VERSION_TEXT);
 		for (;;) {
 			char code[4096];
 			if (read_prompt(code, sizeof(code), "> ", 1)) return 0;
-			the_theoretical_function_to_execute_your_code_that_should_be_replaced_later(code, "(noom input)");
+			the_theoretical_function_to_execute_your_code_that_should_be_replaced_later(code, 0, "(noom input)");
 		}
 	}
 die:

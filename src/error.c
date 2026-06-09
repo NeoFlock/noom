@@ -1,7 +1,7 @@
 #include "error.h"
 #include "helper.h"
 
-noom_uint_t noom_format_error(const noomP_Parser* parser, char* buffer, noom_uint_t buffer_size) {
+noom_uint_t noom_format_error(const noomP_Parser* parser, const char* program_name, char* buffer, noom_uint_t buffer_size) {
 	struct noom_error {
 		const char* s;
 		int near; // 0:none 1: near '%s'\n 2: '%s'\n
@@ -96,8 +96,11 @@ noom_uint_t noom_format_error(const noomP_Parser* parser, char* buffer, noom_uin
 
 		noom_uint_t space = 0;
 
-		space = 
-			sizeof("noom: ") - 1 +
+		if (program_name) space +=
+			noom_strlen(program_name) +
+			sizeof(": ") - 1;
+		
+		space += 
 			noom_strlen(parser->filename) +
 			sizeof(":") - 1 +
 			linedig +
@@ -105,19 +108,19 @@ noom_uint_t noom_format_error(const noomP_Parser* parser, char* buffer, noom_uin
 			noom_strlen(err.s) +
 			+ 1; // \0;
 
-		if (err.near) {
-			space += (
-				(err.near == 1 ? sizeof(" near") - 1 : 0) +
-				sizeof(" '") - 1 +
-				parser->last_token_length +
-				sizeof("'\n") - 1
-			);
-		}
+		if (err.near) space += 
+			(err.near == 1 ? sizeof(" near") - 1 : 0) +
+			sizeof(" '") - 1 +
+			parser->last_token_length +
+			sizeof("'\n") - 1;
 
 		return space;
 	}
 
-	noom_safe_strcpy(buffer, &pos, buffer_size, "noom: ");
+	if (program_name) {
+		noom_safe_strcpy(buffer, &pos, buffer_size, program_name);
+		noom_safe_strcpy(buffer, &pos, buffer_size, ": ");
+	}
 	noom_safe_strcpy(buffer, &pos, buffer_size, parser->filename);
 	noom_safe_strcpy(buffer, &pos, buffer_size, ":");
 
