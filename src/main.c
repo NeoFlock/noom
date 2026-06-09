@@ -241,7 +241,9 @@ int main(int argc, char **argv) {
 		}
 		char* code = read_file(params.script_path);
 		if (code == 0) return 1;
-		return the_theoretical_function_to_execute_your_code_that_should_be_replaced_later(code, argv[0], params.script_path);
+		int offset = 0;
+		if (code[0] == '#' && code[1] == '!') for (offset = 2; code[offset] && code[offset] != '\n'; offset++);
+		return the_theoretical_function_to_execute_your_code_that_should_be_replaced_later(code + offset, argv[0], params.script_path);
 	}
 	if (params.use_stdin) {
 		char* code = read_stdin();

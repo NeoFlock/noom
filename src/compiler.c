@@ -30,7 +30,7 @@
 // ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡘⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀ 
 
 void noomC_compiler_init(noomC_Compiler *compiler) {
-	compiler->parent = 0; // who is bro 😂✌️🥀
+	compiler->parent = 0;
 	
 	compiler->localc = 0;
 	compiler->localcap = 0;
@@ -41,52 +41,15 @@ void noomC_compiler_init(noomC_Compiler *compiler) {
 	compiler->constcap = 0;
 }
 
-noomV_String *noomV_String_alloc(noom_LuaVM *vm, const char *str, const noom_uint_t len) {
-	noomV_String *s = (noomV_String*)noomV_allocObj(vm, NOOMV_OSTR, sizeof(noomV_String) + len + 1);
-	if (s == 0) return 0;
-	noom_memcpy(s->data, str, len);
-	s->data[len] = '\0';
-	return s;
-}
-
-noomV_Function *noomV_Function_alloc(noom_LuaVM *vm, const char *str, const noom_uint_t len) {
-	noomV_Function *f = (noomV_Function*)noomV_allocObj(vm, NOOMV_OFUNC, sizeof(noomV_Function));
-	if (f == 0) return 0;
-	f->chunkname = noomV_String_alloc(vm, str, len);
-	if (f->chunkname == 0) return 0;
-	f->code = 0;
-	f->consts = 0;
-	f->protos = 0;
-	f->upvals = 0;
-	f->locals = 0;
-	f->codesize = 0;
-	f->linedefined = 0;
-	f->lastlinedefined = 0;
-	f->argc = 0;
-	f->flags = 0;
-	f->constsize = 0;
-	f->protosize = 0;
-	f->upvalsize = 0;
-	f->localsize = 0;
-	return f;
-}
-
-noomV_Table *noomV_Table_alloc(noom_LuaVM *vm) {
-	noomV_Table *t = (noomV_Table *)noomV_allocObj(vm, NOOMV_OTABLE, sizeof(noomV_Table));
-	if (t == 0) return 0;
-	t->meta = 0;
-	t->entries = 0;
-	t->used = 0;
-	t->len = 0;
-	t->entrydata = 0;
-	return t;
-}
-
 static noom_Exit noomC_emit(noomV_Function *func, const noomV_Inst inst) {
 	func->code = noom_realloc(func->code, sizeof(noomV_Inst) * (func->codesize + 1));
 	if (func->code == 0) return NOOM_ENOMEM;
 	func->code[func->codesize++] = inst;
 	return NOOM_OK;
+}
+
+static noom_Exit noomC_emit_ABC(noomV_Function *func, const noomV_Opcode op, const unsigned char a, const unsigned char b, const unsigned char c) {
+	return noomC_emit(func, (noomV_Inst){.op = op, .a = a, .b = b, .c = c});
 }
 
 static noom_Exit noomC_emit_Aus(noomV_Function *func, const noomV_Opcode op, const unsigned char a, const unsigned short us) {
@@ -101,44 +64,145 @@ static noom_Exit noomC_addconst(noomV_Function *func, const noomV_Value val) {
 	return NOOM_OK;
 }
 
+// TODO get rid of these two vvvv
 static noom_Exit noomC_addconst_nil(noomV_Function *func) {
 	return noomC_addconst(func, (noomV_Value){.tag = NOOMV_VNIL, .autoclose = 0, .isptr = 0});
 }
-
 static noom_Exit noomC_addconst_bool(noomV_Function *func, const noom_bool_t b) {
 	return noomC_addconst(func, (noomV_Value){.tag = NOOMV_VBOOL, .autoclose = 0, .isptr = 0, .boolean =  b});
+}
+// yeah ^^^^^^^^^
+
+static noom_Exit noomC_addconst_str(noomV_Function *func, noom_LuaVM *vm, const char *str, const noom_uint_t len) {
+	noomV_String *s = noomV_allocStr(vm, str, len);
+	if (s == 0) return NOOM_ENOMEM;
+	return noomC_addconst(func, (noomV_Value){.tag = NOOMV_VOBJ, .autoclose = 0, .isptr = 0, .obj = (noomV_Object *)s});
 }
 
 static noomL_Token noomC_token_at(const noomP_Parser *parser, noom_uint_t offset) {
 	noomL_Token token;
 	noomL_lex(parser->code, offset, &token, parser->version);
 	return token;
+} 
+
+// There is a high chance I forgot something here
+static noomV_Opcode noomC_what_bop_is_this(const noomP_Parser *parser, noom_uint_t offset) {
+	// I AM THE LEXER NOW!!!!!!!!!
+	if (noom_startswith(parser->code + offset, "==")) return NOOMV_INSTR_EQ;
+	if (noom_startswith(parser->code + offset, "~=")) return NOOMV_INSTR_NEQ;
+	if (noom_startswith(parser->code + offset, "~=")) return NOOMV_INSTR_LTE;
+	if (noom_startswith(parser->code + offset, "~=")) return NOOMV_INSTR_GTE;
+	if (noom_startswith(parser->code + offset, "..")) return NOOMV_INSTR_CONCAT;
+	
+	if (parser->version >= NOOM_VERSION_53) {
+		// Fucking atom forgot to put make an instruction
+		// update no i am unable to read
+		if (noom_startswith(parser->code + offset, "//")) return NOOMV_INSTR_FLOOR_DIV;
+		if (noom_startswith(parser->code + offset, ">>")) return NOOMV_INSTR_RSHIFT;
+		if (noom_startswith(parser->code + offset, "<<")) return NOOMV_INSTR_LSHIFT;
+		if (noom_startswith(parser->code + offset, "&")) return NOOMV_INSTR_BAND;
+		if (noom_startswith(parser->code + offset, "|")) return NOOMV_INSTR_BOR;
+		if (noom_startswith(parser->code + offset, "~")) return NOOMV_INSTR_BXOR;
+	}
+
+	if (noom_startswith(parser->code + offset, "+")) return NOOMV_INSTR_ADD;
+	if (noom_startswith(parser->code + offset, "-")) return NOOMV_INSTR_SUB;
+	if (noom_startswith(parser->code + offset, "*")) return NOOMV_INSTR_MUL;
+	if (noom_startswith(parser->code + offset, "/")) return NOOMV_INSTR_DIV;
+	if (noom_startswith(parser->code + offset, "%")) return NOOMV_INSTR_MOD;
+	if (noom_startswith(parser->code + offset, "^")) return NOOMV_INSTR_POW;
+	if (noom_startswith(parser->code + offset, "<")) return NOOMV_INSTR_LT;
+	if (noom_startswith(parser->code + offset, ">")) return NOOMV_INSTR_GT;
+	return 0;
 }
 
-static noom_Exit noomC_compile_expr(noom_LuaVM *vm, const noomC_Compiler *compiler, const noomP_Parser *parser, noomV_Function *func, const noomP_Node *node) {
+// mmap ahh function 🥀🥀🥀🥀🥀🥀🥀
+// What 6 argument syscalls there even are other than mmap and clone and is there anything longer
+static noom_Exit noomC_compile_expr(
+		noom_LuaVM *vm,
+		noomC_Compiler *compiler,
+		const noomP_Parser *parser,
+		noomV_Function *func,
+		const noomP_Node *node
+) {
+	// Baba is You OST is a very cool soundtrack to code to Can recommend
 	if (node->type == NOOMP_NODE_NILLITERAL) {
+		unsigned char fucking_destination = compiler->curstack++;
+		unsigned short fucking_constant = func->constsize;
 		noom_Exit result = noomC_addconst_nil(func);
 		if (result != NOOM_OK) return result;
-		result = noomC_emit_Aus(func, NOOMV_INSTR_LOADC, compiler->curstack, func->constsize - 1);
-		if (result != NOOM_OK) return result;
-		return NOOM_OK;
+		
+		return noomC_emit_Aus(func, NOOMV_INSTR_LOADC, fucking_destination, fucking_constant);
 	}
 	if (node->type == NOOMP_NODE_BOOLEANLITERAL) {
+		unsigned char fucking_destination = compiler->curstack++;
+		unsigned short fucking_constant = func->constsize;
 		noomL_Token bool_token = noomC_token_at(parser, node->source_offset);
 		noom_bool_t val = noom_memeq(parser->code + bool_token.offset, bool_token.length, "true", 4);
 		noom_Exit result = noomC_addconst_bool(func, val);
 		if (result != NOOM_OK) return result;
-		result = noomC_emit_Aus(func, NOOMV_INSTR_LOADC, compiler->curstack, func->constsize - 1);
-		if (result != NOOM_OK) return result;
-		return NOOM_OK;
+		
+		return noomC_emit_Aus(func, NOOMV_INSTR_LOADC, fucking_destination, fucking_constant);
 	}
 	if (node->type == NOOMP_NODE_NUMBERLITERAL) {
+		unsigned char fucking_destination = compiler->curstack++;
 		return NOOM_PLEASEHELPMEIAMSCARED; // 😭😭😭😭😭😭😭😭
 	}
 	if (node->type == NOOMP_NODE_STRINGLITERAL) {
-		return NOOM_IAMNOTSCAREDJUSTLAZYTHISTIME;
+		unsigned char fucking_destination = compiler->curstack++;
+		noom_Exit result = noomC_addconst_str(func, vm, "but DID YOU KNOW", 16);
+		return result;
 	}
-	return NOOM_EINTERNAL; // Idk what else I forgot
+	if (node->type == NOOMP_NODE_BINARYOPERATOR) {
+		unsigned char fucking_destination = compiler->curstack++;
+		if (node->subnodec != 2) return NOOM_EINTERNAL;
+		const unsigned char B = compiler->curstack++;
+		noom_Exit result = noomC_compile_expr(vm, compiler, parser, func, node->subnodes[0]);
+		if (result != NOOM_OK) return result;
+		const unsigned char C = compiler->curstack++;
+		result = noomC_compile_expr(vm, compiler, parser, func, node->subnodes[1]);
+		if (result != NOOM_OK) return result;
+		
+		return noomC_emit_ABC(func, noomC_what_bop_is_this(parser, node->source_offset), fucking_destination, B, C);
+	}
+	if (node->type == NOOMP_NODE_CALL) {
+		unsigned char fucking_destination = compiler->curstack;
+		// Here we don't fucking increment this fucking destination
+		// Because the fucking function call fucking increments it fucking anyway
+		for (int i = 1; i < node->subnodec; i++) {
+			// push node->subnodes[i] to stack or something
+		}
+		return noomC_emit_Aus(func, NOOMV_INSTR_JMP, 0, /* where do i start......... */ 0);
+	}
+	if (node->type == NOOMP_NODE_METHODCALL) {
+		unsigned char fucking_destination = compiler->curstack;
+		// Here we don't fucking increment this fucking destination
+		// Because the fucking function call fucking increments it fucking anyway
+		// push parent value... probably already processed below if you make it i = 0
+		for (int i = 1; i < node->subnodec; i++) {
+			// push node->subnodes[i] to stack or something
+		}
+		return noomC_emit_Aus(func, NOOMV_INSTR_JMP, 0, /* where do i start......... */ 0);
+	}
+	if (node->type == NOOMP_NODE_GETFIELD) {
+		unsigned char fucking_destination = compiler->curstack++;
+		if (node->subnodec != 2) return NOOM_EINTERNAL;
+		
+		unsigned char B = compiler->curstack;
+		noom_Exit result = noomC_compile_expr(vm, compiler, parser, func, node->subnodes[0]);
+		if (result != NOOM_OK) return result;
+		
+		unsigned char C = compiler->curstack;
+		unsigned short C_constant = func->constsize;
+		noomL_Token field_token = noomC_token_at(parser, node->subnodes[1]->source_offset);
+		result = noomC_addconst_str(func, vm, parser->code + field_token.offset, field_token.length);
+		if (result != NOOM_OK) return result;
+		result = noomC_emit_Aus(func, NOOMV_INSTR_LOADC, C, C_constant);
+		if (result != NOOM_OK) return result;
+		
+		return noomC_emit_ABC(func, NOOMV_INSTR_GET, fucking_destination, B, C);
+	}
+	return NOOM_EINTERNAL;
 }
 
 static noom_Exit noomC_add_stuff_to_function(noom_LuaVM *vm, noomC_Compiler *compiler, const noomP_Parser *parser, noomV_Function *func, const noomP_Node *node);
@@ -198,9 +262,10 @@ static noom_Exit noomC_add_stuff_to_function(noom_LuaVM *vm, noomC_Compiler *com
 		if (node->subnodec == 1) {
 			// according to atom this should be nil
 			const unsigned short constptr = func->constsize;
-			const noom_Exit result = noomC_addconst_nil(func);
+			noom_Exit result = noomC_addconst_nil(func);
 			if (result != NOOM_OK) return result;
-			if (noomC_emit_Aus(func, NOOMV_INSTR_LOADC, destination, constptr) < 0) return NOOM_ENOMEM;
+			result = noomC_emit_Aus(func, NOOMV_INSTR_LOADC, destination, constptr);
+			if (result != NOOM_OK) return result;
 		}
 		else {
 			const noomP_Node *value_node = node->subnodes[1];
@@ -232,7 +297,7 @@ static noom_Exit noomC_add_stuff_to_function(noom_LuaVM *vm, noomC_Compiler *com
 		if (block_node->type     != NOOMP_NODE_BLOCK) return NOOM_EINTERNAL;
 
 		const noomL_Token name_token = noomC_token_at(parser, varname_node->source_offset);
-		noomV_Function *proto = noomV_Function_alloc(vm, parser->code + name_token.offset, name_token.length);
+		noomV_Function *proto = noomV_allocFunc(vm, parser->code + name_token.offset, name_token.length);
 		if (proto == 0) return NOOM_ENOMEM;
 
 		proto->argc = (unsigned char)params_node->subnodec;
@@ -249,9 +314,19 @@ static noom_Exit noomC_add_stuff_to_function(noom_LuaVM *vm, noomC_Compiler *com
 		if (func->protos == 0) return NOOM_ENOMEM;
 		func->protos[func->protosize++] = proto;
 
-		// I think something should be here but idfk what
-		// TODO
-		noomC_emit_Aus(func, NOOMV_INSTR_NOP, 0, 0);
+		noomC_Local local;
+		local.startpc = proto->codesize;
+		local.endpc = 0;
+		local.dropped = 0; // FIXME?
+		local.close = 0;
+		local.constant = 0;
+		local.name = noom_strndup(parser->code + varname_node->source_offset, varname_node->source_offset);
+		
+		compiler->locals = noom_realloc(compiler->locals, sizeof(noomC_Local) * (compiler->localc + 1));
+		if (compiler->locals == 0) return NOOM_ENOMEM;
+		compiler->locals[compiler->localc++] = local;
+		// I guess???????
+		if (compiler->localc > compiler->localcap) compiler->localcap = compiler->localc;
 		
 		return NOOM_OK;
 	}
@@ -272,10 +347,19 @@ static noom_Exit noomC_add_stuff_to_function(noom_LuaVM *vm, noomC_Compiler *com
 noom_Exit noomC_compile(noom_LuaVM *vm, const noomP_Parser *parser, const noomP_Node *node) {
 	if (node->type != NOOMP_NODE_PROGRAM) return NOOM_EINTERNAL;
 	
-	noomV_Function* program = noomV_Function_alloc(vm, "main", 4);
+	noomV_Function* program = noomV_allocFunc(vm, "main", 4);
 	
 	noomC_Compiler compiler;
 	noomC_compiler_init(&compiler);
 	
-	return noomC_compile_block(vm, &compiler, parser, program, node);
+	noom_Exit status = noomC_compile_block(vm, &compiler, parser, program, node);
+	if (status != NOOM_OK) return status;
+	
+	if (vm->mainThread->stacklen == vm->mainThread->stackcap) {
+		vm->mainThread->stackcap = vm->mainThread->stackcap ? vm->mainThread->stackcap * 2 : 16;
+		vm->mainThread->stack = noom_realloc(vm->mainThread->stack, sizeof(noomV_Value) * vm->mainThread->stackcap);
+	}
+	vm->mainThread->stack[vm->mainThread->stacklen++] =
+		(noomV_Value){.tag = NOOMV_VOBJ, .autoclose = 0, .isptr = 0, .obj = (noomV_Object*)program};
+	return NOOM_OK;
 }

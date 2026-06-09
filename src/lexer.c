@@ -580,7 +580,6 @@ noomL_ErrorType noomL_lex(const char* s, noom_uint_t start, noomL_Token* token, 
 		}
 	}
 
-
 	// god damn it we errorrreed
 	return NOOML_ERROR_UNKNOWN;
 }

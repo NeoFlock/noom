@@ -309,6 +309,9 @@ struct noom_LuaVM {
 
 // Allocating objects
 noomV_Object *noomV_allocObj(noom_LuaVM *vm, noomV_ObjTag tag, noom_uint_t size);
+noomV_String *noomV_allocStr(noom_LuaVM *vm, const char *str, noom_uint_t len);
+noomV_Function *noomV_allocFunc(noom_LuaVM *vm, const char *str, noom_uint_t len);
+noomV_Function *noomV_allocFunc(noom_LuaVM *vm, const char *str, noom_uint_t len);
 void noomV_freeObj(noomV_Object *obj);
 
 #endif
