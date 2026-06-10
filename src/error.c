@@ -104,7 +104,7 @@ noom_uint_t noom_format_error(const noomP_Parser* parser, const char* program_na
 			noom_strlen(parser->filename) +
 			sizeof(":") - 1 +
 			linedig +
-			sizeof(":") - 1 +
+			sizeof(": ") - 1 +
 			noom_strlen(err.s) +
 			+ 1; // \0;
 
@@ -144,7 +144,7 @@ noom_uint_t noom_format_error(const noomP_Parser* parser, const char* program_na
 		buffer[pos++] = num_buf[i];
 	}
 
-	noom_safe_strcpy(buffer, &pos, buffer_size, ":");
+	noom_safe_strcpy(buffer, &pos, buffer_size, ": ");
 	noom_safe_strcpy(buffer, &pos, buffer_size, err.s);
 	if (err.near) {
 		if (err.near == 1) {
