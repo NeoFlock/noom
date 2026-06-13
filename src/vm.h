@@ -132,6 +132,11 @@ typedef enum noomV_Opcode : unsigned char {
 	// op.b stores the operation type.
 	NOOMV_INSTR_OP,
 
+	// pops value, sets stack[op.uD] = value
+	NOOMV_INSTR_SETVAL,
+	// pops value, sets *upvals[op.uD] = value
+	NOOMV_INSTR_SETUPVAL,
+
 	// Control flow
 	
 	// returns from a function. The amount returned is from op.uD
