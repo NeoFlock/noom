@@ -57,6 +57,60 @@ typedef enum noom_Exit {
 	NOOM_EERROR,
 } noom_Exit;
 
+typedef enum noom_UnaryOp {
+	// -x
+	NOOM_UNARY_NEGATE,
+	// ~x
+	NOOM_UNARY_BNOT,
+	// #x
+	NOOM_UNARY_LEN,
+	// not x
+	NOOM_UNARY_NOT,
+} noom_UnaryOp;
+
+typedef enum noom_BinOp {
+	// Algebruh (Noom knows maths)
+
+	// a + b
+	NOOM_BIN_ADD,
+	// a - b
+	NOOM_BIN_SUB,
+	// a * b
+	NOOM_BIN_MLT,
+	// a / b
+	NOOM_BIN_DIV,
+	// a // b
+	NOOM_BIN_IDIV,
+	// a ^ b
+	NOOM_BIN_EXP,
+
+	// Comparison (thief of joy)
+
+	// a == b
+	NOOM_BIN_EQL,
+	// a ~= b
+	NOOM_BIN_NEQL,
+	// a < b
+	NOOM_BIN_LESS,
+	// a <= b
+	NOOM_BIN_LESSEQL,
+	// a > b
+	NOOM_BIN_GREATER,
+	// a >= b
+	NOOM_BIN_GREATEREQL,
+
+	// a & b
+	NOOM_BIN_BAND,
+	// a | b
+	NOOM_BIN_BOR,
+	// a ~ b
+	NOOM_BIN_BXOR,
+	// a << b
+	NOOM_BIN_BSHIFTL,
+	// a >> b
+	NOOM_BIN_BSHIFTR,
+} noom_BinOp;
+
 typedef struct noom_LuaVM noom_LuaVM;
 
 typedef noom_Exit noom_CFunction(noom_LuaVM *vm);

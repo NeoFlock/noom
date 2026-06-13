@@ -84,76 +84,83 @@ typedef struct noomV_Pointer {
 
 typedef enum noomV_Opcode : unsigned char {
 	NOOMV_INSTR_NOP = 0,
-	// A = consts[uD]
-	NOOMV_INSTR_LOADC,
-	// load from A an array of uD nils
-	NOOMV_INSTR_LOAD_NILARR,
-	// load from A an array of uD/2 booleans, stored in uD&1
-	NOOMV_INSTR_LOAD_BOOLARR,
-	// A = B
-	NOOMV_INSTR_COPY,
 
-	// pc = uD
+	// Push data on the stack
+
+	// Pushes the value at stack[op.uD]
+	NOOMV_INSTR_PUSHVAL,
+	// Pushes consts[op.uD]
+	NOOMV_INSTR_PUSHCONST,
+	// Pushes op.sD itself as an integer
+	NOOMV_INSTR_PUSHINT,
+	// Pushes op.uD nils
+	NOOMV_INSTR_PUSHNIL,
+	// Pushes op.a+1 booleans, encoded in op.uD, where the ith (0-indexed) boolean is encoded in `uD & (1 << i)`
+	NOOMV_INSTR_PUSHBOOLS,
+	// Pushes *upvals[op.uD]
+	NOOMV_INSTR_PUSHUPVAL,
+	// Pushes op.a varargs. If op.a is 0, it will push all of them, regardless of how many
+	NOOMV_INSTR_PUSHARGS,
+	// Pushes a new table. op.uD is the initial capacity
+	NOOMV_INSTR_CREATETABLE,
+	// Pushes a closure, using the prototype in protos[op.uD]
+	NOOMV_INSTR_PUSHCLOSURE,
+
+	// High-level ops
+	
+	// Call the function stored at stack[op.a]. All values after that are treated at arguments. op.uD is the expected return count plus one, and if op.uD is 0,
+	// all returns are pushed.
+	NOOMV_INSTR_CALL,
+
+	// pops (table, field), and pushes table[field]
+	NOOMV_INSTR_GETTABLE,
+	// pops (table, field, value), and sets table[field] = value
+	NOOMV_INSTR_SETTABLE,
+	// pops op.uD values, then sets it as an array starting at op.a+1 in the table at the new top;
+	// if that is confused, it basically does this:
+	// int table = stacksize - op.uD - 1;
+	// for(int i = 0; i < op.uD; i++) stack[table][op.a + 1 + i] = stack[table + i + 1];
+	NOOMV_INSTR_SETLIST,
+	// pops table, pushes table[consts[op.uD]], an optimization for indexing fields
+	NOOMV_INSTR_GETFIELD,
+	// pops (table, value), sets table[consts[op.uD]] = value, an optimization for changing fields
+	NOOMV_INSTR_SETFIELD,
+
+	// does a unary or binary operation.
+	// if op.a == 1, its a unary operation.
+	// if op.a == 2, its a binary operation.
+	// op.b stores the operation type.
+	NOOMV_INSTR_OP,
+
+	// Control flow
+	
+	// returns from a function. The amount returned is from op.uD
+	NOOMV_INSTR_RET,
+
+	// computes T = op.a << 16 + op.uD, jumps to T.
 	NOOMV_INSTR_JMP,
-	// if(A) pc = uD
-	NOOMV_INSTR_JC,
-	// if(not A) pc = uD
-	NOOMV_INSTR_JNC,
+	// pops value, if value is truthy, does the same as JMP.
+	NOOMV_INSTR_CJMP,
+	// pops value, if value is falsy, does the same as JMP.
+	NOOMV_INSTR_CNJMP,
 
-	// A = B + C
-	NOOMV_INSTR_ADD,
-	// A = B - C
-	NOOMV_INSTR_SUB,
-	// A = -B
-	NOOMV_INSTR_NEG,
-	// A = B * C
-	NOOMV_INSTR_MUL,
-	// A = B / C
-	NOOMV_INSTR_DIV,
-	// A = B % C
-	NOOMV_INSTR_MOD,
-	// A = B // C
-	NOOMV_INSTR_FLOOR_DIV,
-	// A = B ^ C
-	NOOMV_INSTR_POW,
+	// For bullshit
 
-	// A = B == C
-	NOOMV_INSTR_EQ,
-	// A = B ~= C
-	NOOMV_INSTR_NEQ,
-	// A = B < C
-	NOOMV_INSTR_LT,
-	// A = B <= C
-	NOOMV_INSTR_LTE,
-	// A = B > C
-	NOOMV_INSTR_GT,
-	// A = B >= C
-	NOOMV_INSTR_GTE,
+	// Take the top value without popping it, push value[consts[op.uD]] like GETFIELD would, then swap the top 2 values.
+	// This is for a:foo() and such
+	NOOMV_INSTR_GETMETHOD,
+	// rotate the the top op.a items by op.sD
+	NOOMV_INSTR_ROTATE,
+	// pop op.uD values
+	NOOMV_INSTR_POP,
+	// set the stack size to op.uD, inserting nils if need be, good for labels
+	NOOMV_INSTR_SETSTACK,
 
-	// A = not B
-	NOOMV_INSTR_NOT,
-
-	// A = B & C
-	NOOMV_INSTR_BAND,
-	// A = B | C
-	NOOMV_INSTR_BOR,
-	// A = B ~ C
-	NOOMV_INSTR_BXOR,
-	// A = ~B
-	NOOMV_INSTR_BNOT,
-	// A = B << C
-	NOOMV_INSTR_LSHIFT,
-	// A = B >> C
-	NOOMV_INSTR_RSHIFT,
-
-	// A = B .. C
+	// pop and concatenate the top op.uD values to a string and push it
 	NOOMV_INSTR_CONCAT,
-	// A = #B
-	NOOMV_INSTR_LEN,
-	// A = B[C]
-	NOOMV_INSTR_GET,
-	// A[B] = C
-	NOOMV_INSTR_SET,
+
+	// mark stack slot op.uD as to-be-closed
+	NOOMV_INSTR_CLOSE,
 
 	NOOMV_INSTR_NOP2 = 0xff,
 } noomV_Opcode;
@@ -181,6 +188,8 @@ typedef struct noomV_UpvalDesc {
 typedef struct noomV_LocalDesc {
 	char *name;
 	unsigned char stackIdx;
+	// to forbid changing it with debug.setlocal
+	noom_bool_t isConst;
 	// offset of first instruction where local exists
 	unsigned int pcStart;
 	// offset of first instruction where local is dropped

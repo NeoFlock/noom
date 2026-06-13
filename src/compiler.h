@@ -6,6 +6,7 @@ typedef struct noomC_Local {
 	unsigned int startpc;
 	unsigned int endpc;
 	const char *name;
+	noom_uint_t namelen;
 	noom_bool_t dropped;
 	noom_bool_t constant;
 	noom_bool_t close;
@@ -17,7 +18,8 @@ typedef struct noomC_Compiler {
 	unsigned localc, constc;
 	unsigned localcap, constcap;
 	// constants index in the stack.
-	// We put it there so GC doesn't free them.
+	// We put it there so GC doesn't free them, and
+	// so we can allocate the function's consts arrays *ONCE*
 	unsigned constidx;
 	unsigned curstack;
 	noomC_Local *locals;
