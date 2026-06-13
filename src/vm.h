@@ -91,6 +91,8 @@ typedef enum noomV_Opcode : unsigned char {
 	NOOMV_INSTR_PUSHVAL,
 	// Pushes consts[op.uD]
 	NOOMV_INSTR_PUSHCONST,
+	// Pushes _G[consts[op.uD]], Lua 5.1 only.
+	NOOMV_INSTR_PUSHGLOBAL,
 	// Pushes op.sD itself as an integer
 	NOOMV_INSTR_PUSHINT,
 	// Pushes op.uD nils
@@ -136,6 +138,8 @@ typedef enum noomV_Opcode : unsigned char {
 	NOOMV_INSTR_SETVAL,
 	// pops value, sets *upvals[op.uD] = value
 	NOOMV_INSTR_SETUPVAL,
+	// pops value, sets _G[consts[op.uD]] = value
+	NOOMV_INSTR_SETGLOBAL,
 
 	// Control flow
 	
@@ -205,6 +209,8 @@ typedef struct noomV_Function {
 	noomV_Object obj;
 	// source location string
 	noomV_String *chunkname;
+	// globals. Lua 5.1 only, use the _ENV upvalue for Lua 5.2+
+	noomV_Table *env;
 	noomV_Inst *code;
 	noomV_Value *consts;
 	struct noomV_Function **protos;
