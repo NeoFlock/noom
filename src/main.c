@@ -1,7 +1,7 @@
 #include <stdio.h> // for now
 #include "helper.h"
 #include "error.h"
-#include "types.h"
+#include "noom.h"
 
 void tab(noom_uint_t amount) {
 	amount *= 2;

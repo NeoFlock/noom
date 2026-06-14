@@ -1,4 +1,3 @@
-#include "types.h"
 #include "noom.h"
 
 typedef enum noomL_TokenType {

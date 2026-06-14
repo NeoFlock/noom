@@ -1,7 +1,6 @@
 #ifndef NOOM_VM
 #define NOOM_VM
 
-#include "types.h"
 #include "noom.h"
 
 #ifndef NOOM_MAXSTACK
@@ -50,6 +49,7 @@ typedef struct noomV_Value {
 		noom_bool_t boolean;
 		noom_int_t integer;
 		noom_float_t number;
+		void *lightuserdata;
 		noomV_Object *obj;
 		struct noomV_Pointer *ptr;
 	};

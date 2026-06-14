@@ -1,6 +1,6 @@
 #include "helper.h"
 
-#include "types.h"
+#include "noom.h"
 
 int noom_startswith(const char* str, const char* compare) {
 #ifdef __has_builtin

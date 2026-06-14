@@ -1,4 +1,4 @@
-#include "types.h"
+#include "noom.h"
 #include "lexer.h"
 
 typedef enum noomP_NodeType {
