@@ -95,9 +95,9 @@ typedef enum noomV_Opcode : unsigned char {
 	NOOMV_INSTR_PUSHGLOBAL,
 	// Pushes op.sD itself as an integer
 	NOOMV_INSTR_PUSHINT,
-	// Pushes op.uD nils
+	// Pushes [op.uD+1] nils
 	NOOMV_INSTR_PUSHNIL,
-	// Pushes op.a+1 booleans, encoded in op.uD, where the ith (0-indexed) boolean is encoded in `uD & (1 << i)`
+	// Pushes [op.a+1] booleans, encoded in [op.uD], where the ith (0-indexed) boolean is encoded in `uD & (1 << i)`
 	NOOMV_INSTR_PUSHBOOLS,
 	// Pushes *upvals[op.uD]
 	NOOMV_INSTR_PUSHUPVAL,
@@ -165,7 +165,7 @@ typedef enum noomV_Opcode : unsigned char {
 	// set the stack size to op.uD, inserting nils if need be, good for labels
 	NOOMV_INSTR_SETSTACK,
 
-	// pop and concatenate the top op.uD values to a string and push it
+	// pop and concatenate the top [op.uD+1] values to a string and push it
 	NOOMV_INSTR_CONCAT,
 
 	// mark stack slot op.uD as to-be-closed

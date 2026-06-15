@@ -95,6 +95,8 @@ typedef enum noom_BinOp {
 	NOOM_BIN_DIV,
 	// a // b
 	NOOM_BIN_IDIV,
+	// a % b
+	NOOM_BIN_MOD,
 	// a ^ b
 	NOOM_BIN_EXP,
 

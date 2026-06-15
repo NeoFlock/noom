@@ -6,7 +6,8 @@ typedef struct noomC_Local {
 	unsigned int startpc;
 	unsigned int endpc;
 	const char *name;
-	noom_uint_t namelen;
+	unsigned int namelen;
+	unsigned int stackslot;
 	noom_bool_t dropped;
 	noom_bool_t constant;
 	noom_bool_t close;
