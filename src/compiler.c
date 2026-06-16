@@ -249,6 +249,7 @@ static noom_Exit noomC_compile_expr(
 		const char *varname = parser->code + node->source_offset;
 		noom_uint_t namelen = noomL_tokenlen(parser->code, node->source_offset, parser->version);
 		if((result = noomC_identifyLocal(compiler, &info, varname, namelen))) return result;
+		compiler->curstack++;
 
 		switch(info.type) {
 		case NOOMC_LOCAL:
