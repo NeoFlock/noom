@@ -98,10 +98,26 @@ static noom_Exit noomC_addconst(noomV_Function *func, const noomV_Value val) {
 	return NOOM_OK;
 }
 
-static noom_Exit noomC_addconst_str(noomV_Function *func, noom_LuaVM *vm, const char *str, const noom_uint_t len) {
-	noomV_String *s = noomV_allocStr(vm, str, len);
+static noomV_String *noomC_internString(noomC_Compiler *c, noom_LuaVM *vm, const char *str, noom_uint_t len) {
+	while(c) {
+		noomV_Function *f = c->target;
+		for(int i = 0; i < f->constsize; i++) {
+			noomV_Value v = f->consts[i];
+			if(v.tag != NOOMV_VOBJ) continue;
+			noomV_Object *o = v.obj;
+			if(o->tag != NOOMV_OSTR) continue;
+			noomV_String *s = (noomV_String *)o;
+			if(noom_memeq(s->data, s->len, str, len)) return s;
+		}
+		c = c->parent;
+	}
+	return noomV_allocStr(vm, str, len);
+}
+
+static noom_Exit noomC_addconst_str(noomC_Compiler *c, noom_LuaVM *vm, const char *str, const noom_uint_t len) {
+	noomV_String *s = noomC_internString(c, vm, str, len);
 	if (s == 0) return NOOM_ENOMEM;
-	return noomC_addconst(func, (noomV_Value){.tag = NOOMV_VOBJ, .autoclose = 0, .isptr = 0, .obj = (noomV_Object *)s});
+	return noomC_addconst(c->target, (noomV_Value){.tag = NOOMV_VOBJ, .autoclose = 0, .isptr = 0, .obj = (noomV_Object *)s});
 }
 
 static noomL_Token noomC_token_at(const noomP_Parser *parser, noom_uint_t offset) {
@@ -172,7 +188,7 @@ static noom_Exit noomC_compile_expr(
 	}
 	if (node->type == NOOMP_NODE_STRINGLITERAL) {
 		unsigned char fucking_destination = compiler->curstack++;
-		noom_Exit result = noomC_addconst_str(func, vm, "but DID YOU KNOW", 16);
+		noom_Exit result = noomC_addconst_str(compiler, vm, "but DID YOU KNOW", 16);
 		return result;
 	}
 	if (node->type == NOOMP_NODE_BINARYOPERATOR) {
@@ -405,6 +421,10 @@ noom_Exit noomC_compile(noom_LuaVM *vm, const noomP_Parser *parser, const noomP_
 	
 	noom_Exit status = noomC_compile_block(vm, &compiler, parser, program, node);
 	if (status != NOOM_OK) return status;
+
+	if(parser->version > NOOM_VERSION_51) {
+		// TODO: we need to wrap the value as a *closure*, with one upvalue, the environment (_ENV).
+	}
 	
 	if (vm->mainThread->stacklen == vm->mainThread->stackcap) {
 		vm->mainThread->stackcap = vm->mainThread->stackcap ? vm->mainThread->stackcap * 2 : 16;
