@@ -21,11 +21,11 @@ noomV_String *noomV_allocStr(noom_LuaVM *vm, const char *str, noom_uint_t len) {
 	return s;
 }
 
-noomV_Function *noomV_allocFunc(noom_LuaVM *vm, const char *str, noom_uint_t len) {
+noomV_Function *noomV_allocFunc(noom_LuaVM *vm, noomV_String *chunkname) {
 	noomV_Function *f = (noomV_Function*)noomV_allocObj(vm, NOOMV_OFUNC, sizeof(noomV_Function));
 	if (f == 0) return 0;
-	f->chunkname = noomV_allocStr(vm, str, len);
-	if (f->chunkname == 0) return 0;
+	f->chunkname = chunkname;
+	f->env = 0;
 	f->code = 0;
 	f->consts = 0;
 	f->protos = 0;

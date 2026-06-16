@@ -29,16 +29,48 @@
 // ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
 // ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡘⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀ 
 
+typedef struct noomC_LocalInfo {
+	enum { NOOMC_GLOBAL, NOOMC_LOCAL, NOOMC_UPVAL } type;
+	unsigned int idx;
+} noomC_LocalInfo;
+
+noom_Exit noomC_addLocal(noomC_Compiler *c, noomC_Local local) {
+	if(c->localc == NOOMC_MAXLOCAL) return NOOM_EINTERNAL;
+	c->locals[c->localc++] = local;
+	return NOOM_OK;
+}
+
+noom_Exit noomC_addUpval(noomC_Compiler *c, noomC_Upval upval) {
+	if(c->upvalc == NOOMC_MAXUPVAL) return NOOM_EINTERNAL;
+	c->upvals[c->upvalc++] = upval;
+	return NOOM_OK;
+}
+
+noom_Exit noomC_identifyLocal(noomC_Compiler *compiler, noomC_LocalInfo *info, const char *name, noom_uint_t namelen) {
+	// TODO: attempt to steal locals for upvalues
+	
+	for(int i = compiler->localc-1; i >= 0; i--) {
+		noomC_Local l = compiler->locals[i];
+		if(l.dropped) continue;
+		if(noom_memeq(l.name, l.namelen, name, namelen)) {
+			info->type = NOOMC_LOCAL;
+			info->idx = l.stackslot;
+			return NOOM_OK;
+		}
+	}
+
+	// fallback to global
+	info->type = NOOMC_GLOBAL;
+	return NOOM_OK;
+}
+
 void noomC_compiler_init(noomC_Compiler *compiler) {
 	compiler->parent = 0;
+	compiler->target = 0;
 	
 	compiler->localc = 0;
-	compiler->localcap = 0;
-	compiler->locals = 0;
-	
-	compiler->constidx = 0;
-	compiler->constc = 0;
-	compiler->constcap = 0;
+	compiler->upvalc = 0;
+	compiler->curstack = 0;
 }
 
 static noom_Exit noomC_emit(noomV_Function *func, const noomV_Inst inst) {
@@ -196,6 +228,24 @@ static noom_Exit noomC_compile_expr(
 		}
 		return noomC_emit_Aus(func, NOOMV_INSTR_JMP, 0, /* where do i start......... */ 0);
 	}
+	if(node->type == NOOMP_NODE_VARIABLE) {
+		noomC_LocalInfo info;
+		const char *varname = parser->code + node->source_offset;
+		noom_uint_t namelen = noomL_tokenlen(parser->code, node->source_offset, parser->version);
+		if((result = noomC_identifyLocal(compiler, &info, varname, namelen))) return result;
+
+		switch(info.type) {
+		case NOOMC_LOCAL:
+			return noomC_emit_Aus(func, NOOMV_INSTR_PUSHVAL, 0, info.idx);
+		case NOOMC_UPVAL:
+			return noomC_emit_Aus(func, NOOMV_INSTR_PUSHUPVAL, 0, info.idx);
+		case NOOMC_GLOBAL:
+			// FIXME: handle globals
+			return NOOM_EINTERNAL;
+		}
+		// forgot a case
+		return NOOM_EINTERNAL;
+	}
 	return NOOM_EINTERNAL;
 }
 
@@ -219,6 +269,7 @@ static noom_Exit noomC_add_stuff_to_function(noom_LuaVM *vm, noomC_Compiler *com
 	noom_Exit result;
 	// local name <attr> = expression i think
 	if (node->type == NOOMP_NODE_LOCALDECLARATION) {
+		// FIXME: there can be multiple locals defined
 		// This code is awful for several reasons and we shall burn it
 		if (node->subnodec != 1 && node->subnodec != 2) return NOOM_EINTERNAL;
 
@@ -226,8 +277,6 @@ static noom_Exit noomC_add_stuff_to_function(noom_LuaVM *vm, noomC_Compiler *com
 		if (varname_node->type != NOOMP_NODE_ASSIGNPLACE) return NOOM_EINTERNAL;
 
 		const char *namebuf = parser->code + varname_node->source_offset;
-		noomL_Token t;
-		noomL_lex(namebuf, 0, &t, parser->version);
 
 		noomC_Local local;
 		local.startpc = func->codesize;
@@ -236,7 +285,7 @@ static noom_Exit noomC_add_stuff_to_function(noom_LuaVM *vm, noomC_Compiler *com
 		local.close = 0;
 		local.constant = 0;
 		local.name = namebuf;
-		local.namelen = t.length;
+		local.namelen = noomL_tokenlen(namebuf, 0, parser->version);
 
 		for (noom_uint_t i = 0; i < varname_node->subnodec; i++) {
 			if (varname_node->subnodes[i]->type != NOOMP_NODE_ATTRIBUTE) return NOOM_EINTERNAL;
@@ -274,19 +323,7 @@ static noom_Exit noomC_add_stuff_to_function(noom_LuaVM *vm, noomC_Compiler *com
 
 		local.stackslot = compiler->curstack;
 
-		// too many locals
-		if(compiler->localc == 200) return NOOM_EINTERNAL;
-		// resize backing array
-		if(compiler->localc == compiler->localcap) {
-			noom_uint_t newCap = compiler->localcap * 2;
-			noomC_Local *newLocals = noom_realloc(compiler->locals, sizeof(noomC_Local) * newCap);
-			if(newLocals == 0) return NOOM_ENOMEM;
-			compiler->locals = newLocals;
-			compiler->localcap = newCap;
-		}
-		compiler->locals[compiler->localc++] = local;
-
-		return NOOM_OK;
+		return noomC_addLocal(compiler, local);
 	}
 
 	// local function name(...) ... end
@@ -301,7 +338,7 @@ static noom_Exit noomC_add_stuff_to_function(noom_LuaVM *vm, noomC_Compiler *com
 		if (block_node->type     != NOOMP_NODE_BLOCK) return NOOM_EINTERNAL;
 
 		const noomL_Token name_token = noomC_token_at(parser, varname_node->source_offset);
-		noomV_Function *proto = noomV_allocFunc(vm, parser->code + name_token.offset, name_token.length);
+		noomV_Function *proto = noomV_allocFunc(vm, func->chunkname);
 		if (proto == 0) return NOOM_ENOMEM;
 
 		proto->argc = (unsigned char)params_node->subnodec;
@@ -322,20 +359,13 @@ static noom_Exit noomC_add_stuff_to_function(noom_LuaVM *vm, noomC_Compiler *com
 		noomC_Local local;
 		local.startpc = proto->codesize;
 		local.endpc = 0;
-		local.dropped = 0; // FIXME?
+		local.dropped = 0;
 		local.close = 0;
 		local.constant = 0;
-		// FIXME: this is WRONG, BUT I AM TIRED.
-		local.name = noom_strndup(parser->code + varname_node->source_offset, varname_node->source_offset);
+		local.name = parser->code + varname_node->source_offset;
+		local.namelen = noomL_tokenlen(parser->code, varname_node->source_offset, parser->version);
 	
-		// FIXME: EXTREMELY WRONG. I AM STILL TIRED.
-		compiler->locals = noom_realloc(compiler->locals, sizeof(noomC_Local) * (compiler->localc + 1));
-		if (compiler->locals == 0) return NOOM_ENOMEM;
-		compiler->locals[compiler->localc++] = local;
-		// I guess???????
-		if (compiler->localc > compiler->localcap) compiler->localcap = compiler->localc;
-		
-		return NOOM_OK;
+		return noomC_addLocal(compiler, local);
 	}
 
 	// TODO
@@ -351,13 +381,27 @@ static noom_Exit noomC_add_stuff_to_function(noom_LuaVM *vm, noomC_Compiler *com
 	return NOOM_EINTERNAL;
 }
 
-noom_Exit noomC_compile(noom_LuaVM *vm, const noomP_Parser *parser, const noomP_Node *node) {
+noom_Exit noomC_compile(noom_LuaVM *vm, const noomP_Parser *parser, const noomP_Node *node, noomV_String *chunkname, noomV_Table *env) {
 	if (node->type != NOOMP_NODE_PROGRAM) return NOOM_EINTERNAL;
 	
-	noomV_Function* program = noomV_allocFunc(vm, "main", 4);
+	noomV_Function* program = noomV_allocFunc(vm, chunkname);
+	if(program == 0) return NOOM_ENOMEM;
 	
 	noomC_Compiler compiler;
 	noomC_compiler_init(&compiler);
+	compiler.target = program;
+
+	if(parser->version == NOOM_VERSION_51) {
+		program->env = env;
+	} else {
+		noomC_Upval upval;
+		upval.name = "_ENV";
+		upval.namelen = 4;
+		upval.slot = 0;
+		upval.stolen = 1;
+		upval.constant = 0;
+		noomC_addUpval(&compiler, upval);
+	}
 	
 	noom_Exit status = noomC_compile_block(vm, &compiler, parser, program, node);
 	if (status != NOOM_OK) return status;

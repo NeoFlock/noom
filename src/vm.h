@@ -87,11 +87,11 @@ typedef enum noomV_Opcode : unsigned char {
 
 	// Push data on the stack
 
-	// Pushes the value at stack[op.uD]
+	// Pushes the value at `stack[op.uD]`
 	NOOMV_INSTR_PUSHVAL,
-	// Pushes consts[op.uD]
+	// Pushes `consts[op.uD]`
 	NOOMV_INSTR_PUSHCONST,
-	// Pushes _G[consts[op.uD]], Lua 5.1 only.
+	// Pushes `_G[consts[op.uD]]`, Lua 5.1 only.
 	NOOMV_INSTR_PUSHGLOBAL,
 	// Pushes op.sD itself as an integer
 	NOOMV_INSTR_PUSHINT,
@@ -330,8 +330,7 @@ struct noom_LuaVM {
 // Allocating objects
 noomV_Object *noomV_allocObj(noom_LuaVM *vm, noomV_ObjTag tag, noom_uint_t size);
 noomV_String *noomV_allocStr(noom_LuaVM *vm, const char *str, noom_uint_t len);
-noomV_Function *noomV_allocFunc(noom_LuaVM *vm, const char *str, noom_uint_t len);
-noomV_Function *noomV_allocFunc(noom_LuaVM *vm, const char *str, noom_uint_t len);
+noomV_Function *noomV_allocFunc(noom_LuaVM *vm, noomV_String *chunkname);
 void noomV_freeObj(noomV_Object *obj);
 
 #endif

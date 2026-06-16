@@ -584,3 +584,8 @@ noomL_ErrorType noomL_lex(const char* s, noom_uint_t start, noomL_Token* token, 
 	return NOOML_ERROR_UNKNOWN;
 }
 
+noom_uint_t noomL_tokenlen(const char *s, noom_uint_t start, noom_LuaVersion version) {
+	noomL_Token t;
+	noomL_lex(s, start, &t, version);
+	return t.length;
+}

@@ -13,20 +13,30 @@ typedef struct noomC_Local {
 	noom_bool_t close;
 } noomC_Local;
 
+typedef struct noomC_Upval {
+	const char *name;
+	unsigned int namelen;
+	unsigned short slot;
+	// if stolen, this means that slot is actually an upvalue index
+	noom_bool_t stolen;
+	noom_bool_t constant;
+} noomC_Upval;
+
+#define NOOMC_MAXLOCAL 200
+#define NOOMC_MAXUPVAL 64
+
 typedef struct noomC_Compiler {
 	// steal constants from this
 	struct noomC_Compiler *parent;
-	unsigned localc, constc;
-	unsigned localcap, constcap;
-	// constants index in the stack.
-	// We put it there so GC doesn't free them, and
-	// so we can allocate the function's consts arrays *ONCE*
-	unsigned constidx;
+	noomV_Function *target;
+	unsigned localc;
+	unsigned upvalc;
 	unsigned curstack;
-	noomC_Local *locals;
+	noomC_Local locals[NOOMC_MAXLOCAL];
+	noomC_Upval upvals[NOOMC_MAXUPVAL];
 } noomC_Compiler;
 
 void noomC_compiler_init(noomC_Compiler* compiler);
 
 // pushes the compiled function on the stack, or just crashes lol
-noom_Exit noomC_compile(noom_LuaVM *vm, const noomP_Parser *parser, const noomP_Node *node);
+noom_Exit noomC_compile(noom_LuaVM *vm, const noomP_Parser *parser, const noomP_Node *node, noomV_String *chunkname, noomV_Table *env);
