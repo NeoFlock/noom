@@ -31,7 +31,7 @@ int noomL_ishex(char c) {
 
 noom_uint_t noomL_getsymbol(const char* s, noom_LuaVersion version) { // TODO: maybe find some less shit crap holy crap
 	if (noom_startswith(s, "...")) return 3;
-	
+
 	if (noom_startswith(s, "==")) return 2;
 	if (noom_startswith(s, "~=")) return 2;
 	if (noom_startswith(s, "<=")) return 2;
@@ -47,12 +47,12 @@ noom_uint_t noomL_getsymbol(const char* s, noom_LuaVersion version) { // TODO: m
 
 		if (noom_startswith(s, ">>")) return 2;
 		if (noom_startswith(s, "<<")) return 2;
-	
+
 		if (noom_startswith(s, "&")) return 1;
 		if (noom_startswith(s, "|")) return 1;
 		if (noom_startswith(s, "~")) return 1;
 	}
-	
+
 	if (noom_startswith(s, "+")) return 1;
 	if (noom_startswith(s, "-")) return 1;
 	if (noom_startswith(s, "*")) return 1;
@@ -62,10 +62,10 @@ noom_uint_t noomL_getsymbol(const char* s, noom_LuaVersion version) { // TODO: m
 	if (noom_startswith(s, "#")) return 1;
 	if (noom_startswith(s, "<")) return 1;
 	if (noom_startswith(s, ">")) return 1;
-	
+
 	if (noom_startswith(s, "=")) return 1;
 	if (noom_startswith(s, ",")) return 1;
-	
+
 	if (noom_startswith(s, "(")) return 1;
 	if (noom_startswith(s, ")")) return 1;
 	if (noom_startswith(s, "{")) return 1;
@@ -75,7 +75,7 @@ noom_uint_t noomL_getsymbol(const char* s, noom_LuaVersion version) { // TODO: m
 
 	if (noom_startswith(s, ":")) return 1;
 	if (noom_startswith(s, ".")) return 1;
-	
+
 	if (noom_startswith(s, ";")) return 1;
 
 	return 0; // no symbol
@@ -83,7 +83,7 @@ noom_uint_t noomL_getsymbol(const char* s, noom_LuaVersion version) { // TODO: m
 
 noom_uint_t noomL_getnumber(const char* s, noomL_ErrorType* error, noom_LuaVersion version) { // TODO: more number kinds idk
 	noom_uint_t len = 0;
-	
+
 	if (s[0] == '0' && noomL_lower(s[1]) == 'x') {
 		len = 2;
 
@@ -123,7 +123,6 @@ noom_uint_t noomL_getnumber(const char* s, noomL_ErrorType* error, noom_LuaVersi
 					return 0;
 				}
 			}
-			
 		}
 
 		if (len == 2) { // nothing after the x; malformed number.
@@ -138,7 +137,7 @@ noom_uint_t noomL_getnumber(const char* s, noomL_ErrorType* error, noom_LuaVersi
 				return 0;
 			}
 		}
-		
+
 		return len;
 	} else {
 		while (noomL_isnumber(s[len])) { // int part
@@ -165,7 +164,7 @@ noom_uint_t noomL_getnumber(const char* s, noomL_ErrorType* error, noom_LuaVersi
 			if (s[len] == '-' || s[len] == '+') len++;
 
 			noom_uint_t slen = len;
-					
+
 			while (noomL_isnumber(s[len])) { // the exponent
 				len++;
 			}
@@ -195,14 +194,17 @@ noom_uint_t noomL_getcomment(const char* str, noomL_ErrorType* error) {
 	if (str[0] == '-' && str[1] == '-') {
 		noom_uint_t len = 2;
 		noom_uint_t longb_len = 0;
-	
+
 		// check for long bracket
 		int is_long = 0; // int for bools :fire:
 
 		if (str[len] == '[') {
 			len++;
 
-			while (str[len] == '=') { longb_len++; len++; }
+			while (str[len] == '=') {
+				longb_len++;
+				len++;
+			}
 
 			if (str[len] == '[') {
 				// yay long bracket!
@@ -223,7 +225,10 @@ noom_uint_t noomL_getcomment(const char* str, noomL_ErrorType* error) {
 					noom_uint_t spos = len; // after the ] intentionally
 					noom_uint_t testlong = 0;
 
-					while (str[len] == '=') { testlong++; len++; }
+					while (str[len] == '=') {
+						testlong++;
+						len++;
+					}
 
 					if (str[len] == ']') { // actual long bracket! holy shit!
 						len++;
@@ -245,7 +250,7 @@ noom_uint_t noomL_getcomment(const char* str, noomL_ErrorType* error) {
 					len++; // just some character.
 				}
 			}
-		
+
 		} else {
 			// reset to remove stuff, in case we hit like --[===hello, technically not required but a good idea
 			len = 2;
@@ -263,7 +268,7 @@ noom_uint_t noomL_getstring(const char* s, noomL_ErrorType* error, noom_LuaVersi
 	noom_uint_t len = 0;
 	if (s[len] == '"' || s[len] == '\'') {
 		char starter = s[len]; // either `'` or `"`
-		
+
 		len++; // double quoted string
 
 		while (1) {
@@ -289,25 +294,26 @@ noom_uint_t noomL_getstring(const char* s, noomL_ErrorType* error, noom_LuaVersi
 					len++;
 				} else if (s[len] == 'v') {
 					len++;
-					
-				// both string using single or double quote can have either escaped inside
+
+					// both string using single or double quote can have either escaped inside
 				} else if (s[len] == '"') {
 					len++;
 				} else if (s[len] == '\'') {
 					len++;
 				} else if (s[len] == '\n') {
 					len++;
-				} else if (s[len] == '\r' && s[len+1] == '\n') { // fuck windows :fire:
+				} else if (s[len] == '\r' && s[len + 1] == '\n') { // fuck windows :fire:
 					len += 2;
-					
+
 				} else if (noomL_isnumber(s[len])) {
 					// fuckkkk
 					noom_uint_t count = 0;
 					for (noom_uint_t i = 0; i < 3; i++) {
-						if (noomL_isnumber(s[len + i])) count++; else break;
+						if (noomL_isnumber(s[len + i])) count++;
+						else break;
 					}
 					if (count == 3) { // could be too big
-						if ((s[len] > '2') || (s[len] == '2' && (s[len+1] > '5' || (s[len+1] == '5' && s[len+2] > '5')))) {
+						if ((s[len] > '2') || (s[len] == '2' && (s[len + 1] > '5' || (s[len + 1] == '5' && s[len + 2] > '5')))) {
 							// >255, i could also make it a number first but meh
 							*error = NOOML_ERROR_DECIMAL_ESCAPE_TOO_BIG;
 							return 0;
@@ -315,11 +321,11 @@ noom_uint_t noomL_getstring(const char* s, noomL_ErrorType* error, noom_LuaVersi
 					}
 					// count can't be 0 because this if wouldn't run.
 					len += count;
-					
+
 				} else if (s[len] == 'x' && version >= NOOM_VERSION_52) {
 					len++;
 
-					if ((!noomL_ishex(s[len])) || (!noomL_ishex(s[len+1]))) {
+					if ((!noomL_ishex(s[len])) || (!noomL_ishex(s[len + 1]))) {
 						*error = NOOML_ERROR_HEX_ESCAPE_INVALID;
 						return 0;
 					}
@@ -347,7 +353,7 @@ noom_uint_t noomL_getstring(const char* s, noomL_ErrorType* error, noom_LuaVersi
 					// fuck my life
 					if (version == NOOM_VERSION_53) {
 						if (hexlen == 6) {
-							if (s[len] > '1' || (s[len] == '1' && s[len+1] > '0')) {
+							if (s[len] > '1' || (s[len] == '1' && s[len + 1] > '0')) {
 								*error = NOOML_ERROR_UNICODE_ESCAPE_TOO_BIG;
 								return 0;
 							}
@@ -386,7 +392,7 @@ noom_uint_t noomL_getstring(const char* s, noomL_ErrorType* error, noom_LuaVersi
 				// unfinished because you can't have a newline in it
 				*error = NOOML_ERROR_UNFINISHED_STRING;
 				return 0;
-			
+
 			} else {
 				len++; // anything else is just a thing in the string.
 			}
@@ -397,9 +403,15 @@ noom_uint_t noomL_getstring(const char* s, noomL_ErrorType* error, noom_LuaVersi
 		noom_uint_t order = 0;
 		int succ = 0;
 
-		while (s[len] == '=') { order++; len++; }
+		while (s[len] == '=') {
+			order++;
+			len++;
+		}
 
-		if (s[len] == '[') { len++; succ = 1; }
+		if (s[len] == '[') {
+			len++;
+			succ = 1;
+		}
 
 		if (succ) { // it is a multi-line string.
 			while (1) {
@@ -408,7 +420,10 @@ noom_uint_t noomL_getstring(const char* s, noomL_ErrorType* error, noom_LuaVersi
 					noom_uint_t order2 = 0;
 					noom_uint_t startp = len; // intentionally after the `]`
 
-					while (s[len] == '=') { order2++; len++; }
+					while (s[len] == '=') {
+						order2++;
+						len++;
+					}
 
 					if (s[len] == ']' && order == order2) { // holy shit it's real
 						len++;
@@ -418,7 +433,7 @@ noom_uint_t noomL_getstring(const char* s, noomL_ErrorType* error, noom_LuaVersi
 						// nope.
 						len = startp; // go back just in case like ]=]==]
 					}
-				
+
 				} else if (s[len] == '\0') {
 					*error = NOOML_ERROR_UNFINISHED_LONG_STRING;
 					return 0;
@@ -428,7 +443,7 @@ noom_uint_t noomL_getstring(const char* s, noomL_ErrorType* error, noom_LuaVersi
 			}
 		}
 	}
-	
+
 	return 0;
 }
 
@@ -436,18 +451,18 @@ int noomL_iskeyword(const char* s, noom_uint_t len, noom_LuaVersion version) {
 	if (noom_memeq(s, len, "true", 4)) return 1;
 	if (noom_memeq(s, len, "false", 5)) return 1;
 	if (noom_memeq(s, len, "nil", 3)) return 1;
-	
+
 	if (noom_memeq(s, len, "if", 2)) return 1;
 	if (noom_memeq(s, len, "then", 4)) return 1;
 	if (noom_memeq(s, len, "else", 4)) return 1;
 	if (noom_memeq(s, len, "elseif", 6)) return 1;
-	
+
 	if (noom_memeq(s, len, "and", 3)) return 1;
 	if (noom_memeq(s, len, "or", 2)) return 1;
 	if (noom_memeq(s, len, "not", 3)) return 1;
-	
+
 	if (noom_memeq(s, len, "local", 5)) return 1;
-	
+
 	if (noom_memeq(s, len, "for", 3)) return 1;
 	if (noom_memeq(s, len, "function", 8)) return 1;
 	if (noom_memeq(s, len, "do", 2)) return 1;
@@ -462,11 +477,11 @@ int noomL_iskeyword(const char* s, noom_uint_t len, noom_LuaVersion version) {
 	if (version >= NOOM_VERSION_52) {
 		if (noom_memeq(s, len, "goto", 4)) return 1;
 	}
-	
+
 	return 0;
 }
 
-const char *noomL_formatTokenType(noomL_TokenType token_type) {
+const char* noomL_formatTokenType(noomL_TokenType token_type) {
 	switch (token_type) {
 		case NOOML_TOKEN_EOF:
 			return "EOF";
@@ -487,7 +502,6 @@ const char *noomL_formatTokenType(noomL_TokenType token_type) {
 		default:
 			return "unknown";
 	}
-
 }
 
 noomL_ErrorType noomL_lex(const char* s, noom_uint_t start, noomL_Token* token, noom_LuaVersion version) {
@@ -516,7 +530,7 @@ noomL_ErrorType noomL_lex(const char* s, noom_uint_t start, noomL_Token* token, 
 
 		token->type = NOOML_TOKEN_IDENTIFIER;
 		if (noomL_iskeyword(str, len, version)) token->type = NOOML_TOKEN_KEYWORD;
-		
+
 		token->offset = start;
 		token->length = len;
 
@@ -567,7 +581,7 @@ noomL_ErrorType noomL_lex(const char* s, noom_uint_t start, noomL_Token* token, 
 			if (err != NOOML_ERROR_NONE) return err;
 		}
 	}
-	
+
 	{
 		noom_uint_t symbolLen = noomL_getsymbol(str, version);
 
@@ -584,7 +598,7 @@ noomL_ErrorType noomL_lex(const char* s, noom_uint_t start, noomL_Token* token, 
 	return NOOML_ERROR_UNKNOWN;
 }
 
-noom_uint_t noomL_tokenlen(const char *s, noom_uint_t start, noom_LuaVersion version) {
+noom_uint_t noomL_tokenlen(const char* s, noom_uint_t start, noom_LuaVersion version) {
 	noomL_Token t;
 	noomL_lex(s, start, &t, version);
 	return t.length;

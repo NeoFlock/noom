@@ -1,7 +1,7 @@
 #include "parser.h"
 #include "helper.h"
 
-const char *noomP_formatNodeType(noomP_NodeType node_type) {
+const char* noomP_formatNodeType(noomP_NodeType node_type) {
 	switch (node_type) {
 		case NOOMP_NODE_PROGRAM:
 			return "program";
@@ -103,7 +103,7 @@ int noomP_peek(noomP_Parser* parser, noomL_Token* token) {
 			parser->error_state = NOOMP_ERROR_LEXER | success;
 			return 1;
 		}
-		
+
 		if (token->type == NOOML_TOKEN_WHITESPACE || token->type == NOOML_TOKEN_COMMENT) {
 			// peek changes state, but only if it's one of these useless tokens anyway.
 			parser->lex_offset += token->length;
@@ -114,7 +114,7 @@ int noomP_peek(noomP_Parser* parser, noomL_Token* token) {
 			parser->last_token_offset = token->offset;
 			parser->last_token_length = token->length;
 		}
-		
+
 		return 0;
 	}
 }
@@ -150,12 +150,12 @@ noomP_Node* noomP_allocNode(noomP_Parser* parser) {
 int noomP_addSubnode(noomP_Parser* parser, noomP_Node* node, noomP_Node* subnode) {
 	if (node->subnodec == node->subnode_cap) {
 		noomP_Node** new = noom_realloc(node->subnodes, sizeof(noomP_Node*) * node->subnode_cap * 2);
-	
+
 		if (new == 0) {
 			parser->error_state = NOOMP_ERROR_OOM; // well fuck
 			return 1;
 		}
-		
+
 		node->subnodes = new;
 		node->subnode_cap = node->subnode_cap * 2;
 	}
@@ -282,7 +282,7 @@ noomP_Node* noomP_parseTableLiteral(noomP_Parser* parser) {
 			break;
 		}
 	}
-	
+
 	if (noomP_peek(parser, &token)) return 0;
 	if (token.type != NOOML_TOKEN_SYMBOL || !noom_memeq(parser->code + token.offset, token.length, "}", 1)) {
 		parser->error_state = NOOMP_ERROR_EXPECTED_RCURLY;
@@ -296,7 +296,7 @@ noomP_Node* noomP_parseTableLiteral(noomP_Parser* parser) {
 noomP_Node* noomP_parseComplexExpression(noomP_Parser* parser, noomP_Node* snode) {
 	noomP_Node* node = snode;
 	noomL_Token token;
-	
+
 	while (1) {
 		if (noomP_peek(parser, &token)) return 0;
 
@@ -326,7 +326,7 @@ noomP_Node* noomP_parseComplexExpression(noomP_Parser* parser, noomP_Node* snode
 
 				if (noomP_addSubnode(parser, new, node)) return 0;
 				if (noomP_addSubnode(parser, new, fname)) return 0;
-				
+
 				node = new;
 			} else if (noom_memeq(parser->code + token.offset, token.length, "[", 1)) { // index
 				noomP_skip(parser, &token); // skip the [
@@ -398,7 +398,7 @@ noomP_Node* noomP_parseComplexExpression(noomP_Parser* parser, noomP_Node* snode
 
 				new->type = NOOMP_NODE_TABLECALL;
 				new->source_offset = token.offset;
-			
+
 				noomP_Node* table = noomP_parseTableLiteral(parser);
 				if (table == 0) return 0;
 
@@ -417,7 +417,7 @@ noomP_Node* noomP_parseComplexExpression(noomP_Parser* parser, noomP_Node* snode
 				noomP_Node* new = noomP_allocNode(parser);
 				if (new == 0) return 0;
 
-				new->type = 0; 
+				new->type = 0;
 				new->type = NOOMP_NODE_METHODCALL;
 				new->source_offset = sym_loc;
 
@@ -451,7 +451,7 @@ noomP_Node* noomP_parseComplexExpression(noomP_Parser* parser, noomP_Node* snode
 							noomP_skip(parser, &token);
 						}
 					}
-					
+
 					// check for )
 					if (noomP_peek(parser, &token)) return 0;
 					if (token.type != NOOML_TOKEN_SYMBOL || (!noom_memeq(parser->code + token.offset, token.length, ")", 1))) {
@@ -479,7 +479,6 @@ noomP_Node* noomP_parseComplexExpression(noomP_Parser* parser, noomP_Node* snode
 				} else {
 					return 0; // unexpected :(
 				}
-
 
 				node = new;
 			} else {
@@ -512,7 +511,7 @@ noomP_Node* noomP_parseRawExpression(noomP_Parser* parser) {
 
 		noomP_Node* numNode = noomP_allocNode(parser);
 		if (numNode == 0) return 0;
-		
+
 		numNode->type = NOOMP_NODE_NUMBERLITERAL;
 		numNode->source_offset = token.offset;
 
@@ -522,7 +521,7 @@ noomP_Node* noomP_parseRawExpression(noomP_Parser* parser) {
 
 		noomP_Node* numNode = noomP_allocNode(parser);
 		if (numNode == 0) return 0;
-		
+
 		numNode->type = NOOMP_NODE_STRINGLITERAL;
 		numNode->source_offset = token.offset;
 
@@ -543,7 +542,7 @@ noomP_Node* noomP_parseRawExpression(noomP_Parser* parser) {
 	} else if (token.type == NOOML_TOKEN_KEYWORD) {
 		if (noom_memeq(parser->code + token.offset, token.length, "true", 4)) {
 			noomP_skip(parser, &token);
-		
+
 			noomP_Node* litNode = noomP_allocNode(parser);
 			if (litNode == 0) return 0;
 
@@ -553,7 +552,7 @@ noomP_Node* noomP_parseRawExpression(noomP_Parser* parser) {
 			return litNode;
 		} else if (noom_memeq(parser->code + token.offset, token.length, "false", 5)) {
 			noomP_skip(parser, &token);
-		
+
 			noomP_Node* litNode = noomP_allocNode(parser);
 			if (litNode == 0) return 0;
 
@@ -563,7 +562,7 @@ noomP_Node* noomP_parseRawExpression(noomP_Parser* parser) {
 			return litNode;
 		} else if (noom_memeq(parser->code + token.offset, token.length, "nil", 3)) {
 			noomP_skip(parser, &token);
-		
+
 			noomP_Node* litNode = noomP_allocNode(parser);
 			if (litNode == 0) return 0;
 
@@ -705,8 +704,7 @@ int noomP_infixOperatorBP(noomP_Parser* parser, noomL_Token* token, noom_uint_t*
 			*b = 63;
 			return 1;
 
-
-		// oh boy.
+			// oh boy.
 		} else if (noom_memeq(parser->code + token->offset, token->length, "<", 1)) {
 			*a = 50;
 			*b = 60;
@@ -785,7 +783,7 @@ noomP_Node* noomP_parseOperatorExpression(noomP_Parser* parser, noom_uint_t min_
 
 			lhs = noomP_allocNode(parser);
 			if (lhs == 0) return 0;
-			
+
 			lhs->type = NOOMP_NODE_UNARYOPERATOR;
 			lhs->source_offset = token.offset; // the operator! we need this to check what it was when compiling.
 
@@ -908,12 +906,12 @@ noomP_Node* noomP_parseBlock(noomP_Parser* parser) { // stops on end, else or el
 	// block starter has been eaten already; we just go until ending keyword
 	noomP_Node* node = noomP_allocNode(parser);
 	if (node == 0) return 0; // OOM :(
-	
+
 	node->type = NOOMP_NODE_BLOCK;
 	node->source_offset = parser->lex_offset;
 
 	noomL_Token token;
-	
+
 	while (1) {
 		// check if end reached
 		if (noomP_peek(parser, &token)) return 0;
@@ -929,7 +927,7 @@ noomP_Node* noomP_parseBlock(noomP_Parser* parser) { // stops on end, else or el
 				break;
 			}
 		}
-	
+
 		noomP_Node* stmt = noomP_parseStatement(parser);
 		if (stmt == 0) return 0;
 
@@ -951,20 +949,20 @@ noomP_Node* noomP_parseRawStatement(noomP_Parser* parser) {
 
 			if (token.type == NOOML_TOKEN_KEYWORD && noom_memeq(parser->code + token.offset, token.length, "function", 8)) {
 				noomP_skip(parser, &token);
-				
+
 				noomP_Node* funcNode = noomP_allocNode(parser);
 				if (funcNode == 0) return 0;
 
 				funcNode->type = NOOMP_NODE_LOCALFUNCTIONDECLARATION;
 				funcNode->source_offset = token.offset;
-				
+
 				if (noomP_peek(parser, &token)) return 0;
 				if (token.type != NOOML_TOKEN_IDENTIFIER) {
 					parser->error_state = NOOMP_ERROR_EXPECTED_IDENTIFIER_AFTER_LOCAL_FUNCTION;
 					return 0;
 				}
 				noomP_skip(parser, &token);
-				
+
 				noomP_Node* nameNode = noomP_allocNode(parser);
 				if (nameNode == 0) return 0;
 
@@ -1008,7 +1006,7 @@ noomP_Node* noomP_parseRawStatement(noomP_Parser* parser) {
 
 				noomP_Node* varname = noomP_allocNode(parser);
 				if (varname == 0) return 0;
-				
+
 				varname->type = NOOMP_NODE_VARNAME;
 				varname->source_offset = token.offset;
 
@@ -1049,7 +1047,7 @@ noomP_Node* noomP_parseRawStatement(noomP_Parser* parser) {
 						if (noomP_addSubnode(parser, varname, attrn)) return 0;
 					}
 				}
-				
+
 				if (noomP_addSubnode(parser, localNode, varname)) return 0;
 
 				if (noomP_peek(parser, &token)) return 0;
@@ -1075,7 +1073,7 @@ noomP_Node* noomP_parseRawStatement(noomP_Parser* parser) {
 			// equals has already been eaten by loop (thank you loop)
 
 			while (1) {
-				noomP_Node *expr = noomP_parseExpression(parser);
+				noomP_Node* expr = noomP_parseExpression(parser);
 				if (expr == 0) return 0;
 
 				if (noomP_addSubnode(parser, localNode, expr)) return 0;
@@ -1161,7 +1159,7 @@ noomP_Node* noomP_parseRawStatement(noomP_Parser* parser) {
 
 					// we know it's an else if it's an odd number. no need to do anything special.
 					if (noomP_addSubnode(parser, ifStatement, elseBlock)) return 0;
-				
+
 					break; // this must be the last one; end is handled after the loop
 				} else if (noom_memeq(parser->code + token.offset, token.length, "end", 3)) {
 					break; // will check for end outside the loop because else and things
@@ -1222,7 +1220,7 @@ noomP_Node* noomP_parseRawStatement(noomP_Parser* parser) {
 			// sounds like a thing for the compiler to bytecode though
 			noomP_Node* node = noomP_allocNode(parser);
 			if (node == 0) return 0;
-			
+
 			node->type = NOOMP_NODE_BREAK;
 			node->source_offset = token.offset;
 
@@ -1246,7 +1244,7 @@ noomP_Node* noomP_parseRawStatement(noomP_Parser* parser) {
 			fname->type = NOOMP_NODE_FUNCTIONNAME;
 			fname->source_offset = token.offset;
 
-			if (token.type != NOOML_TOKEN_IDENTIFIER) { 
+			if (token.type != NOOML_TOKEN_IDENTIFIER) {
 				parser->error_state = NOOMP_ERROR_EXPECTED_IDENTIFIER_AFTER_FUNCTION;
 				return 0; // unex.
 			}
@@ -1259,7 +1257,7 @@ noomP_Node* noomP_parseRawStatement(noomP_Parser* parser) {
 			base->source_offset = token.offset;
 
 			if (noomP_addSubnode(parser, fname, base)) return 0;
-		
+
 			while (1) {
 				if (noomP_peek(parser, &token)) return 0;
 
@@ -1409,7 +1407,7 @@ noomP_Node* noomP_parseRawStatement(noomP_Parser* parser) {
 
 			if (!is_done) {
 				parser->error_state = NOOMP_ERROR_RETURN_NOT_END;
-				return 0; //darn it
+				return 0; // darn it
 			}
 
 			return ret;
@@ -1468,7 +1466,7 @@ noomP_Node* noomP_parseRawStatement(noomP_Parser* parser) {
 				}
 			} else {
 				forl->type = NOOMP_NODE_FORLOOPIN;
-			
+
 				if (token.type == NOOML_TOKEN_SYMBOL && noom_memeq(parser->code + token.offset, token.length, ",", 1)) {
 					noomP_skip(parser, &token);
 
@@ -1542,7 +1540,7 @@ noomP_Node* noomP_parseRawStatement(noomP_Parser* parser) {
 				return 0;
 			}
 			noomP_skip(parser, &token);
-			
+
 			return forl;
 		} else if (noom_memeq(parser->code + token.offset, token.length, "goto", 4)) { // this keyword can't exist if not on the right version
 			noomP_skip(parser, &token);
@@ -1552,7 +1550,7 @@ noomP_Node* noomP_parseRawStatement(noomP_Parser* parser) {
 
 			thing->type = NOOMP_NODE_GOTO;
 			thing->source_offset = token.offset;
-			
+
 			if (noomP_peek(parser, &token)) return 0;
 			if (token.type != NOOML_TOKEN_IDENTIFIER) {
 				parser->error_state = NOOMP_ERROR_EXPECTED_IDENTIFIER_AFTER_GOTO;
@@ -1629,7 +1627,7 @@ noomP_Node* noomP_parseRawStatement(noomP_Parser* parser) {
 
 			thing->type = NOOMP_NODE_LABEL;
 			thing->source_offset = token.offset;
-			
+
 			if (noomP_peek(parser, &token)) return 0;
 			if (token.type != NOOML_TOKEN_IDENTIFIER) return 0;
 			noomP_skip(parser, &token);
@@ -1671,7 +1669,7 @@ noomP_Node* noomP_parseRawStatement(noomP_Parser* parser) {
 
 			initial_place->type = NOOMP_NODE_ASSIGNPLACE;
 			initial_place->source_offset = base->source_offset;
-			
+
 			if (noomP_addSubnode(parser, initial_place, base)) return 0;
 
 			if (noomP_addSubnode(parser, assignment, initial_place)) return 0;
@@ -1682,15 +1680,15 @@ noomP_Node* noomP_parseRawStatement(noomP_Parser* parser) {
 				if (token.type == NOOML_TOKEN_SYMBOL) {
 					if (noom_memeq(parser->code + token.offset, token.length, ",", 1)) {
 						noomP_skip(parser, &token);
-						
+
 						if (noomP_peek(parser, &token)) return 0;
-						
+
 						if (token.type != NOOML_TOKEN_IDENTIFIER && (token.type != NOOML_TOKEN_SYMBOL || !noom_memeq(parser->code + token.offset, token.length, "(", 1))) {
 							// unexpected
 							parser->error_state = NOOMP_ERROR_EXPECTED_ASSIGNABLE;
 							return 0;
 						}
-						
+
 						// more thingers
 						noomP_Node* item = noomP_parseRawExpression(parser);
 						if (item == 0) return 0;
@@ -1755,7 +1753,7 @@ noomP_Node* noomP_parseRawStatement(noomP_Parser* parser) {
 
 noomP_Node* noomP_parseStatement(noomP_Parser* parser) {
 	noomL_Token token;
-	
+
 	noomP_Node* stmt = noomP_parseRawStatement(parser);
 	if (stmt == 0) return 0;
 
@@ -1803,7 +1801,7 @@ int noomP_initParser(noomP_Parser* parser, const char* code, const char* filenam
 	parser->filename = filename;
 	parser->lex_offset = 0;
 	parser->last_token_length = 0;
-	parser->last_node = (void *)0;
+	parser->last_node = (void*)0;
 	parser->version = version;
 
 	return 0;

@@ -13,7 +13,7 @@ void tab(noom_uint_t amount) {
 	}
 }
 
-void print_node(const noomP_Node *node, noom_uint_t depth) {
+void print_node(const noomP_Node* node, noom_uint_t depth) {
 	tab(depth);
 	printf("{\n");
 
@@ -34,10 +34,10 @@ void print_node(const noomP_Node *node, noom_uint_t depth) {
 	printf("}\n");
 }
 
-int the_theoretical_function_to_execute_your_code_that_should_be_replaced_later(const char *code, const char *program_name, const char *filename) {
+int the_theoretical_function_to_execute_your_code_that_should_be_replaced_later(const char* code, const char* program_name, const char* filename) {
 	noomP_Parser parser;
-	noomP_Node *program;
-	
+	noomP_Node* program;
+
 	// goodbye "shitass" you will be missed
 	int success = noomP_parse(code, filename, NOOM_VERSION_54, &program, &parser);
 	if (success == 0) {
@@ -82,19 +82,18 @@ int the_theoretical_function_to_execute_your_code_that_should_be_replaced_later(
 		puts("\x1b[0m");
 		puts("PARSE OUTPUT:");
 		print_node(program, 0);
-	}
-	else {
+	} else {
 		noom_uint_t bleh = noom_format_error(&parser, program_name, NULL, 0);
 		char* buf = noom_alloc(bleh);
 		noom_format_error(&parser, program_name, buf, bleh);
 		fputs(buf, stdout);
 		noom_free(buf);
 	}
-	
+
 	// freeing time
-	noomP_Node *last_node = parser.last_node;
+	noomP_Node* last_node = parser.last_node;
 	while (last_node) {
-		noomP_Node *next = last_node->previous_node;
+		noomP_Node* next = last_node->previous_node;
 		// subnodes could be null if we OOM'd during a realloc of it
 		if (last_node->subnodes) noom_free(last_node->subnodes);
 		noom_free(last_node);
@@ -121,7 +120,7 @@ static char* read_file(const char* filename) {
 		return 0;
 	}
 	buffer[filesize] = '\0';
-	
+
 	fclose(file);
 	return buffer;
 }
@@ -130,7 +129,7 @@ static char* read_stdin() {
 	noom_uint_t capacity = 4096;
 	noom_uint_t size = 0;
 	char* buffer = noom_alloc(capacity);
-    
+
 	size_t n;
 	while ((n = fread(buffer + size, 1, capacity - size, stdin)) > 0) {
 		size += n;
@@ -139,7 +138,7 @@ static char* read_stdin() {
 			buffer = noom_realloc(buffer, capacity);
 		}
 	}
-	
+
 	buffer[size] = '\0';
 	return buffer;
 }
@@ -152,17 +151,16 @@ static int read_prompt(char* buf, int buf_size, char* prompt, const int required
 		if (!fgets(buf, buf_size, stdin)) return 1;
 		const size_t len = noom_strlen(buf);
 		if (len > 0 && buf[len - 1] != '\n') {
-			while (getchar() != '\n' && !feof(stdin)) ;
-		}
-		else if (len > 0) {
+			while (getchar() != '\n' && !feof(stdin));
+		} else if (len > 0) {
 			buf[len - 1] = '\0';
-		}	
+		}
 	} while (buf[0] == '\0' && required);
 	return 0;
 }
 
-int main(int argc, char **argv) {
-	const char *err = 0;
+int main(int argc, char** argv) {
+	const char* err = 0;
 	struct {
 		noom_bool_t enter_repl;
 		noom_bool_t use_stdin;
@@ -170,39 +168,39 @@ int main(int argc, char **argv) {
 		const char* script_path;
 		noom_bool_t do_i_already_know_what_to_do;
 	} params = {0};
-	
+
 	if (argc < 2) {
 		params.enter_repl = 1;
 		params.do_i_already_know_what_to_do = 1;
-    }
+	}
 
 	for (int i = 1; i < argc; i++) {
-        if (noom_strcmp(argv[i], "-") == 0) {
-            params.use_stdin = 1;
+		if (noom_strcmp(argv[i], "-") == 0) {
+			params.use_stdin = 1;
 			params.do_i_already_know_what_to_do = 1;
-        	continue;
-        }
+			continue;
+		}
 
-        if (noom_strcmp(argv[i], "--") == 0) {
-	        if (++i >= argc) break;
-        	if (params.do_i_already_know_what_to_do) {
-        		err = "too many arguments";
-        		goto die;
-        	}
-        	params.script_exec = argv[i];
-        	params.do_i_already_know_what_to_do = 1;
-        	continue;
-        }
+		if (noom_strcmp(argv[i], "--") == 0) {
+			if (++i >= argc) break;
+			if (params.do_i_already_know_what_to_do) {
+				err = "too many arguments";
+				goto die;
+			}
+			params.script_exec = argv[i];
+			params.do_i_already_know_what_to_do = 1;
+			continue;
+		}
 
-        if (argv[i][0] != '-') {
-        	if (params.do_i_already_know_what_to_do) {
-        		err = "too many arguments";
-        		goto die;
-        	}
-            params.script_path = argv[i];
-        	params.do_i_already_know_what_to_do = 1;
-        	continue;
-        }
+		if (argv[i][0] != '-') {
+			if (params.do_i_already_know_what_to_do) {
+				err = "too many arguments";
+				goto die;
+			}
+			params.script_path = argv[i];
+			params.do_i_already_know_what_to_do = 1;
+			continue;
+		}
 
 		if (argv[i][1] == 'e') {
 			if (params.do_i_already_know_what_to_do) {
@@ -214,7 +212,7 @@ int main(int argc, char **argv) {
 				params.do_i_already_know_what_to_do = 1;
 				continue;
 			}
-			
+
 			if (++i >= argc) {
 				err = "-e needs an argument";
 				goto die;
@@ -222,15 +220,15 @@ int main(int argc, char **argv) {
 			params.script_exec = argv[i];
 			params.do_i_already_know_what_to_do = 1;
 		}
-		
-        if (argv[i][1] == 'v') {
-	        puts(NOOM_VERSION_TEXT);
-        	return 0;
-        }
-		
+
+		if (argv[i][1] == 'v') {
+			puts(NOOM_VERSION_TEXT);
+			return 0;
+		}
+
 		err = "unknown option";
 		goto die;
-    }
+	}
 	if (!params.do_i_already_know_what_to_do) {
 		err = "script not set";
 		goto die;
@@ -242,7 +240,8 @@ int main(int argc, char **argv) {
 		char* code = read_file(params.script_path);
 		if (code == 0) return 1;
 		int offset = 0;
-		if (code[0] == '#' && code[1] == '!') for (offset = 2; code[offset] && code[offset] != '\n'; offset++);
+		if (code[0] == '#' && code[1] == '!')
+			for (offset = 2; code[offset] && code[offset] != '\n'; offset++);
 		int e = the_theoretical_function_to_execute_your_code_that_should_be_replaced_later(code + offset, argv[0], params.script_path);
 		noom_free(code);
 		return e;
@@ -263,12 +262,14 @@ int main(int argc, char **argv) {
 		}
 	}
 die:
-    fprintf(stderr, "%s: %s\n"
-		"usage: %s [options] [script [args]]\n"
-		"Available options are:\n"
-		"  -         execute stdin\n"
-		"  -e stat   execute string 'stat'\n"
-		"  -v        show version\n",
-		argv[0], err, argv[0]);
+	fprintf(stderr, "%s: %s\n"
+	                "usage: %s [options] [script [args]]\n"
+	                "Available options are:\n"
+	                "  -         execute stdin\n"
+	                "  -e stat   execute string 'stat'\n"
+	                "  -v        show version\n",
+	        argv[0],
+	        err,
+	        argv[0]);
 	return 1;
 }

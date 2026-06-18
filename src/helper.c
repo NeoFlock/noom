@@ -27,18 +27,18 @@ int noom_memeq(const char* stra, noom_uint_t lena, const char* strb, noom_uint_t
 	return 1;
 }
 
-noom_uint_t noom_strlen(const char *s) {
+noom_uint_t noom_strlen(const char* s) {
 #ifdef __has_builtin
 #if __has_builtin(__builtin_strlen)
 	return __builtin_strlen(s);
 #endif
 #endif
-	const char *a = s;
+	const char* a = s;
 	while (*s) s++;
 	return s - a;
 }
 
-int noom_strcmp(const char *a, const char *b) {
+int noom_strcmp(const char* a, const char* b) {
 #ifdef __has_builtin
 #if __has_builtin(__builtin_strcmp)
 	return __builtin_strcmp(a, b);
@@ -54,8 +54,8 @@ void noom_safe_strcpy(char* buffer, noom_uint_t* pos, noom_uint_t buffer_size, c
 	}
 }
 
-char *noom_strndup(const char *s, const noom_uint_t len) {
-	char *whar = noom_alloc(len + 1);
+char* noom_strndup(const char* s, const noom_uint_t len) {
+	char* whar = noom_alloc(len + 1);
 	if (whar == 0) return 0;
 	noom_memcpy(whar, s, len);
 	whar[len] = '\0';
@@ -69,8 +69,8 @@ void noom_memcpy(void* dst, const void* src, noom_uint_t n) {
 	return;
 #endif
 #endif
-	unsigned char *d = dst;
-	const unsigned char *s = src;
+	unsigned char* d = dst;
+	const unsigned char* s = src;
 
 	while (n--) {
 		*d++ = *s++;
