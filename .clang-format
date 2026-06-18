@@ -1,0 +1,39 @@
+BasedOnStyle: LLVM
+
+PointerAlignment: Left
+DerivePointerAlignment: false
+
+UseTab: ForIndentation
+IndentWidth: 4
+TabWidth: 4
+
+InsertNewlineAtEOF: true
+LineEnding: LF
+
+ColumnLimit: 0
+
+BreakBeforeBraces: Attach
+SpaceBeforeParens: ControlStatements
+
+SortIncludes: false
+IncludeBlocks: Preserve
+
+AllowShortIfStatementsOnASingleLine: AllIfsAndElse
+AllowShortLoopsOnASingleLine: true
+AllowShortFunctionsOnASingleLine: All
+AllowShortBlocksOnASingleLine: Always
+
+AlignConsecutiveAssignments: false
+AlignConsecutiveDeclarations: false
+AlignConsecutiveMacros: None
+AlignOperands: false
+AlignTrailingComments: false
+
+ContinuationIndentWidth: 4
+
+IndentPPDirectives: None
+IndentCaseLabels: true
+IndentGotoLabels: true
+
+BinPackArguments: false
+BinPackParameters: false
