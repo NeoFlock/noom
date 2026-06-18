@@ -1,7 +1,10 @@
 #include <stdio.h> // for now
+#include <stdlib.h>
 #include "helper.h"
 #include "error.h"
 #include "noom.h"
+#include "compiler.h"
+#include "vm.h"
 
 void tab(noom_uint_t amount) {
 	amount *= 2;
@@ -38,8 +41,10 @@ int the_theoretical_function_to_execute_your_code_that_should_be_replaced_later(
 	noomP_Parser parser;
 	noomP_Node* program;
 
+	noom_LuaVM *vm = noom_createVM(NOOM_VERSION_51);
+
 	// goodbye "shitass" you will be missed
-	int success = noomP_parse(code, filename, NOOM_VERSION_54, &program, &parser);
+	int success = noomP_parse(code, filename, NOOM_VERSION_51, &program, &parser);
 	if (success == 0) {
 		puts("LEX OUTPUT:");
 		fputs("\x1b[48;2;10;10;10m", stdout);
@@ -90,6 +95,36 @@ int the_theoretical_function_to_execute_your_code_that_should_be_replaced_later(
 		noom_free(buf);
 	}
 
+	noomV_Value peak;
+
+	noom_Exit e = noomC_compile(vm, &parser, program, 0, 0, &peak);
+	if(e) {
+		printf("error: %d\n", e);
+		exit(e);
+	}
+
+	noomV_Function *f = (noomV_Function *)peak.obj;
+
+	for(int i = 0; i < f->codesize; i++) {
+		noomV_Inst inst = f->code[i];
+		noomV_DisInfo dis = noomV_disInfo[inst.op];
+
+		printf("%s %d ", dis.name, inst.a);
+
+		switch(dis.arg) {
+		case NOOMV_DIS_BC:
+			printf("%d, %d", inst.b, inst.c);
+			break;
+		case NOOMV_DIS_uD:
+			printf("%d", inst.us);
+			break;
+		case NOOMV_DIS_sD:
+			printf("%d", inst.ss);
+			break;
+		}
+		printf("\n");
+	}
+	
 	// freeing time
 	noomP_Node* last_node = parser.last_node;
 	while (last_node) {
@@ -99,6 +134,9 @@ int the_theoretical_function_to_execute_your_code_that_should_be_replaced_later(
 		noom_free(last_node);
 		last_node = next;
 	}
+
+	noom_destroyVM(vm);
+
 	return success;
 }
 

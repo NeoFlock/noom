@@ -1,5 +1,25 @@
 #include "vm.h"
 #include "helper.h"
+#include <stdio.h>
+
+noomV_DisInfo noomV_disInfo[NOOMV_INSTR_NOP2] = {
+	[NOOMV_INSTR_PUSHNIL] = {
+		.name = "PUSHNIL",
+		.arg = NOOMV_DIS_uD,
+	},
+	[NOOMV_INSTR_PUSHCONST] = {
+		.name = "PUSHCONST",
+		.arg = NOOMV_DIS_uD,
+	},
+	[NOOMV_INSTR_PUSHGLOBAL] = {
+		.name = "PUSHGLOBAL",
+		.arg = NOOMV_DIS_uD,
+	},
+	[NOOMV_INSTR_CALL] = {
+		.name = "CALL",
+		.arg = NOOMV_DIS_uD,
+	},
+};
 
 noomV_Object* noomV_allocObj(noom_LuaVM* vm, noomV_ObjTag tag, noom_uint_t size) {
 	noomV_Object* o = noom_alloc(size);
@@ -55,6 +75,14 @@ noomV_Table* noomV_allocTable(noom_LuaVM* vm) {
 }
 
 void noomV_freeObj(noomV_Object* obj) {
+	printf("%d\n", obj->tag);
+	if(obj->tag == NOOMV_OFUNC) {
+		noomV_Function *f = (noomV_Function *)obj;
+		noom_free(f->consts);
+		noom_free(f->upvals);
+		noom_free(f->locals);
+		noom_free(f->code);
+	}
 	noom_free(obj);
 }
 

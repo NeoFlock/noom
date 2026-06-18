@@ -114,19 +114,23 @@ typedef enum noomV_Opcode : unsigned char {
 	// all returns are pushed.
 	NOOMV_INSTR_CALL,
 
-	// pops (table, field), and pushes table[field]
+	// pops (table, field), and pushes `table[field]`
 	NOOMV_INSTR_GETTABLE,
-	// pops (table, field, value), and sets table[field] = value
+	// pops (table, field, value), and sets `table[field] = value`
 	NOOMV_INSTR_SETTABLE,
 	// pops op.uD values, then sets it as an array starting at op.a+1 in the table at the new top;
 	// if that is confused, it basically does this:
 	// int table = stacksize - op.uD - 1;
-	// for(int i = 0; i < op.uD; i++) stack[table][op.a + 1 + i] = stack[table + i + 1];
+	// for(int i = 0; i < op.uD; i++) `stack[table][op.a + 1 + i] = stack[table + i + 1];`
 	NOOMV_INSTR_SETLIST,
-	// pops table, pushes table[consts[op.uD]], an optimization for indexing fields
+	// pops table, pushes `table[consts[op.uD]]`, an optimization for indexing fields
 	NOOMV_INSTR_GETFIELD,
-	// pops (table, value), sets table[consts[op.uD]] = value, an optimization for changing fields
+	// pops (table, value), sets `table[consts[op.uD]] = value`, an optimization for changing fields
 	NOOMV_INSTR_SETFIELD,
+	// pushes `(*upvals[op.A])[consts[op.uD]]`
+	NOOMV_INSTR_GETUPFIELD,
+	// pops [value], sets `(*upvals[op.A])[consts[op.uD]] = value`
+	NOOMV_ISNTR_SETUPFIELD,
 
 	// does a unary or binary operation.
 	// if op.a == 1, its a unary operation.
@@ -155,7 +159,7 @@ typedef enum noomV_Opcode : unsigned char {
 
 	// For bullshit
 
-	// Take the top value without popping it, push value[consts[op.uD]] like GETFIELD would, then swap the top 2 values.
+	// Take the top value without popping it, push `value[consts[op.uD]]` like GETFIELD would, then swap the top 2 values.
 	// This is for a:foo() and such
 	NOOMV_INSTR_GETMETHOD,
 	// rotate the the top op.a items by op.sD
@@ -173,6 +177,17 @@ typedef enum noomV_Opcode : unsigned char {
 
 	NOOMV_INSTR_NOP2 = 0xff,
 } noomV_Opcode;
+
+typedef struct noomV_DisInfo {
+	const char *name;
+	enum {
+		NOOMV_DIS_BC,
+		NOOMV_DIS_uD,
+		NOOMV_DIS_sD,
+	} arg;
+} noomV_DisInfo;
+
+extern noomV_DisInfo noomV_disInfo[NOOMV_INSTR_NOP2];
 
 typedef struct noomV_Inst {
 	noomV_Opcode op;

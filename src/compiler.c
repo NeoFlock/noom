@@ -72,7 +72,7 @@ void noomC_compiler_init(noomC_Compiler* compiler) {
 
 	compiler->localc = 0;
 	compiler->upvalc = 0;
-	compiler->curstack = 0;
+	compiler->curstack = -1;
 }
 
 static noom_Exit noomC_emit(noomV_Function* func, const noomV_Inst inst) {
@@ -167,7 +167,9 @@ static noom_Exit noomC_compile_expr(
     noomC_Compiler* compiler,
     const noomP_Parser* parser,
     noomV_Function* func,
-    const noomP_Node* node) {
+    const noomP_Node* node,
+	// retc of -1 means all values!!!!!!!!!!!
+	int retc) {
 	noom_Exit result;
 	// Baba is You OST is a very cool soundtrack to code to Can recommend
 	if (node->type == NOOMP_NODE_NILLITERAL) {
@@ -190,7 +192,8 @@ static noom_Exit noomC_compile_expr(
 	if (node->type == NOOMP_NODE_STRINGLITERAL) {
 		unsigned char fucking_destination = compiler->curstack++;
 		noom_Exit result = noomC_addconst_str(compiler, vm, "but DID YOU KNOW", 16);
-		return result;
+		if(result) return result;
+		return noomC_emit_Aus(func, NOOMV_INSTR_PUSHCONST, 0, fucking_destination);
 	}
 	if (node->type == NOOMP_NODE_BINARYOPERATOR) {
 		if (node->subnodec != 2) return NOOM_EINTERNAL;
@@ -199,7 +202,7 @@ static noom_Exit noomC_compile_expr(
 			// concat is special
 			noom_uint_t amount = 1;
 			const noomP_Node* n = node->subnodes[1];
-			if ((result = noomC_compile_expr(vm, compiler, parser, func, node->subnodes[0]))) return result;
+			if ((result = noomC_compile_expr(vm, compiler, parser, func, node->subnodes[0], 1))) return result;
 			// we have no flattening so we unwind it ourselves
 			// unlike all left-associative ones, like +, where 1 + 2 + 3 is (1 + 2) + 3,
 			// concat is right-associate, like ^, meaning 1 .. 2 .. 3 is 1 .. (2 .. 3).
@@ -208,10 +211,10 @@ static noom_Exit noomC_compile_expr(
 				if (amount > NOOM_USHORT_MAX) return NOOM_EINTERNAL;
 				amount++;
 				if (noom_startswith(parser->code + n->source_offset, "..")) {
-					if ((result = noomC_compile_expr(vm, compiler, parser, func, n->subnodes[0]))) return result;
+					if ((result = noomC_compile_expr(vm, compiler, parser, func, n->subnodes[0], 1))) return result;
 					n = n->subnodes[1];
 				} else {
-					if ((result = noomC_compile_expr(vm, compiler, parser, func, n))) return result;
+					if ((result = noomC_compile_expr(vm, compiler, parser, func, n, 1))) return result;
 					break;
 				}
 			}
@@ -220,30 +223,31 @@ static noom_Exit noomC_compile_expr(
 			return noomC_emit_Aus(func, NOOMV_INSTR_CONCAT, 0, amount - 1);
 		}
 
-		if ((result = noomC_compile_expr(vm, compiler, parser, func, node->subnodes[0]))) return result;
-		if ((result = noomC_compile_expr(vm, compiler, parser, func, node->subnodes[1]))) return result;
+		if ((result = noomC_compile_expr(vm, compiler, parser, func, node->subnodes[0], 1))) return result;
+		if ((result = noomC_compile_expr(vm, compiler, parser, func, node->subnodes[1], 1))) return result;
 		// this consumes 2 operands and pushes 1 value, thus having a net stack effect of removing 1 item
 		compiler->curstack--;
 		return noomC_emit_ABC(func, NOOMV_INSTR_OP, 1, noomC_what_bop_is_this(parser, node->source_offset), 0);
 	}
-	if (node->type == NOOMP_NODE_CALL) {
-		unsigned char fucking_destination = compiler->curstack;
-		// Here we don't fucking increment this fucking destination
-		// Because the fucking function call fucking increments it fucking anyway
-		for (int i = 1; i < node->subnodec; i++) {
-			// push node->subnodes[i] to stack or something
+	if (node->type == NOOMP_NODE_CALL || node->type == NOOMP_NODE_METHODCALL) {
+		// welcome to multivalue hell
+		unsigned char returnToGlory = compiler->curstack;
+		noom_bool_t isMethod = node->type == NOOMP_NODE_METHODCALL;
+		if((result = noomC_compile_expr(vm, compiler, parser, func, node->subnodes[0], 1))) return result;
+		unsigned char funcIdx = compiler->curstack;
+		if(isMethod) {
+			noomP_Node *field = node->subnodes[1];
+			const char *fieldname = parser->code + field->source_offset;
+			noom_uint_t fieldlen = noomL_tokenlen(fieldname, 0, parser->version);
+			noom_uint_t constidx = func->constsize;
+			if((result = noomC_addconst_str(compiler, vm, fieldname, fieldlen))) return result;
+			if((result = noomC_emit_Aus(func, NOOMV_INSTR_GETMETHOD, 0, constidx))) return result;
 		}
-		return noomC_emit_Aus(func, NOOMV_INSTR_JMP, 0, /* where do i start......... */ 0);
-	}
-	if (node->type == NOOMP_NODE_METHODCALL) {
-		unsigned char fucking_destination = compiler->curstack;
-		// Here we don't fucking increment this fucking destination
-		// Because the fucking function call fucking increments it fucking anyway
-		// push parent value... probably already processed below if you make it i = 0
-		for (int i = 1; i < node->subnodec; i++) {
-			// push node->subnodes[i] to stack or something
+		for(int i = isMethod ? 2 : 1; i < node->subnodec; i++) {
+			noom_bool_t isLast = i == (node->subnodec-1);
+			if((result = noomC_compile_expr(vm, compiler, parser, func, node->subnodes[i], isLast ? -1 : 1))) return result;
 		}
-		return noomC_emit_Aus(func, NOOMV_INSTR_JMP, 0, /* where do i start......... */ 0);
+		return noomC_emit_Aus(func, NOOMV_INSTR_CALL, funcIdx, retc+1);
 	}
 	if (node->type == NOOMP_NODE_VARIABLE) {
 		noomC_LocalInfo info;
@@ -257,9 +261,24 @@ static noom_Exit noomC_compile_expr(
 				return noomC_emit_Aus(func, NOOMV_INSTR_PUSHVAL, 0, info.idx);
 			case NOOMC_UPVAL:
 				return noomC_emit_Aus(func, NOOMV_INSTR_PUSHUPVAL, 0, info.idx);
-			case NOOMC_GLOBAL:
-				// FIXME: handle globals
-				return NOOM_EINTERNAL;
+			case NOOMC_GLOBAL: {
+				noom_uint_t constidx = compiler->target->constsize;
+				if((result = noomC_addconst_str(compiler, vm, varname, namelen))) return result;
+				if(parser->version == NOOM_VERSION_51) {
+					return noomC_emit_Aus(func, NOOMV_INSTR_PUSHGLOBAL, 0, constidx);
+				}
+				noomC_LocalInfo _ENV;
+				if((result = noomC_identifyLocal(compiler, &_ENV, "_ENV", 4))) return result;
+				// not meant to be possible
+				if(_ENV.type == NOOMC_GLOBAL) return NOOM_EINTERNAL;
+				// most likely branch in human history
+				if(_ENV.type == NOOMC_UPVAL) {
+					return noomC_emit_Aus(func, NOOMV_INSTR_PUSHUPVAL, _ENV.idx, constidx);
+				}
+				// bitchass
+				if((result = noomC_emit_Aus(func, NOOMV_INSTR_PUSHVAL, 0, _ENV.idx))) return result;
+				return noomC_emit_Aus(func, NOOMV_INSTR_GETFIELD, 0, constidx);
+			}
 		}
 		// forgot a case
 		return NOOM_EINTERNAL;
@@ -332,7 +351,7 @@ static noom_Exit noomC_add_stuff_to_function(noom_LuaVM* vm, noomC_Compiler* com
 			compiler->curstack++;
 		} else {
 			const noomP_Node* value_node = node->subnodes[1];
-			const noom_Exit r = noomC_compile_expr(vm, compiler, parser, func, value_node);
+			const noom_Exit r = noomC_compile_expr(vm, compiler, parser, func, value_node, 1);
 			if (r != NOOM_OK) return r;
 		}
 
@@ -393,14 +412,21 @@ static noom_Exit noomC_add_stuff_to_function(noom_LuaVM* vm, noomC_Compiler* com
 		return noomC_compile_block(vm, compiler, parser, func, node);
 	}
 
+	if(node->type == NOOMP_NODE_CALL || node->type == NOOMP_NODE_METHODCALL) {
+		return noomC_compile_expr(vm, compiler, parser, func, node, 0);
+	}
+
 	return NOOM_EINTERNAL;
 }
 
-noom_Exit noomC_compile(noom_LuaVM* vm, const noomP_Parser* parser, const noomP_Node* node, noomV_String* chunkname, noomV_Table* env) {
+noom_Exit noomC_compile(noom_LuaVM* vm, const noomP_Parser* parser, const noomP_Node* node, noomV_String* chunkname, noomV_Table* env, noomV_Value *outFunc) {
 	if (node->type != NOOMP_NODE_PROGRAM) return NOOM_EINTERNAL;
 
 	noomV_Function* program = noomV_allocFunc(vm, chunkname);
 	if (program == 0) return NOOM_ENOMEM;
+
+	outFunc->tag = NOOMV_VOBJ;
+	outFunc->obj = &program->obj;
 
 	noomC_Compiler compiler;
 	noomC_compiler_init(&compiler);
@@ -416,20 +442,8 @@ noom_Exit noomC_compile(noom_LuaVM* vm, const noomP_Parser* parser, const noomP_
 		upval.stolen = 1;
 		upval.constant = 0;
 		noomC_addUpval(&compiler, upval);
-	}
-
-	noom_Exit status = noomC_compile_block(vm, &compiler, parser, program, node);
-	if (status != NOOM_OK) return status;
-
-	if (parser->version > NOOM_VERSION_51) {
 		// TODO: we need to wrap the value as a *closure*, with one upvalue, the environment (_ENV).
 	}
 
-	if (vm->mainThread->stacklen == vm->mainThread->stackcap) {
-		vm->mainThread->stackcap = vm->mainThread->stackcap ? vm->mainThread->stackcap * 2 : 16;
-		vm->mainThread->stack = noom_realloc(vm->mainThread->stack, sizeof(noomV_Value) * vm->mainThread->stackcap);
-	}
-	vm->mainThread->stack[vm->mainThread->stacklen++] =
-	    (noomV_Value){.tag = NOOMV_VOBJ, .autoclose = 0, .isptr = 0, .obj = (noomV_Object*)program};
-	return NOOM_OK;
+	return noomC_compile_block(vm, &compiler, parser, program, node);
 }

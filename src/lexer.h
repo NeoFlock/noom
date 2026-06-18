@@ -1,3 +1,6 @@
+#ifndef NOOM_LEXER
+#define NOOM_LEXER
+
 #include "noom.h"
 
 typedef enum noomL_TokenType {
@@ -50,3 +53,5 @@ const char* noomL_formatTokenType(noomL_TokenType token_type);
 noomL_ErrorType noomL_lex(const char* s, noom_uint_t start, noomL_Token* token, noom_LuaVersion version); // TODO: add more error data
 // UB if syntax error
 noom_uint_t noomL_tokenlen(const char* s, noom_uint_t start, noom_LuaVersion version);
+
+#endif

@@ -39,4 +39,4 @@ typedef struct noomC_Compiler {
 void noomC_compiler_init(noomC_Compiler* compiler);
 
 // pushes the compiled function on the stack, or just crashes lol
-noom_Exit noomC_compile(noom_LuaVM* vm, const noomP_Parser* parser, const noomP_Node* node, noomV_String* chunkname, noomV_Table* env);
+noom_Exit noomC_compile(noom_LuaVM* vm, const noomP_Parser* parser, const noomP_Node* node, noomV_String* chunkname, noomV_Table* env, noomV_Value *outFunc);
