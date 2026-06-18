@@ -403,15 +403,9 @@ noom_uint_t noomL_getstring(const char* s, noomL_ErrorType* error, noom_LuaVersi
 		noom_uint_t order = 0;
 		int succ = 0;
 
-		while (s[len] == '=') {
-			order++;
-			len++;
-		}
+		while (s[len] == '=') order++, len++;
 
-		if (s[len] == '[') {
-			len++;
-			succ = 1;
-		}
+		if (s[len] == '[') len++, succ = 1;
 
 		if (succ) { // it is a multi-line string.
 			while (1) {
@@ -420,10 +414,7 @@ noom_uint_t noomL_getstring(const char* s, noomL_ErrorType* error, noom_LuaVersi
 					noom_uint_t order2 = 0;
 					noom_uint_t startp = len; // intentionally after the `]`
 
-					while (s[len] == '=') {
-						order2++;
-						len++;
-					}
+					while (s[len] == '=') order2++, len++;
 
 					if (s[len] == ']' && order == order2) { // holy shit it's real
 						len++;

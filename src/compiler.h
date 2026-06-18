@@ -5,7 +5,7 @@
 typedef struct noomC_Local {
 	unsigned int startpc;
 	unsigned int endpc;
-	const char *name;
+	const char* name;
 	unsigned int namelen;
 	unsigned int stackslot;
 	noom_bool_t dropped;
@@ -14,7 +14,7 @@ typedef struct noomC_Local {
 } noomC_Local;
 
 typedef struct noomC_Upval {
-	const char *name;
+	const char* name;
 	unsigned int namelen;
 	unsigned short slot;
 	// if stolen, this means that slot is actually an upvalue index
@@ -27,8 +27,8 @@ typedef struct noomC_Upval {
 
 typedef struct noomC_Compiler {
 	// steal constants from this
-	struct noomC_Compiler *parent;
-	noomV_Function *target;
+	struct noomC_Compiler* parent;
+	noomV_Function* target;
 	unsigned localc;
 	unsigned upvalc;
 	unsigned curstack;
@@ -39,4 +39,4 @@ typedef struct noomC_Compiler {
 void noomC_compiler_init(noomC_Compiler* compiler);
 
 // pushes the compiled function on the stack, or just crashes lol
-noom_Exit noomC_compile(noom_LuaVM *vm, const noomP_Parser *parser, const noomP_Node *node, noomV_String *chunkname, noomV_Table *env);
+noom_Exit noomC_compile(noom_LuaVM* vm, const noomP_Parser* parser, const noomP_Node* node, noomV_String* chunkname, noomV_Table* env);
