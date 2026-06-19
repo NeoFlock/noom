@@ -352,6 +352,9 @@ struct noom_LuaVM {
 	noomV_Thread* mainThread;
 	noomV_Thread* currentThread;
 	noom_LuaVersion version;
+	noom_uint_t objCount;
+	noom_uint_t gcTarget;
+	double gcRatio;
 };
 
 // for conveniently passing around nil
@@ -379,7 +382,7 @@ void noomV_setErrorStr(noom_LuaVM *vm, noomV_Thread *coro, const char *str);
 // Returns the exit for convenience
 noom_Exit noomV_setErrorFromExit(noom_LuaVM *vm, noomV_Thread *coro, noom_Exit exit);
 
-void noomV_freeObj(noomV_Object* obj);
+void noomV_freeObj(noom_LuaVM *vm, noomV_Object* obj);
 
 noom_Exit noomV_pushCallFrame(noom_LuaVM *vm, noomV_Thread *coro, noomV_CallFrame cf);
 

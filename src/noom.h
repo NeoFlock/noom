@@ -299,6 +299,11 @@ noom_Exit noom_cast2str(noom_LuaVM* vm, noom_slot_t x);
 // DO NOT RUN IN THE ALLOCATOR IF ANY IS SUPPLIED, OR YOU WILL GET THE WORST POSSIBLE ERRORS.
 void noom_gc(noom_LuaVM* vm);
 
+// Like [noom_gc], except it will only do things if the GC feels like it.
+// You can sneak this in your long-running C functions to reduce memory usage
+// without destroying this CPU.
+void noom_trygc(noom_LuaVM* vm);
+
 #ifdef __cplusplus
 }
 #endif

@@ -163,6 +163,7 @@ noomV_Object* noomV_allocObj(noom_LuaVM* vm, noomV_ObjTag tag, noom_uint_t size)
 	o->next = vm->heap;
 	o->nextGray = 0;
 	vm->heap = o;
+	vm->objCount++;
 	return o;
 }
 
@@ -444,7 +445,7 @@ noom_Exit noomV_setErrorFromExit(noom_LuaVM *vm, noomV_Thread *coro, noom_Exit e
 	return exit;
 }
 
-void noomV_freeObj(noomV_Object* obj) {
+void noomV_freeObj(noom_LuaVM *vm, noomV_Object* obj) {
 	if(obj->tag == NOOMV_OFUNC) {
 		noomV_Function *f = (noomV_Function *)obj;
 		noom_free(f->consts);
@@ -462,6 +463,7 @@ void noomV_freeObj(noomV_Object* obj) {
 		noom_free(thrd->calls);
 	}
 	noom_free(obj);
+	vm->objCount--;
 }
 
 noom_Exit noomV_pushCallFrame(noom_LuaVM *vm, noomV_Thread *coro, noomV_CallFrame cf);
@@ -513,6 +515,9 @@ noom_LuaVM* noom_createVM(noom_LuaVersion version) {
 	vm->mainThread = 0;
 	vm->currentThread = 0;
 	vm->version = version;
+	vm->objCount = 0;
+	vm->gcTarget = 100;
+	vm->gcRatio = 2;
 
 	const char *oomStr = "out of memory";
 	vm->oomVal.obj = (noomV_Object *)noomV_allocStr(vm, oomStr, noom_strlen(oomStr));
@@ -539,6 +544,8 @@ noom_LuaVM* noom_createVM(noom_LuaVersion version) {
 
 	assert(noomV_rawequalValue(noomV_rawgetTable(vm->registry, _GKey), _GVal));
 
+	noom_gc(vm);
+
 	return vm;
 rip:
 	noom_destroyVM(vm);
@@ -550,7 +557,7 @@ void noom_destroyVM(noom_LuaVM* vm) {
 	while (iter) {
 		noomV_Object* cur = iter;
 		iter = iter->next;
-		noomV_freeObj(cur);
+		noomV_freeObj(vm, cur);
 	}
 	noom_free(vm);
 }

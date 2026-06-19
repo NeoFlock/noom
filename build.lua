@@ -68,6 +68,7 @@ local files = {
 	'src/parser.c',
 	'src/compiler.c',
 	'src/vm.c',
+	'src/gc.c',
 	'src/main.c',
 }
 
