@@ -50,7 +50,7 @@ typedef struct noomV_Value {
 		noom_bool_t boolean;
 		noom_int_t integer;
 		noom_float_t number;
-		noom_CFunction *cfunc;
+		noom_CFunction* cfunc;
 		void* lightuserdata;
 		noomV_Object* obj;
 		struct noomV_Pointer* ptr;
@@ -183,7 +183,7 @@ typedef enum noomV_Opcode : unsigned char {
 } noomV_Opcode;
 
 typedef struct noomV_DisInfo {
-	const char *name;
+	const char* name;
 	enum {
 		NOOMV_DIS_NONE,
 		NOOMV_DIS_BC,
@@ -316,7 +316,7 @@ typedef struct noomV_CallFrame {
 	noom_uint_t returnCount;
 	noom_bool_t isC;
 	noomV_Value errhandler;
-	noomV_Pointer **upvals;
+	noomV_Pointer** upvals;
 	union {
 		struct {
 			// program counter
@@ -364,31 +364,31 @@ extern const noomV_Value noomV_nil;
 noomV_Object* noomV_allocObj(noom_LuaVM* vm, noomV_ObjTag tag, noom_uint_t size);
 noomV_String* noomV_allocStr(noom_LuaVM* vm, const char* str, noom_uint_t len);
 noomV_Function* noomV_allocFunc(noom_LuaVM* vm, noomV_String* chunkname);
-noomV_Table *noomV_allocTable(noom_LuaVM *vm, noom_uint_t arraylen, noom_uint_t fields);
+noomV_Table* noomV_allocTable(noom_LuaVM* vm, noom_uint_t arraylen, noom_uint_t fields);
 noom_uint_t noomV_rawhashValue(noomV_Value v);
 noom_bool_t noomV_isNil(noomV_Value key);
 noom_bool_t noomV_isLegalKey(noomV_Value key);
 noom_bool_t noomV_rawequalValue(noomV_Value a, noomV_Value b);
-noomV_Value noomV_rawgetTable(noomV_Table *t, noomV_Value key);
-noomV_Value noomV_rawgetiTable(noomV_Table *t, noom_int_t idx);
-noom_Exit noomV_rawsetTable(noom_LuaVM *vm, noomV_Table *t, noomV_Value key, noomV_Value val);
-noom_uint_t noomV_rawlenTable(noomV_Table *t);
+noomV_Value noomV_rawgetTable(noomV_Table* t, noomV_Value key);
+noomV_Value noomV_rawgetiTable(noomV_Table* t, noom_int_t idx);
+noom_Exit noomV_rawsetTable(noom_LuaVM* vm, noomV_Table* t, noomV_Value key, noomV_Value val);
+noom_uint_t noomV_rawlenTable(noomV_Table* t);
 
-noomV_Thread *noomV_allocCoroutine(noom_LuaVM *vm);
+noomV_Thread* noomV_allocCoroutine(noom_LuaVM* vm);
 
-void noomV_setErrorStr(noom_LuaVM *vm, noomV_Thread *coro, const char *str);
+void noomV_setErrorStr(noom_LuaVM* vm, noomV_Thread* coro, const char* str);
 // if exit is ERUNTIME or EERROR, does nothing as it assumes the error is already set!
 // It will clear any errors on NOOM_OK!!!
 // Returns the exit for convenience
-noom_Exit noomV_setErrorFromExit(noom_LuaVM *vm, noomV_Thread *coro, noom_Exit exit);
+noom_Exit noomV_setErrorFromExit(noom_LuaVM* vm, noomV_Thread* coro, noom_Exit exit);
 
-void noomV_freeObj(noom_LuaVM *vm, noomV_Object* obj);
+void noomV_freeObj(noom_LuaVM* vm, noomV_Object* obj);
 
-noom_Exit noomV_pushCallFrame(noom_LuaVM *vm, noomV_Thread *coro, noomV_CallFrame cf);
+noom_Exit noomV_pushCallFrame(noom_LuaVM* vm, noomV_Thread* coro, noomV_CallFrame cf);
 
 // can return NULL if we are not in a call, such as in C API setup.
-noomV_CallFrame *noomV_topCallFrame(noomV_Thread *coro);
+noomV_CallFrame* noomV_topCallFrame(noomV_Thread* coro);
 
-noom_Exit noomV_setThreadStackSize(noom_LuaVM *vm, noomV_Thread *coro, noom_int_t stack);
+noom_Exit noomV_setThreadStackSize(noom_LuaVM* vm, noomV_Thread* coro, noom_int_t stack);
 
 #endif

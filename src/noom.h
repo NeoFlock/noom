@@ -228,11 +228,11 @@ noom_Exit noom_yieldk(noom_LuaVM* vm, noom_uint_t n, noom_KFunction* f, void* ct
 #define noom_yield(vm, n) noom_yieldk((vm), (n), 0, 0)
 
 // push the current error handler
-noom_Exit noom_pusherrhandler(noom_LuaVM *vm);
+noom_Exit noom_pusherrhandler(noom_LuaVM* vm);
 // pops the top value and sets it as the error handler.
 // nil is a perfectly fine error handler, it just does not get called.
 // In the case of an error, noom_callk() will also call this error handler.
-noom_Exit noom_seterrhandler(noom_LuaVM *vm);
+noom_Exit noom_seterrhandler(noom_LuaVM* vm);
 
 // Like a noom_call, except instead of calling, it resumes coroutines.
 // This cannot yield but allows yields.

@@ -41,7 +41,7 @@ int the_theoretical_function_to_execute_your_code_that_should_be_replaced_later(
 	noomP_Parser parser;
 	noomP_Node* program;
 
-	noom_LuaVM *vm = noom_createVM(NOOM_VERSION_51);
+	noom_LuaVM* vm = noom_createVM(NOOM_VERSION_51);
 
 	// goodbye "shitass" you will be missed
 	int success = noomP_parse(code, filename, NOOM_VERSION_51, &program, &parser);
@@ -98,35 +98,35 @@ int the_theoretical_function_to_execute_your_code_that_should_be_replaced_later(
 	noomV_Value peak;
 
 	noom_Exit e = noomC_compile(vm, &parser, program, 0, 0, &peak);
-	if(e) {
+	if (e) {
 		printf("error: %d\n", e);
 		exit(e);
 	}
 
-	noomV_Function *f = (noomV_Function *)peak.obj;
+	noomV_Function* f = (noomV_Function*)peak.obj;
 
-	for(int i = 0; i < f->codesize; i++) {
+	for (int i = 0; i < f->codesize; i++) {
 		noomV_Inst inst = f->code[i];
 		noomV_DisInfo dis = noomV_disInfo[inst.op];
 
 		printf("%s %d ", dis.name, inst.a);
 
-		switch(dis.arg) {
-		case NOOMV_DIS_NONE:
-			break;
-		case NOOMV_DIS_BC:
-			printf("%d, %d", inst.b, inst.c);
-			break;
-		case NOOMV_DIS_uD:
-			printf("%d", inst.us);
-			break;
-		case NOOMV_DIS_sD:
-			printf("%d", inst.ss);
-			break;
+		switch (dis.arg) {
+			case NOOMV_DIS_NONE:
+				break;
+			case NOOMV_DIS_BC:
+				printf("%d, %d", inst.b, inst.c);
+				break;
+			case NOOMV_DIS_uD:
+				printf("%d", inst.us);
+				break;
+			case NOOMV_DIS_sD:
+				printf("%d", inst.ss);
+				break;
 		}
 		printf("\n");
 	}
-	
+
 	// freeing time
 	noomP_Node* last_node = parser.last_node;
 	while (last_node) {

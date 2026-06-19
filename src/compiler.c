@@ -168,8 +168,8 @@ static noom_Exit noomC_compile_expr(
     const noomP_Parser* parser,
     noomV_Function* func,
     const noomP_Node* node,
-	// retc of -1 means all values!!!!!!!!!!!
-	int retc) {
+    // retc of -1 means all values!!!!!!!!!!!
+    int retc) {
 	noom_Exit result;
 	// Baba is You OST is a very cool soundtrack to code to Can recommend
 	if (node->type == NOOMP_NODE_NILLITERAL) {
@@ -193,7 +193,7 @@ static noom_Exit noomC_compile_expr(
 		compiler->curstack++;
 		unsigned char fucking_destination = func->constsize;
 		noom_Exit result = noomC_addconst_str(compiler, vm, "but DID YOU KNOW", 16);
-		if(result) return result;
+		if (result) return result;
 		return noomC_emit_Aus(func, NOOMV_INSTR_PUSHCONST, 0, fucking_destination);
 	}
 	if (node->type == NOOMP_NODE_BINARYOPERATOR) {
@@ -234,21 +234,21 @@ static noom_Exit noomC_compile_expr(
 		// welcome to multivalue hell
 		unsigned char returnToGlory = compiler->curstack;
 		noom_bool_t isMethod = node->type == NOOMP_NODE_METHODCALL;
-		if((result = noomC_compile_expr(vm, compiler, parser, func, node->subnodes[0], 1))) return result;
+		if ((result = noomC_compile_expr(vm, compiler, parser, func, node->subnodes[0], 1))) return result;
 		unsigned char funcIdx = compiler->curstack;
-		if(isMethod) {
-			noomP_Node *field = node->subnodes[1];
-			const char *fieldname = parser->code + field->source_offset;
+		if (isMethod) {
+			noomP_Node* field = node->subnodes[1];
+			const char* fieldname = parser->code + field->source_offset;
 			noom_uint_t fieldlen = noomL_tokenlen(fieldname, 0, parser->version);
 			noom_uint_t constidx = func->constsize;
-			if((result = noomC_addconst_str(compiler, vm, fieldname, fieldlen))) return result;
-			if((result = noomC_emit_Aus(func, NOOMV_INSTR_GETMETHOD, 0, constidx))) return result;
+			if ((result = noomC_addconst_str(compiler, vm, fieldname, fieldlen))) return result;
+			if ((result = noomC_emit_Aus(func, NOOMV_INSTR_GETMETHOD, 0, constidx))) return result;
 		}
-		for(int i = isMethod ? 2 : 1; i < node->subnodec; i++) {
-			noom_bool_t isLast = i == (node->subnodec-1);
-			if((result = noomC_compile_expr(vm, compiler, parser, func, node->subnodes[i], isLast ? -1 : 1))) return result;
+		for (int i = isMethod ? 2 : 1; i < node->subnodec; i++) {
+			noom_bool_t isLast = i == (node->subnodec - 1);
+			if ((result = noomC_compile_expr(vm, compiler, parser, func, node->subnodes[i], isLast ? -1 : 1))) return result;
 		}
-		return noomC_emit_Aus(func, NOOMV_INSTR_CALL, funcIdx, retc+1);
+		return noomC_emit_Aus(func, NOOMV_INSTR_CALL, funcIdx, retc + 1);
 	}
 	if (node->type == NOOMP_NODE_VARIABLE) {
 		noomC_LocalInfo info;
@@ -264,20 +264,20 @@ static noom_Exit noomC_compile_expr(
 				return noomC_emit_Aus(func, NOOMV_INSTR_PUSHUPVAL, 0, info.idx);
 			case NOOMC_GLOBAL: {
 				noom_uint_t constidx = compiler->target->constsize;
-				if((result = noomC_addconst_str(compiler, vm, varname, namelen))) return result;
-				if(parser->version == NOOM_VERSION_51) {
+				if ((result = noomC_addconst_str(compiler, vm, varname, namelen))) return result;
+				if (parser->version == NOOM_VERSION_51) {
 					return noomC_emit_Aus(func, NOOMV_INSTR_PUSHGLOBAL, 0, constidx);
 				}
 				noomC_LocalInfo _ENV;
-				if((result = noomC_identifyLocal(compiler, &_ENV, "_ENV", 4))) return result;
+				if ((result = noomC_identifyLocal(compiler, &_ENV, "_ENV", 4))) return result;
 				// not meant to be possible
-				if(_ENV.type == NOOMC_GLOBAL) return NOOM_EINTERNAL;
+				if (_ENV.type == NOOMC_GLOBAL) return NOOM_EINTERNAL;
 				// most likely branch in human history
-				if(_ENV.type == NOOMC_UPVAL) {
+				if (_ENV.type == NOOMC_UPVAL) {
 					return noomC_emit_Aus(func, NOOMV_INSTR_PUSHUPVAL, _ENV.idx, constidx);
 				}
 				// bitchass
-				if((result = noomC_emit_Aus(func, NOOMV_INSTR_PUSHVAL, 0, _ENV.idx))) return result;
+				if ((result = noomC_emit_Aus(func, NOOMV_INSTR_PUSHVAL, 0, _ENV.idx))) return result;
 				return noomC_emit_Aus(func, NOOMV_INSTR_GETFIELD, 0, constidx);
 			}
 		}
@@ -413,14 +413,14 @@ static noom_Exit noomC_add_stuff_to_function(noom_LuaVM* vm, noomC_Compiler* com
 		return noomC_compile_block(vm, compiler, parser, func, node);
 	}
 
-	if(node->type == NOOMP_NODE_CALL || node->type == NOOMP_NODE_METHODCALL) {
+	if (node->type == NOOMP_NODE_CALL || node->type == NOOMP_NODE_METHODCALL) {
 		return noomC_compile_expr(vm, compiler, parser, func, node, 0);
 	}
 
 	return NOOM_EINTERNAL;
 }
 
-noom_Exit noomC_compile(noom_LuaVM* vm, const noomP_Parser* parser, const noomP_Node* node, noomV_String* chunkname, noomV_Table* env, noomV_Value *outFunc) {
+noom_Exit noomC_compile(noom_LuaVM* vm, const noomP_Parser* parser, const noomP_Node* node, noomV_String* chunkname, noomV_Table* env, noomV_Value* outFunc) {
 	if (node->type != NOOMP_NODE_PROGRAM) return NOOM_EINTERNAL;
 
 	noomV_Function* program = noomV_allocFunc(vm, chunkname);
