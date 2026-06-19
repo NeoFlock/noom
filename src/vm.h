@@ -20,6 +20,7 @@ typedef enum noomV_ObjTag {
 	NOOMV_OTABLE,
 	NOOMV_OUSERDATA,
 	NOOMV_OPOINTER,
+	NOOMV_OTHREAD,
 } noomV_ObjTag;
 
 typedef struct noomV_Object {
@@ -49,6 +50,7 @@ typedef struct noomV_Value {
 		noom_bool_t boolean;
 		noom_int_t integer;
 		noom_float_t number;
+		noom_CFunction *cfunc;
 		void* lightuserdata;
 		noomV_Object* obj;
 		struct noomV_Pointer* ptr;
@@ -57,6 +59,7 @@ typedef struct noomV_Value {
 
 typedef struct noomV_String {
 	noomV_Object obj;
+	noom_uint_t hash;
 	noom_uint_t len;
 	// Includes NUL-terminator!
 	char data[];
@@ -105,12 +108,12 @@ typedef enum noomV_Opcode : unsigned char {
 	NOOMV_INSTR_PUSHARGS,
 	// Pushes a new table. op.uD is the initial capacity
 	NOOMV_INSTR_CREATETABLE,
-	// Pushes a closure, using the prototype in protos[op.uD]
+	// Pushes a closure, using the prototype in `protos[op.uD]`
 	NOOMV_INSTR_PUSHCLOSURE,
 
 	// High-level ops
 
-	// Call the function stored at stack[op.a]. All values after that are treated at arguments. op.uD is the expected return count plus one, and if op.uD is 0,
+	// Call the function stored at `stack[op.a]`. All values after that are treated at arguments. op.uD is the expected return count plus one, and if op.uD is 0,
 	// all returns are pushed.
 	NOOMV_INSTR_CALL,
 
@@ -147,7 +150,8 @@ typedef enum noomV_Opcode : unsigned char {
 
 	// Control flow
 
-	// returns from a function. The amount returned is from op.uD
+	// returns from a function. The first value returned is in op.uD.
+	// If that is out of bounds, nothing is returned.
 	NOOMV_INSTR_RET,
 
 	// computes T = op.a << 16 + op.uD, jumps to T.
@@ -164,7 +168,7 @@ typedef enum noomV_Opcode : unsigned char {
 	NOOMV_INSTR_GETMETHOD,
 	// rotate the the top op.a items by op.sD
 	NOOMV_INSTR_ROTATE,
-	// pop op.uD values
+	// pop op.uD+1 values
 	NOOMV_INSTR_POP,
 	// set the stack size to op.uD, inserting nils if need be, good for labels
 	NOOMV_INSTR_SETSTACK,
@@ -181,6 +185,7 @@ typedef enum noomV_Opcode : unsigned char {
 typedef struct noomV_DisInfo {
 	const char *name;
 	enum {
+		NOOMV_DIS_NONE,
 		NOOMV_DIS_BC,
 		NOOMV_DIS_uD,
 		NOOMV_DIS_sD,
@@ -303,13 +308,18 @@ typedef struct noomV_Function {
 	unsigned char localsize;
 } noomV_Function;
 
+// exactly 64 bytes, aka one cache line.
+// TODO: ensure it is 64-byte aligned for a perfect 1:1 struct to cache line ratio for perf
 typedef struct noomV_CallFrame {
 	// stack index of function
-	unsigned int funcIdx;
+	noom_uint_t funcIdx;
+	noom_uint_t returnCount;
 	noom_bool_t isC;
+	noomV_Value errhandler;
+	noomV_Pointer **upvals;
 	union {
 		struct {
-			//
+			// program counter
 			unsigned int pc;
 			// amount of varargs
 			unsigned int varargc;
@@ -325,6 +335,7 @@ typedef struct noomV_Thread {
 	noomV_Object obj;
 	unsigned int stacklen, calldepth;
 	unsigned int stackcap, callcap;
+	noomV_Value errObj;
 	// can have pointers!
 	noomV_Value* stack;
 	noomV_CallFrame* calls;
@@ -335,6 +346,7 @@ typedef struct noomV_Thread {
 struct noom_LuaVM {
 	noomV_Object* heap;
 	noomV_Object* graySet;
+	noomV_Value oomVal;
 	noomV_Table* globals;
 	noomV_Table* registry;
 	noomV_Thread* mainThread;
@@ -342,10 +354,38 @@ struct noom_LuaVM {
 	noom_LuaVersion version;
 };
 
+// for conveniently passing around nil
+extern const noomV_Value noomV_nil;
+
 // Allocating objects
 noomV_Object* noomV_allocObj(noom_LuaVM* vm, noomV_ObjTag tag, noom_uint_t size);
 noomV_String* noomV_allocStr(noom_LuaVM* vm, const char* str, noom_uint_t len);
 noomV_Function* noomV_allocFunc(noom_LuaVM* vm, noomV_String* chunkname);
+noomV_Table *noomV_allocTable(noom_LuaVM *vm, noom_uint_t arraylen, noom_uint_t fields);
+noom_uint_t noomV_rawhashValue(noomV_Value v);
+noom_bool_t noomV_isNil(noomV_Value key);
+noom_bool_t noomV_isLegalKey(noomV_Value key);
+noom_bool_t noomV_rawequalValue(noomV_Value a, noomV_Value b);
+noomV_Value noomV_rawgetTable(noomV_Table *t, noomV_Value key);
+noomV_Value noomV_rawgetiTable(noomV_Table *t, noom_int_t idx);
+noom_Exit noomV_rawsetTable(noom_LuaVM *vm, noomV_Table *t, noomV_Value key, noomV_Value val);
+noom_uint_t noomV_rawlenTable(noomV_Table *t);
+
+noomV_Thread *noomV_allocCoroutine(noom_LuaVM *vm);
+
+void noomV_setErrorStr(noom_LuaVM *vm, noomV_Thread *coro, const char *str);
+// if exit is ERUNTIME or EERROR, does nothing as it assumes the error is already set!
+// It will clear any errors on NOOM_OK!!!
+// Returns the exit for convenience
+noom_Exit noomV_setErrorFromExit(noom_LuaVM *vm, noomV_Thread *coro, noom_Exit exit);
+
 void noomV_freeObj(noomV_Object* obj);
+
+noom_Exit noomV_pushCallFrame(noom_LuaVM *vm, noomV_Thread *coro, noomV_CallFrame cf);
+
+// can return NULL if we are not in a call, such as in C API setup.
+noomV_CallFrame *noomV_topCallFrame(noomV_Thread *coro);
+
+noom_Exit noomV_setThreadStackSize(noom_LuaVM *vm, noomV_Thread *coro, noom_int_t stack);
 
 #endif

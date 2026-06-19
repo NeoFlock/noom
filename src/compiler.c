@@ -190,7 +190,8 @@ static noom_Exit noomC_compile_expr(
 		return NOOM_PLEASEHELPMEIAMSCARED; // 😭😭😭😭😭😭😭😭
 	}
 	if (node->type == NOOMP_NODE_STRINGLITERAL) {
-		unsigned char fucking_destination = compiler->curstack++;
+		compiler->curstack++;
+		unsigned char fucking_destination = func->constsize;
 		noom_Exit result = noomC_addconst_str(compiler, vm, "but DID YOU KNOW", 16);
 		if(result) return result;
 		return noomC_emit_Aus(func, NOOMV_INSTR_PUSHCONST, 0, fucking_destination);

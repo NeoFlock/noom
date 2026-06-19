@@ -112,6 +112,8 @@ int the_theoretical_function_to_execute_your_code_that_should_be_replaced_later(
 		printf("%s %d ", dis.name, inst.a);
 
 		switch(dis.arg) {
+		case NOOMV_DIS_NONE:
+			break;
 		case NOOMV_DIS_BC:
 			printf("%d, %d", inst.b, inst.c);
 			break;
