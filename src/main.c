@@ -92,28 +92,21 @@ int execute(const char* code, noom_LuaVersion version, const char* program_name,
 		noom_free(buf);
 	}
 
-	// freeing time
-	noomP_Node* last_node = parser.last_node;
-	while (last_node) {
-		noomP_Node* next = last_node->previous_node;
-		// subnodes could be null if we OOM'd during a realloc of it
-		if (last_node->subnodes) noom_free(last_node->subnodes);
-		noom_free(last_node);
-		last_node = next;
-	}
-
-	if (success) {
+	if (success == 0) {
 		noom_LuaVM* vm = noom_createVM(version);
 		noomV_Value peak;
 
 		noom_Exit e = noomC_compile(vm, &parser, program, 0, 0, &peak);
 		if (e) {
 			printf("error: %d\n", e);
-			return 1;
+			success = e;
+			noom_destroyVM(vm);
+			goto wellShit;
 		}
 
 		noomV_Function* f = (noomV_Function*)peak.obj;
 
+		printf("Insts: %u\n", f->codesize);
 		for (int i = 0; i < f->codesize; i++) {
 			noomV_Inst inst = f->code[i];
 			noomV_DisInfo dis = noomV_disInfo[inst.op];
@@ -136,6 +129,17 @@ int execute(const char* code, noom_LuaVersion version, const char* program_name,
 			printf("\n");
 		}
 		noom_destroyVM(vm);
+	}
+	
+wellShit:;
+	// freeing time
+	noomP_Node* last_node = parser.last_node;
+	while (last_node) {
+		noomP_Node* next = last_node->previous_node;
+		// subnodes could be null if we OOM'd during a realloc of it
+		if (last_node->subnodes) noom_free(last_node->subnodes);
+		noom_free(last_node);
+		last_node = next;
 	}
 
 	return success;
