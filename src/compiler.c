@@ -118,22 +118,6 @@ static noom_Exit noomC_addconst(noomV_Function* func, const noomV_Value val) {
 	return NOOM_OK;
 }
 
-static noomV_String* noomC_internString(noomC_Compiler* c, noom_LuaVM* vm, const char* str, noom_uint_t len) {
-	while (c) {
-		noomV_Function* f = c->target;
-		for (int i = 0; i < f->constsize; i++) {
-			noomV_Value v = f->consts[i];
-			if (v.tag != NOOMV_VOBJ) continue;
-			noomV_Object* o = v.obj;
-			if (o->tag != NOOMV_OSTR) continue;
-			noomV_String* s = (noomV_String*)o;
-			if (noom_memeq(s->data, s->len, str, len)) return s;
-		}
-		c = c->parent;
-	}
-	return noomV_allocStr(vm, str, len);
-}
-
 static noom_Exit noomC_addconst_str(noomC_Compiler* c, noom_LuaVM* vm, const char* str, const noom_uint_t len, noom_uint_t *outIdx) {
 	noomV_Function *f = c->target;
 	for(int i = 0; i < f->constsize; i++) {
