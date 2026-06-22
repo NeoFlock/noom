@@ -107,6 +107,9 @@ int execute(const char* code, noom_LuaVersion version, const char* program_name,
 		noomV_Function* f = (noomV_Function*)peak.obj;
 
 		printf("Insts: %u\n", f->codesize);
+		printf("Consts: %hu\n", f->constsize);
+		printf("Ups: %u\n", (int)f->upvalsize);
+		printf("Locals: %u\n", (int)f->localsize);
 		for (int i = 0; i < f->codesize; i++) {
 			noomV_Inst inst = f->code[i];
 			noomV_DisInfo dis = noomV_disInfo[inst.op];

@@ -134,9 +134,41 @@ static noomV_String* noomC_internString(noomC_Compiler* c, noom_LuaVM* vm, const
 	return noomV_allocStr(vm, str, len);
 }
 
-static noom_Exit noomC_addconst_str(noomC_Compiler* c, noom_LuaVM* vm, const char* str, const noom_uint_t len) {
-	noomV_String* s = noomC_internString(c, vm, str, len);
+static noom_Exit noomC_addconst_str(noomC_Compiler* c, noom_LuaVM* vm, const char* str, const noom_uint_t len, noom_uint_t *outIdx) {
+	noomV_Function *f = c->target;
+	for(int i = 0; i < f->constsize; i++) {
+		noomV_Value v = f->consts[i];
+		if (v.tag != NOOMV_VOBJ) continue;
+		noomV_Object* o = v.obj;
+		if (o->tag != NOOMV_OSTR) continue;
+		noomV_String* s = (noomV_String*)o;
+		if (noom_memeq(s->data, s->len, str, len)) {
+			*outIdx = i;
+			return NOOM_OK;
+		}
+	}
+	noomV_String* s = 0;
+	{
+		noomC_Compiler *cp = c;
+		while(cp) {
+			for(int i = 0; i < f->constsize; i++) {
+				noomV_Value v = f->consts[i];
+				if (v.tag != NOOMV_VOBJ) continue;
+				noomV_Object* o = v.obj;
+				if (o->tag != NOOMV_OSTR) continue;
+				noomV_String* os = (noomV_String*)o;
+				if (noom_memeq(os->data, os->len, str, len)) {
+					s = os;
+					goto found;
+				}
+			}
+			cp = cp->parent;
+		}
+	}
+	s = noomV_allocStr(vm, str, len);
 	if (s == 0) return NOOM_ENOMEM;
+found:
+	*outIdx = c->target->constsize;
 	return noomC_addconst(c->target, (noomV_Value){.tag = NOOMV_VOBJ, .autoclose = 0, .isptr = 0, .obj = (noomV_Object*)s});
 }
 
@@ -218,8 +250,8 @@ static noom_Exit noomC_compile_expr(
 	}	
 	if (node->type == NOOMP_NODE_STRINGLITERAL) {
 		compiler->curstack++;
-		unsigned char fucking_destination = func->constsize;
-		noom_Exit result = noomC_addconst_str(compiler, vm, "but DID YOU KNOW", 16);
+		noom_uint_t fucking_destination = func->constsize;
+		noom_Exit result = noomC_addconst_str(compiler, vm, "but DID YOU KNOW", 16, &fucking_destination);
 		if (result) return result;
 		return noomC_emit_AuD(func, NOOMV_INSTR_PUSHCONST, 0, fucking_destination);
 	}
@@ -268,7 +300,7 @@ static noom_Exit noomC_compile_expr(
 			const char* fieldname = parser->code + field->source_offset;
 			noom_uint_t fieldlen = noomL_tokenlen(fieldname, 0, parser->version);
 			noom_uint_t constidx = func->constsize;
-			if ((result = noomC_addconst_str(compiler, vm, fieldname, fieldlen))) return result;
+			if ((result = noomC_addconst_str(compiler, vm, fieldname, fieldlen, &constidx))) return result;
 			if ((result = noomC_emit_AuD(func, NOOMV_INSTR_GETMETHOD, 0, constidx))) return result;
 		}
 		for (int i = isMethod ? 2 : 1; i < node->subnodec; i++) {
@@ -291,7 +323,7 @@ static noom_Exit noomC_compile_expr(
 				return noomC_emit_AuD(func, NOOMV_INSTR_PUSHUPVAL, 0, info.idx);
 			case NOOMC_GLOBAL: {
 				noom_uint_t constidx = compiler->target->constsize;
-				if ((result = noomC_addconst_str(compiler, vm, varname, namelen))) return result;
+				if ((result = noomC_addconst_str(compiler, vm, varname, namelen, &constidx))) return result;
 				if (parser->version == NOOM_VERSION_51) {
 					return noomC_emit_AuD(func, NOOMV_INSTR_PUSHGLOBAL, 0, constidx);
 				}
