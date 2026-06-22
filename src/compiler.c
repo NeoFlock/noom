@@ -33,7 +33,8 @@ typedef struct noomC_LocalInfo {
 	enum { NOOMC_GLOBAL,
 		   NOOMC_LOCAL,
 		   NOOMC_UPVAL } type;
-	unsigned int idx;
+	unsigned short idx;
+	noom_bool_t isConst;
 } noomC_LocalInfo;
 
 noom_Exit noomC_addLocal(noomC_Compiler* c, noomC_Local local) {
@@ -49,7 +50,21 @@ noom_Exit noomC_addUpval(noomC_Compiler* c, noomC_Upval upval) {
 }
 
 noom_Exit noomC_identifyLocal(noomC_Compiler* compiler, noomC_LocalInfo* info, const char* name, noom_uint_t namelen) {
-	// TODO: attempt to steal locals for upvalues
+	// genuinely just see if we have the upval
+	for(int i = 0; i < compiler->upvalc; i++) {
+		noomC_Upval u = compiler->upvals[i];
+		if (noom_memeq(u.name, u.namelen, name, namelen)) {
+			info->type = NOOMC_UPVAL;
+			info->idx = i;
+			info->isConst = u.constant;
+			return NOOM_OK;
+		}
+	}
+
+	if(compiler->parent) {
+		// genuinely steal the upvals
+		// TODO: attempt to steal locals for upvalues
+	}
 
 	for (int i = compiler->localc - 1; i >= 0; i--) {
 		noomC_Local l = compiler->locals[i];
@@ -57,12 +72,15 @@ noom_Exit noomC_identifyLocal(noomC_Compiler* compiler, noomC_LocalInfo* info, c
 		if (noom_memeq(l.name, l.namelen, name, namelen)) {
 			info->type = NOOMC_LOCAL;
 			info->idx = l.stackslot;
+			info->isConst = l.constant;
 			return NOOM_OK;
 		}
 	}
 
 	// fallback to global
 	info->type = NOOMC_GLOBAL;
+	// never constant
+	info->isConst = 0;
 	return NOOM_OK;
 }
 
