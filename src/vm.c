@@ -216,7 +216,7 @@ noomV_Table* noomV_allocTable(noom_LuaVM* vm, noom_uint_t arraylen, noom_uint_t 
 	if (t->entrydata == 0) return 0;
 	t->entries = cap;
 	for (size_t i = 0; i < cap * 2; i++) {
-		t->entrydata[i].tag = NOOMV_VNIL;
+		t->entrydata[i] = noomV_nil;
 	}
 	return t;
 }
@@ -352,10 +352,20 @@ noom_Exit noomV_rawsetTable(noom_LuaVM* vm, noomV_Table* t, noomV_Value key, noo
 	val.autoclose = 0;
 	noom_uint_t hash = noomV_rawhashValue(key);
 	noom_uint_t idx = hash % t->entries;
-	while (1) {
+	noom_uint_t count = 0;
+	noomV_Value *freshTomb = 0;
+	while (count < t->entries) {
 		noomV_Value key2 = t->entrydata[idx];
-		// tombstone!
-		if (key2.isptr) {
+		// tombstone, for creation!
+		if(key2.isptr) {
+			freshTomb = t->entrydata + idx;
+			idx++;
+			idx %= t->entries;
+			count++;
+			continue;
+		}
+		// unallocated!
+		if (key2.tag == NOOMV_VNIL) {
 			t->entrydata[idx] = key;
 			t->entrydata[idx + t->entries] = val;
 			return NOOM_OK;
@@ -367,7 +377,11 @@ noom_Exit noomV_rawsetTable(noom_LuaVM* vm, noomV_Table* t, noomV_Value key, noo
 		}
 		idx++;
 		idx %= t->entries;
+		count++;
 	}
+	if(freshTomb == 0) return NOOM_ENOMEM;
+	freshTomb[0] = key;
+	freshTomb[t->entries] = val;
 	return NOOM_OK;
 }
 
