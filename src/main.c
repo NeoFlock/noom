@@ -1,5 +1,4 @@
 #include <stdio.h> // for now
-#include <stdlib.h>
 #include "helper.h"
 #include "error.h"
 #include "noom.h"
@@ -16,7 +15,7 @@ void tab(noom_uint_t amount) {
 	}
 }
 
-void print_node(const noomP_Node* node, noom_uint_t depth) {
+void print_node(const noomP_Node *node, noom_uint_t depth) {
 	tab(depth);
 	printf("{\n");
 
@@ -37,14 +36,12 @@ void print_node(const noomP_Node* node, noom_uint_t depth) {
 	printf("}\n");
 }
 
-int the_theoretical_function_to_execute_your_code_that_should_be_replaced_later(const char* code, const char* program_name, const char* filename) {
+int execute(const char* code, noom_LuaVersion version, const char* program_name, const char* filename) {
 	noomP_Parser parser;
 	noomP_Node* program;
-
-	noom_LuaVM* vm = noom_createVM(NOOM_VERSION_51);
-
+	
 	// goodbye "shitass" you will be missed
-	int success = noomP_parse(code, filename, NOOM_VERSION_51, &program, &parser);
+	int success = noomP_parse(code, filename, version, &program, &parser);
 	if (success == 0) {
 		puts("LEX OUTPUT:");
 		fputs("\x1b[48;2;10;10;10m", stdout);
@@ -52,7 +49,7 @@ int the_theoretical_function_to_execute_your_code_that_should_be_replaced_later(
 		while (1) {
 			noomL_Token token;
 
-			noomL_ErrorType err = noomL_lex(code, pos, &token, NOOM_VERSION_54);
+			noomL_ErrorType err = noomL_lex(code, pos, &token, version);
 			if (err) break;
 
 			if (token.type == NOOML_TOKEN_KEYWORD) {
@@ -87,46 +84,15 @@ int the_theoretical_function_to_execute_your_code_that_should_be_replaced_later(
 		puts("\x1b[0m");
 		puts("PARSE OUTPUT:");
 		print_node(program, 0);
-	} else {
+	}
+	else {
 		noom_uint_t bleh = noom_format_error(&parser, program_name, NULL, 0);
 		char* buf = noom_alloc(bleh);
 		noom_format_error(&parser, program_name, buf, bleh);
 		fputs(buf, stdout);
 		noom_free(buf);
 	}
-
-	noomV_Value peak;
-
-	noom_Exit e = noomC_compile(vm, &parser, program, 0, 0, &peak);
-	if (e) {
-		printf("error: %d\n", e);
-		exit(e);
-	}
-
-	noomV_Function* f = (noomV_Function*)peak.obj;
-
-	for (int i = 0; i < f->codesize; i++) {
-		noomV_Inst inst = f->code[i];
-		noomV_DisInfo dis = noomV_disInfo[inst.op];
-
-		printf("%s %d ", dis.name, inst.a);
-
-		switch (dis.arg) {
-			case NOOMV_DIS_NONE:
-				break;
-			case NOOMV_DIS_BC:
-				printf("%d, %d", inst.b, inst.c);
-				break;
-			case NOOMV_DIS_uD:
-				printf("%d", inst.us);
-				break;
-			case NOOMV_DIS_sD:
-				printf("%d", inst.ss);
-				break;
-		}
-		printf("\n");
-	}
-
+	
 	// freeing time
 	noomP_Node* last_node = parser.last_node;
 	while (last_node) {
@@ -136,9 +102,43 @@ int the_theoretical_function_to_execute_your_code_that_should_be_replaced_later(
 		noom_free(last_node);
 		last_node = next;
 	}
+	
+	if (success) {
+		noom_LuaVM* vm = noom_createVM(version);
+		noomV_Value peak;
 
-	noom_destroyVM(vm);
+		noom_Exit e = noomC_compile(vm, &parser, program, 0, 0, &peak);
+		if (e) {
+			printf("error: %d\n", e);
+			return 1;
+		}
 
+		noomV_Function* f = (noomV_Function*)peak.obj;
+
+		for (int i = 0; i < f->codesize; i++) {
+			noomV_Inst inst = f->code[i];
+			noomV_DisInfo dis = noomV_disInfo[inst.op];
+
+			printf("%s %d ", dis.name, inst.a);
+
+			switch (dis.arg) {
+				case NOOMV_DIS_NONE:
+					break;
+				case NOOMV_DIS_BC:
+					printf("%d, %d", inst.b, inst.c);
+					break;
+				case NOOMV_DIS_uD:
+					printf("%d", inst.us);
+					break;
+				case NOOMV_DIS_sD:
+					printf("%d", inst.ss);
+					break;
+			}
+			printf("\n");
+		}
+		noom_destroyVM(vm);
+	}
+	
 	return success;
 }
 
@@ -154,9 +154,11 @@ static char* read_file(const char* filename) {
 	fseek(file, 0, SEEK_SET);
 
 	char* buffer = noom_alloc(filesize + 1);
+	if (buffer == 0) return 0;
 
 	if (fread(buffer, 1, filesize, file) != filesize) {
 		fprintf(stderr, "Reached the end of the file\n");
+		noom_free(buffer);
 		return 0;
 	}
 	buffer[filesize] = '\0';
@@ -169,13 +171,15 @@ static char* read_stdin() {
 	noom_uint_t capacity = 4096;
 	noom_uint_t size = 0;
 	char* buffer = noom_alloc(capacity);
+	if (buffer == 0) return 0;
 
 	size_t n;
 	while ((n = fread(buffer + size, 1, capacity - size, stdin)) > 0) {
 		size += n;
 		if (size == capacity) {
 			capacity *= 2;
-			buffer = noom_realloc(buffer, capacity);
+			buffer = noom_realloc_free(buffer, capacity);
+			if (buffer == 0) return 0;
 		}
 	}
 
@@ -183,7 +187,6 @@ static char* read_stdin() {
 	return buffer;
 }
 
-// code stolen from my different project
 static int read_prompt(char* buf, int buf_size, char* prompt, const int required) {
 	do {
 		printf("%s", prompt);
@@ -207,6 +210,7 @@ int main(int argc, char** argv) {
 		const char* script_exec;
 		const char* script_path;
 		noom_bool_t do_i_already_know_what_to_do;
+		noom_LuaVersion lua_version;
 	} params = {0};
 
 	if (argc < 2) {
@@ -246,7 +250,7 @@ int main(int argc, char** argv) {
 			if (params.do_i_already_know_what_to_do) {
 				goto die;
 			}
-			/* "-estat" or "-e stat" */
+			// "-estat" or "-e stat"
 			if (argv[i][2] != '\0') {
 				params.script_exec = argv[i] + 2;
 				params.do_i_already_know_what_to_do = 1;
@@ -260,6 +264,29 @@ int main(int argc, char** argv) {
 			params.script_exec = argv[i];
 			params.do_i_already_know_what_to_do = 1;
 		}
+		
+		if (argv[i][1] == 'l') {
+			const char* version_string = 0;
+			if (argv[i][2] != '\0') {
+				version_string = argv[i] + 2;
+			}
+			else {
+				if (++i >= argc) {
+					err = "-l needs an argument";
+					goto die;
+				}
+				version_string = argv[i];
+			}	
+			if (noom_strcmp(version_string, "51") == 0) params.lua_version = NOOM_VERSION_51;
+			else if (noom_strcmp(version_string, "52") == 0) params.lua_version = NOOM_VERSION_52;
+			else if (noom_strcmp(version_string, "53") == 0) params.lua_version = NOOM_VERSION_53;
+			else if (noom_strcmp(version_string, "54") == 0) params.lua_version = NOOM_VERSION_54;
+			else {
+				err = "unknown lua version";
+				goto die;
+			}
+			continue;
+		}
 
 		if (argv[i][1] == 'v') {
 			puts(NOOM_VERSION_TEXT);
@@ -269,27 +296,33 @@ int main(int argc, char** argv) {
 		err = "unknown option";
 		goto die;
 	}
+	if (params.lua_version != 0) {
+		params.lua_version = NOOM_VERSION_54;
+		if (!params.do_i_already_know_what_to_do) {
+			params.enter_repl = 1;
+			params.do_i_already_know_what_to_do = 1;
+		}
+	}
 	if (!params.do_i_already_know_what_to_do) {
 		err = "script not set";
 		goto die;
 	}
 	if (params.script_exec || params.script_path) {
 		if (params.script_exec) {
-			return the_theoretical_function_to_execute_your_code_that_should_be_replaced_later(params.script_exec, argv[0], "(command line)");
+			return execute(params.script_exec, params.lua_version, argv[0], "(command line)");
 		}
 		char* code = read_file(params.script_path);
 		if (code == 0) return 1;
 		int offset = 0;
-		if (code[0] == '#' && code[1] == '!')
-			for (offset = 2; code[offset] && code[offset] != '\n'; offset++);
-		int e = the_theoretical_function_to_execute_your_code_that_should_be_replaced_later(code + offset, argv[0], params.script_path);
+		if (code[0] == '#' && code[1] == '!') for (offset = 2; code[offset] && code[offset] != '\n'; offset++);
+		const int e = execute(code + offset, params.lua_version, argv[0], params.script_path);
 		noom_free(code);
 		return e;
 	}
 	if (params.use_stdin) {
 		char* code = read_stdin();
 		if (code == 0) return 1;
-		int e = the_theoretical_function_to_execute_your_code_that_should_be_replaced_later(code, argv[0], "stdin");
+		const int e = execute(code, params.lua_version, argv[0], "stdin");
 		noom_free(code);
 		return e;
 	}
@@ -298,18 +331,17 @@ int main(int argc, char** argv) {
 		for (;;) {
 			char code[4096];
 			if (read_prompt(code, sizeof(code), "> ", 1)) return 0;
-			the_theoretical_function_to_execute_your_code_that_should_be_replaced_later(code, 0, "(noom input)");
+			execute(code, params.lua_version, 0, "(noom input)");
 		}
 	}
 die:
 	fprintf(stderr, "%s: %s\n"
-	                "usage: %s [options] [script [args]]\n"
-	                "Available options are:\n"
-	                "  -         execute stdin\n"
-	                "  -e stat   execute string 'stat'\n"
-	                "  -v        show version\n",
-	        argv[0],
-	        err,
-	        argv[0]);
+	        "usage: %s [options] [script [args]]\n"
+	        "Available options are:\n"
+	        "  -                execute stdin\n"
+	        "  -e stat          execute string 'stat'\n"
+	        "  -v               show version\n"
+	        "  -l [51|52|53|54] select lua version\n",
+	        argv[0], err, argv[0]);
 	return 1;
 }

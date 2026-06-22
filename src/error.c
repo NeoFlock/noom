@@ -42,8 +42,6 @@ noom_uint_t noom_format_error(const noomP_Parser* parser, const char* program_na
 	    [NOOMP_ERROR_EXPECTED_IDENTIFIER_AFTER_GOTO] = {"expected identifier after goto\n", 0},
 	    [NOOMP_ERROR_EXPECTED_COLONCOLON] = {"expected :: to end label identifier", 1},
 	    [NOOMP_ERROR_INVALID_STATEMENT] = {"expected statement, got", 2},
-	    // I want someone smarter than me [tema5002] to give these a proper description
-	    // ^ alrighty then
 	    [NOOMP_ERROR_EXPECTED_ASSIGNABLE] = {"expected assignable expression after comma in assignment", 1},
 	    [NOOMP_ERROR_NOT_ASSIGNABLE] = {"expression in assignment is not assignable", 1},
 	    [NOOMP_ERROR_EXPECTED_COMMA_OR_EQUAL_IN_ASSIGNMENT] = {"expected a comma or equals after assignable in assignment", 1},
@@ -77,14 +75,15 @@ noom_uint_t noom_format_error(const noomP_Parser* parser, const char* program_na
 		lexer_code = parser->error_state & ~NOOMP_ERROR_LEXER;
 	}
 
-	struct noom_error err = (base_err == NOOMP_ERROR_LEXER) ? lexer_errors[lexer_code] : parser_errors[base_err];
+	struct noom_error err = base_err == NOOMP_ERROR_LEXER ? lexer_errors[lexer_code] : parser_errors[base_err];
 
 	noom_uint_t row = 1, column = 1;
 	for (noom_uint_t i = 0; i < parser->lex_offset; i++) {
 		if (parser->code[i] == '\n') {
 			row++;
 			column = 1;
-		} else {
+		}
+		else {
 			column++;
 		}
 	}
@@ -105,7 +104,7 @@ noom_uint_t noom_format_error(const noomP_Parser* parser, const char* program_na
 		    linedig +
 		    sizeof(": ") - 1 +
 		    noom_strlen(err.s) +
-		    +1; // \0;
+		    1; // \0;
 
 		if (err.near) space +=
 			(err.near == 1 ? sizeof(" near") - 1 : 0) +
@@ -128,12 +127,13 @@ noom_uint_t noom_format_error(const noomP_Parser* parser, const char* program_na
 
 	if (row == 0) {
 		num_buf[num_len++] = '0';
-	} else {
+	}
+	else {
 		noom_uint_t temp = row;
 		noom_uint_t divisor = 1;
 		while (temp / divisor >= 10) divisor *= 10;
 		while (divisor > 0) {
-			num_buf[num_len++] = '0' + (temp / divisor);
+			num_buf[num_len++] = (char)(temp / divisor + '0');
 			temp %= divisor;
 			divisor /= 10;
 		}

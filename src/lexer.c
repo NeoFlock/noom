@@ -29,6 +29,14 @@ int noomL_ishex(char c) {
 	return noomL_isnumber(c) || (noomL_lower(c) >= 'a' && noomL_lower(c) <= 'f');
 }
 
+int noomL_is_ident_start(char c) {
+	return noomL_isalpha(c) || c == '_';
+}
+
+int noomL_is_ident_continue(char c) {
+	return noomL_isalphanum(c) || c == '_';
+}
+
 noom_uint_t noomL_getsymbol(const char* s, noom_LuaVersion version) { // TODO: maybe find some less shit crap holy crap
 	if (noom_startswith(s, "...")) return 3;
 
@@ -514,10 +522,9 @@ noomL_ErrorType noomL_lex(const char* s, noom_uint_t start, noomL_Token* token, 
 		return NOOML_ERROR_NONE;
 	}
 
-	if (str[0] == '_' || noomL_isalpha(str[0])) { // TODO: maybe abstract into function for "can start ident"?
+	if (noomL_is_ident_start(str[0])) {
 		noom_uint_t len = 1;
-		while (str[len] == '_' || noomL_isalphanum(str[len])) // same here
-			len++;
+		while (noomL_is_ident_continue(str[len])) len++;
 
 		token->type = NOOML_TOKEN_IDENTIFIER;
 		if (noomL_iskeyword(str, len, version)) token->type = NOOML_TOKEN_KEYWORD;

@@ -30,9 +30,7 @@
 // ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡘⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
 
 typedef struct noomC_LocalInfo {
-	enum { NOOMC_GLOBAL,
-		   NOOMC_LOCAL,
-		   NOOMC_UPVAL } type;
+	enum { NOOMC_GLOBAL, NOOMC_LOCAL, NOOMC_UPVAL } type;
 	unsigned int idx;
 } noomC_LocalInfo;
 
@@ -141,8 +139,6 @@ static noom_BinOp noomC_what_bop_is_this(const noomP_Parser* parser, noom_uint_t
 	// no .., that is special cased due to funky behavior
 
 	if (parser->version >= NOOM_VERSION_53) {
-		// Fucking atom forgot to put make an instruction
-		// update no i am unable to read
 		if (noom_startswith(op, "//")) return NOOM_BIN_IDIV;
 		if (noom_startswith(op, ">>")) return NOOM_BIN_BSHIFTR;
 		if (noom_startswith(op, "<<")) return NOOM_BIN_BSHIFTL;
@@ -169,9 +165,9 @@ static noom_Exit noomC_compile_expr(
     noomV_Function* func,
     const noomP_Node* node,
     // retc of -1 means all values!!!!!!!!!!!
-    int retc) {
+    int retc
+) {
 	noom_Exit result;
-	// Baba is You OST is a very cool soundtrack to code to Can recommend
 	if (node->type == NOOMP_NODE_NILLITERAL) {
 		compiler->curstack++;
 		// TODO: analyze last instruction to optimize automatically
