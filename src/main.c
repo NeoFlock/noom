@@ -15,7 +15,7 @@ void tab(noom_uint_t amount) {
 	}
 }
 
-void print_node(const noomP_Node *node, noom_uint_t depth) {
+void print_node(const noomP_Node* node, noom_uint_t depth) {
 	tab(depth);
 	printf("{\n");
 
