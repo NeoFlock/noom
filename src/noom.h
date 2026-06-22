@@ -4,15 +4,19 @@
 #define NN_STR(x) #x
 #define NN_XSTR(x) NN_STR(x)
 
+/*
 #define NOOM_VERSION_MAJOR 0
 #define NOOM_VERSION_MINOR 0
 #define NOOM_VERSION_PATCH 0
-#if NOOM_VERSION_PATCH == 0
+#if NOOM_VERSION_PATCH==0
 #define NOOM_VERSION_FULL NN_XSTR(NOOM_VERSION_MAJOR) "." NN_XSTR(NOOM_VERSION_MINOR)
 #else
 #define NOOM_VERSION_FULL NN_XSTR(NOOM_VERSION_MAJOR) "." NN_XSTR(NOOM_VERSION_MINOR) "." NN_XSTR(NOOM_VERSION_PATCH)
 #endif
-#define NOOM_VERSION_TEXT "Noom " NOOM_VERSION_FULL "  (C) 2026 NeoFlock and Noom contributors"
+*/
+#define NOOM_VERSION_FULL "development build"
+
+#define NOOM_VERSION_TEXT "Noom " NOOM_VERSION_FULL "  (c) 2026 NeoFlock and Noom contributors"
 
 #ifdef __cplusplus
 extern "C" {

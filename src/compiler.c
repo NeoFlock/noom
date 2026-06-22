@@ -87,7 +87,7 @@ static noom_Exit noomC_emit_ABC(noomV_Function* func, const noomV_Opcode op, con
 	return noomC_emit(func, (noomV_Inst){.op = op, .a = a, .b = b, .c = c});
 }
 
-static noom_Exit noomC_emit_Aus(noomV_Function* func, const noomV_Opcode op, const unsigned char a, const unsigned short us) {
+static noom_Exit noomC_emit_AuD(noomV_Function* func, const noomV_Opcode op, const unsigned char a, const unsigned short us) {
 	return noomC_emit(func, (noomV_Inst){.op = op, .a = a, .us = us});
 }
 
@@ -122,6 +122,10 @@ static noom_Exit noomC_addconst_str(noomC_Compiler* c, noom_LuaVM* vm, const cha
 	return noomC_addconst(c->target, (noomV_Value){.tag = NOOMV_VOBJ, .autoclose = 0, .isptr = 0, .obj = (noomV_Object*)s});
 }
 
+static noom_Exit noomC_addconst_num(noomC_Compiler *c, noom_LuaVM *vm, double num) {
+	// TODO :(
+}
+
 static noomL_Token noomC_token_at(const noomP_Parser* parser, noom_uint_t offset) {
 	noomL_Token token;
 	noomL_lex(parser->code, offset, &token, parser->version);
@@ -141,8 +145,6 @@ static noom_BinOp noomC_what_bop_is_this(const noomP_Parser* parser, noom_uint_t
 	// no .., that is special cased due to funky behavior
 
 	if (parser->version >= NOOM_VERSION_53) {
-		// Fucking atom forgot to put make an instruction
-		// update no i am unable to read
 		if (noom_startswith(op, "//")) return NOOM_BIN_IDIV;
 		if (noom_startswith(op, ">>")) return NOOM_BIN_BSHIFTR;
 		if (noom_startswith(op, "<<")) return NOOM_BIN_BSHIFTL;
@@ -171,30 +173,37 @@ static noom_Exit noomC_compile_expr(
     // retc of -1 means all values!!!!!!!!!!!
     int retc) {
 	noom_Exit result;
-	// Baba is You OST is a very cool soundtrack to code to Can recommend
 	if (node->type == NOOMP_NODE_NILLITERAL) {
 		compiler->curstack++;
-		// TODO: analyze last instruction to optimize automatically
-		return noomC_emit_Aus(func, NOOMV_INSTR_PUSHNIL, 0, 0);
+		if (func->codesize > 0 && func->code[func->codesize - 1].op == NOOMV_INSTR_PUSHNIL) {
+			func->code[func->codesize - 1].us++;
+		}
+		else {
+			if ((result = noomC_emit_AuD(func, NOOMV_INSTR_PUSHNIL, 0, 0)) != NOOM_OK) return result;
+		}
+		return noomC_emit_AuD(func, NOOMV_INSTR_PUSHNIL, 0, 0);
 	}
 	if (node->type == NOOMP_NODE_BOOLEANLITERAL) {
-		unsigned char fucking_destination = compiler->curstack++;
+		unsigned char where = compiler->curstack++;
 		unsigned short fucking_constant = func->constsize;
 		noomL_Token bool_token = noomC_token_at(parser, node->source_offset);
 		noom_bool_t val = noom_memeq(parser->code + bool_token.offset, bool_token.length, "true", 4);
 		// TODO: analyze last instruction to optimize automatically
-		return noomC_emit_Aus(func, NOOMV_INSTR_PUSHBOOLS, 0, val ? 1 : 0);
-	}
+		return noomC_emit_AuD(func, NOOMV_INSTR_PUSHBOOLS, 0, val ? 1 : 0);
+	}	
 	if (node->type == NOOMP_NODE_NUMBERLITERAL) {
 		unsigned char fucking_destination = compiler->curstack++;
-		return NOOM_PLEASEHELPMEIAMSCARED; // 😭😭😭😭😭😭😭😭
-	}
+		noomL_Token number_token = noomC_token_at(parser, node->source_offset);
+		double val = noom_strtod(parser->code + number_token.offset, 0, 0);
+		if ((result = noomC_addconst_num(compiler, vm, val)) != NOOM_OK) return result;
+		return noomC_emit_AuD(func, NOOMV_INSTR_PUSHCONST, 0, fucking_destination);
+	}	
 	if (node->type == NOOMP_NODE_STRINGLITERAL) {
 		compiler->curstack++;
 		unsigned char fucking_destination = func->constsize;
 		noom_Exit result = noomC_addconst_str(compiler, vm, "but DID YOU KNOW", 16);
 		if (result) return result;
-		return noomC_emit_Aus(func, NOOMV_INSTR_PUSHCONST, 0, fucking_destination);
+		return noomC_emit_AuD(func, NOOMV_INSTR_PUSHCONST, 0, fucking_destination);
 	}
 	if (node->type == NOOMP_NODE_BINARYOPERATOR) {
 		if (node->subnodec != 2) return NOOM_EINTERNAL;
@@ -221,7 +230,7 @@ static noom_Exit noomC_compile_expr(
 			}
 			compiler->curstack -= amount;
 			compiler->curstack++;
-			return noomC_emit_Aus(func, NOOMV_INSTR_CONCAT, 0, amount - 1);
+			return noomC_emit_AuD(func, NOOMV_INSTR_CONCAT, 0, amount - 1);
 		}
 
 		if ((result = noomC_compile_expr(vm, compiler, parser, func, node->subnodes[0], 1))) return result;
@@ -242,13 +251,13 @@ static noom_Exit noomC_compile_expr(
 			noom_uint_t fieldlen = noomL_tokenlen(fieldname, 0, parser->version);
 			noom_uint_t constidx = func->constsize;
 			if ((result = noomC_addconst_str(compiler, vm, fieldname, fieldlen))) return result;
-			if ((result = noomC_emit_Aus(func, NOOMV_INSTR_GETMETHOD, 0, constidx))) return result;
+			if ((result = noomC_emit_AuD(func, NOOMV_INSTR_GETMETHOD, 0, constidx))) return result;
 		}
 		for (int i = isMethod ? 2 : 1; i < node->subnodec; i++) {
 			noom_bool_t isLast = i == (node->subnodec - 1);
 			if ((result = noomC_compile_expr(vm, compiler, parser, func, node->subnodes[i], isLast ? -1 : 1))) return result;
 		}
-		return noomC_emit_Aus(func, NOOMV_INSTR_CALL, funcIdx, retc + 1);
+		return noomC_emit_AuD(func, NOOMV_INSTR_CALL, funcIdx, retc + 1);
 	}
 	if (node->type == NOOMP_NODE_VARIABLE) {
 		noomC_LocalInfo info;
@@ -259,14 +268,14 @@ static noom_Exit noomC_compile_expr(
 
 		switch (info.type) {
 			case NOOMC_LOCAL:
-				return noomC_emit_Aus(func, NOOMV_INSTR_PUSHVAL, 0, info.idx);
+				return noomC_emit_AuD(func, NOOMV_INSTR_PUSHVAL, 0, info.idx);
 			case NOOMC_UPVAL:
-				return noomC_emit_Aus(func, NOOMV_INSTR_PUSHUPVAL, 0, info.idx);
+				return noomC_emit_AuD(func, NOOMV_INSTR_PUSHUPVAL, 0, info.idx);
 			case NOOMC_GLOBAL: {
 				noom_uint_t constidx = compiler->target->constsize;
 				if ((result = noomC_addconst_str(compiler, vm, varname, namelen))) return result;
 				if (parser->version == NOOM_VERSION_51) {
-					return noomC_emit_Aus(func, NOOMV_INSTR_PUSHGLOBAL, 0, constidx);
+					return noomC_emit_AuD(func, NOOMV_INSTR_PUSHGLOBAL, 0, constidx);
 				}
 				noomC_LocalInfo _ENV;
 				if ((result = noomC_identifyLocal(compiler, &_ENV, "_ENV", 4))) return result;
@@ -274,11 +283,11 @@ static noom_Exit noomC_compile_expr(
 				if (_ENV.type == NOOMC_GLOBAL) return NOOM_EINTERNAL;
 				// most likely branch in human history
 				if (_ENV.type == NOOMC_UPVAL) {
-					return noomC_emit_Aus(func, NOOMV_INSTR_PUSHUPVAL, _ENV.idx, constidx);
+					return noomC_emit_AuD(func, NOOMV_INSTR_PUSHUPVAL, _ENV.idx, constidx);
 				}
 				// bitchass
-				if ((result = noomC_emit_Aus(func, NOOMV_INSTR_PUSHVAL, 0, _ENV.idx))) return result;
-				return noomC_emit_Aus(func, NOOMV_INSTR_GETFIELD, 0, constidx);
+				if ((result = noomC_emit_AuD(func, NOOMV_INSTR_PUSHVAL, 0, _ENV.idx))) return result;
+				return noomC_emit_AuD(func, NOOMV_INSTR_GETFIELD, 0, constidx);
 			}
 		}
 		// forgot a case
@@ -305,10 +314,11 @@ static noom_Exit noomC_compile_block(noom_LuaVM* vm, noomC_Compiler* compiler, c
 // I remember atom said there is a memory leak somewhere but I don't rememeememember where uhhhhhhhhhhhhhhhhh
 static noom_Exit noomC_add_stuff_to_function(noom_LuaVM* vm, noomC_Compiler* compiler, const noomP_Parser* parser, noomV_Function* func, const noomP_Node* node) {
 	noom_Exit result;
-	// local name <attr> = expression i think
+	// local name <attr> = expression 
 	if (node->type == NOOMP_NODE_LOCALDECLARATION) {
 		// FIXME: there can be multiple locals defined
 		// This code is awful for several reasons and we shall burn it
+		// :(
 		if (node->subnodec != 1 && node->subnodec != 2) return NOOM_EINTERNAL;
 
 		const noomP_Node* varname_node = node->subnodes[0];
@@ -347,7 +357,7 @@ static noom_Exit noomC_add_stuff_to_function(noom_LuaVM* vm, noomC_Compiler* com
 
 		if (node->subnodec == 1) {
 			const unsigned short constptr = func->constsize;
-			result = noomC_emit_Aus(func, NOOMV_INSTR_PUSHNIL, 0, 0);
+			result = noomC_emit_AuD(func, NOOMV_INSTR_PUSHNIL, 0, 0);
 			if (result != NOOM_OK) return result;
 			compiler->curstack++;
 		} else {
@@ -405,7 +415,7 @@ static noom_Exit noomC_add_stuff_to_function(noom_LuaVM* vm, noomC_Compiler* com
 
 	// TODO
 	if (node->type == NOOMP_NODE_RETURN) {
-		noomC_emit_Aus(func, NOOMV_INSTR_NOP, 0, 0);
+		noomC_emit_AuD(func, NOOMV_INSTR_NOP, 0, 0);
 		return NOOM_OK;
 	}
 
