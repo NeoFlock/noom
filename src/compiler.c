@@ -30,7 +30,9 @@
 // ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡘⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
 
 typedef struct noomC_LocalInfo {
-	enum { NOOMC_GLOBAL, NOOMC_LOCAL, NOOMC_UPVAL } type;
+	enum { NOOMC_GLOBAL,
+		   NOOMC_LOCAL,
+		   NOOMC_UPVAL } type;
 	unsigned int idx;
 } noomC_LocalInfo;
 
@@ -165,8 +167,7 @@ static noom_Exit noomC_compile_expr(
     noomV_Function* func,
     const noomP_Node* node,
     // retc of -1 means all values!!!!!!!!!!!
-    int retc
-) {
+    int retc) {
 	noom_Exit result;
 	if (node->type == NOOMP_NODE_NILLITERAL) {
 		compiler->curstack++;

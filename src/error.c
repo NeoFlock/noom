@@ -82,8 +82,7 @@ noom_uint_t noom_format_error(const noomP_Parser* parser, const char* program_na
 		if (parser->code[i] == '\n') {
 			row++;
 			column = 1;
-		}
-		else {
+		} else {
 			column++;
 		}
 	}
@@ -127,8 +126,7 @@ noom_uint_t noom_format_error(const noomP_Parser* parser, const char* program_na
 
 	if (row == 0) {
 		num_buf[num_len++] = '0';
-	}
-	else {
+	} else {
 		noom_uint_t temp = row;
 		noom_uint_t divisor = 1;
 		while (temp / divisor >= 10) divisor *= 10;

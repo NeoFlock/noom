@@ -39,7 +39,7 @@ void print_node(const noomP_Node* node, noom_uint_t depth) {
 int execute(const char* code, noom_LuaVersion version, const char* program_name, const char* filename) {
 	noomP_Parser parser;
 	noomP_Node* program;
-	
+
 	// goodbye "shitass" you will be missed
 	int success = noomP_parse(code, filename, version, &program, &parser);
 	if (success == 0) {
@@ -84,15 +84,14 @@ int execute(const char* code, noom_LuaVersion version, const char* program_name,
 		puts("\x1b[0m");
 		puts("PARSE OUTPUT:");
 		print_node(program, 0);
-	}
-	else {
+	} else {
 		noom_uint_t bleh = noom_format_error(&parser, program_name, NULL, 0);
 		char* buf = noom_alloc(bleh);
 		noom_format_error(&parser, program_name, buf, bleh);
 		fputs(buf, stdout);
 		noom_free(buf);
 	}
-	
+
 	// freeing time
 	noomP_Node* last_node = parser.last_node;
 	while (last_node) {
@@ -102,7 +101,7 @@ int execute(const char* code, noom_LuaVersion version, const char* program_name,
 		noom_free(last_node);
 		last_node = next;
 	}
-	
+
 	if (success) {
 		noom_LuaVM* vm = noom_createVM(version);
 		noomV_Value peak;
@@ -138,7 +137,7 @@ int execute(const char* code, noom_LuaVersion version, const char* program_name,
 		}
 		noom_destroyVM(vm);
 	}
-	
+
 	return success;
 }
 
@@ -264,19 +263,18 @@ int main(int argc, char** argv) {
 			params.script_exec = argv[i];
 			params.do_i_already_know_what_to_do = 1;
 		}
-		
+
 		if (argv[i][1] == 'l') {
 			const char* version_string = 0;
 			if (argv[i][2] != '\0') {
 				version_string = argv[i] + 2;
-			}
-			else {
+			} else {
 				if (++i >= argc) {
 					err = "-l needs an argument";
 					goto die;
 				}
 				version_string = argv[i];
-			}	
+			}
 			if (noom_strcmp(version_string, "51") == 0) params.lua_version = NOOM_VERSION_51;
 			else if (noom_strcmp(version_string, "52") == 0) params.lua_version = NOOM_VERSION_52;
 			else if (noom_strcmp(version_string, "53") == 0) params.lua_version = NOOM_VERSION_53;
@@ -314,7 +312,8 @@ int main(int argc, char** argv) {
 		char* code = read_file(params.script_path);
 		if (code == 0) return 1;
 		int offset = 0;
-		if (code[0] == '#' && code[1] == '!') for (offset = 2; code[offset] && code[offset] != '\n'; offset++);
+		if (code[0] == '#' && code[1] == '!')
+			for (offset = 2; code[offset] && code[offset] != '\n'; offset++);
 		const int e = execute(code + offset, params.lua_version, argv[0], params.script_path);
 		noom_free(code);
 		return e;
@@ -336,12 +335,12 @@ int main(int argc, char** argv) {
 	}
 die:
 	fprintf(stderr, "%s: %s\n"
-	        "usage: %s [options] [script [args]]\n"
-	        "Available options are:\n"
-	        "  -                execute stdin\n"
-	        "  -e stat          execute string 'stat'\n"
-	        "  -v               show version\n"
-	        "  -l [51|52|53|54] select lua version\n",
-	        argv[0], err, argv[0]);
+	                "usage: %s [options] [script [args]]\n"
+	                "Available options are:\n"
+	                "  -                execute stdin\n"
+	                "  -e stat          execute string 'stat'\n"
+	                "  -v               show version\n"
+	                "  -l [51|52|53|54] select lua version\n",
+					argv[0], err, argv[0]);
 	return 1;
 }

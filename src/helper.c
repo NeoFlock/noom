@@ -13,7 +13,7 @@ double noom_strtod(const char* s, const char** endptr, int* error) {
 		s++;
 
 	if (!noomL_isnumber(s[*s == '.'])) goto fuck;
-	
+
 	if (*s == '0' && noomL_lower(s[1]) == 'x') {
 		s += 2;
 		// if the string starts with "0x" but does not contain digits it's invalid
@@ -22,14 +22,14 @@ double noom_strtod(const char* s, const char** endptr, int* error) {
 			int digit;
 			if (noomL_isnumber(*s)) digit = *s - '0';
 			else digit = noomL_lower(*s) - 'a' + 10;
-        
+
 			num = num * 16.0 + digit;
 			are_we_cooked = 0;
 			s++;
 		}
-		
+
 		if (are_we_cooked) goto fuck;
-		
+
 		if (noomL_lower(*s) == 'p') {
 			// damn then
 			s++;
@@ -37,18 +37,17 @@ double noom_strtod(const char* s, const char** endptr, int* error) {
 			const noom_bool_t exponent_negative = *s == '-';
 			if (*s == '-' || *s == '+')
 				s++;
-        
+
 			if (!noomL_isnumber(*s)) goto fuck;
-        
+
 			while (noomL_isnumber(*s)) {
 				exponent = exponent * 10 + (*s - '0');
 				s++;
 			}
-        
+
 			num *= noom_pow(2.0, exponent_negative ? -exponent : exponent);
 		}
-	}
-	else {
+	} else {
 		noom_bool_t are_we_cooked = 1;
 		while (noomL_isnumber(*s)) {
 			num = num * 10.0 + (*s - '0');
@@ -57,7 +56,7 @@ double noom_strtod(const char* s, const char** endptr, int* error) {
 		}
 		if (*s == '.') {
 			s++;
-								
+
 			double fraction_divisor = 10.0;
 			while (noomL_isnumber(*s)) {
 				are_we_cooked = 0;
@@ -67,21 +66,21 @@ double noom_strtod(const char* s, const char** endptr, int* error) {
 			}
 		}
 		if (are_we_cooked) goto fuck;
-		
+
 		if (noomL_lower(*s) == 'e') {
 			s++;
 			int exponent = 0;
 			const noom_bool_t exponent_negative = *s == '-';
 			if (*s == '-' || *s == '+')
 				s++;
-			
+
 			if (!noomL_isnumber(*s)) goto fuck;
-			
+
 			while (noomL_isnumber(*s)) {
 				exponent = exponent * 10 + (*s - '0');
 				s++;
 			}
-								
+
 			num *= noom_pow(10.0, exponent_negative ? -exponent : exponent);
 		}
 	}
@@ -99,16 +98,16 @@ double noom_pow(double x, int y) {
 		return 1;
 
 	const double temp = noom_pow(x, y / 2);
-	
+
 	if (y % 2 == 0) {
 		return temp * temp;
 	}
-	
+
 	if (y > 0)
 		return x * temp * temp;
-	
+
 	return temp * temp / x;
-}	
+}
 
 int noom_startswith(const char* str, const char* compare) {
 #ifdef __has_builtin
