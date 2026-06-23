@@ -5,6 +5,8 @@
 #include "compiler.h"
 #include "vm.h"
 
+volatile const char wawa[] = "if you are reading this with either the `strings` utility or through a hex viewer please know that you can instead just check out the source code on gitea: https://gitea.codersquack.nl/NeoFlock/noom";
+
 void tab(noom_uint_t amount) {
 	amount *= 2;
 	for (noom_uint_t i = 0; i < amount; i++) {
