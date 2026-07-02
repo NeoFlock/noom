@@ -43,11 +43,10 @@ void print_node(const noomP_Node* node, noom_uint_t depth) {
 void pretty(const char* code, noom_LuaVersion version, const noomP_Node* node, noom_uint_t indent) {
 	for (noom_uint_t i = 0; i < indent; i++) putchar('\t');
 	const noom_uint_t len = noomL_tokenlen(code, node->source_offset, version);
-	char* fuckoff = code;
-	const char c = fuckoff[node->source_offset + len];
-	fuckoff[node->source_offset + len] = '\0';
-	printf("%*s%s %s", (int)len, code + node->source_offset, code[node->source_offset] != '\0' ? " -" : "", noomP_formatNodeType(node->type));
-	fuckoff[node->source_offset + len] = c;
+	for (int i = 0; i < len; i++) {
+		putchar(*(code + node->source_offset + i));
+	}
+	printf("%s %s", code[node->source_offset] != '\0' ? " -" : "", noomP_formatNodeType(node->type));
 	if (node->subnodec) {
 		printf(" with %lld entr%s {\n", node->subnodec, node->subnodec == 1 ? "y" : "ies");
 		for (int i = 0; i < node->subnodec; i++) {
