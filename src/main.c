@@ -27,127 +27,145 @@ void print_node(const noomP_Node* node, noom_uint_t depth) {
 	tab(depth + 1);
 	printf("location: %lld\n", node->source_offset);
 
-	tab(depth + 1);
-	printf("subnodes:\n");
+	if (node->subnodec > 0) {
+		tab(depth + 1);
+		printf("subnodes (%llu):\n", node->subnodec);
 
-	for (noom_uint_t i = 0; i < node->subnodec; i++) {
-		print_node(node->subnodes[i], depth + 1);
+		for (noom_uint_t i = 0; i < node->subnodec; i++) {
+			print_node(node->subnodes[i], depth + 1);
+		}
 	}
 
 	tab(depth);
 	printf("}\n");
 }
 
+void pretty(const char* code, noom_LuaVersion version, const noomP_Node* node, noom_uint_t indent) {
+	for (noom_uint_t i = 0; i < indent; i++) putchar('\t');
+	const noom_uint_t len = noomL_tokenlen(code, node->source_offset, version);
+	char* fuckoff = code;
+	const char c = fuckoff[node->source_offset + len];
+	fuckoff[node->source_offset + len] = '\0';
+	printf("%*s%s %s", (int)len, code + node->source_offset, code[node->source_offset] != '\0' ? " -" : "", noomP_formatNodeType(node->type));
+	fuckoff[node->source_offset + len] = c;
+	if (node->subnodec) {
+		printf(" with %lld entr%s {\n", node->subnodec, node->subnodec == 1 ? "y" : "ies");
+		for (int i = 0; i < node->subnodec; i++) {
+			pretty(code, version, node->subnodes[i], indent + 1);
+		}
+		for (noom_uint_t i = 0; i < indent; i++) putchar('\t');
+		putchar('}');
+		putchar('\n');
+	}
+	else
+		putchar('\n');
+}
+
+// #define LEX_OUTPUT
+#define PARSE_OUTPUT
+#define COMPILER_OUTPUT
+
 int execute(const char* code, noom_LuaVersion version, const char* program_name, const char* filename) {
 	noomP_Parser parser;
 	noomP_Node* program;
 
-	// goodbye "shitass" you will be missed
-	int success = noomP_parse(code, filename, version, &program, &parser);
-	if (success == 0) {
-		puts("LEX OUTPUT:");
-		fputs("\x1b[48;2;10;10;10m", stdout);
-		noom_uint_t pos = 0;
-		while (1) {
-			noomL_Token token;
-
-			noomL_ErrorType err = noomL_lex(code, pos, &token, version);
-			if (err) break;
-
-			if (token.type == NOOML_TOKEN_KEYWORD) {
-				fputs("\x1b[38;2;207;142;109m", stdout);
-				for (noom_uint_t i = 0; i < token.length; i++) putchar((code + token.offset)[i]);
-			} else if (token.type == NOOML_TOKEN_WHITESPACE) {
-				for (noom_uint_t i = 0; i < token.length; i++) putchar((code + token.offset)[i]);
-			} else if (token.type == NOOML_TOKEN_IDENTIFIER) {
-				fputs("\x1b[38;2;255;255;255m", stdout);
-				for (noom_uint_t i = 0; i < token.length; i++) putchar((code + token.offset)[i]);
-			} else if (token.type == NOOML_TOKEN_SYMBOL) {
-				fputs("\x1b[38;2;0;255;255m", stdout);
-				for (noom_uint_t i = 0; i < token.length; i++) putchar((code + token.offset)[i]);
-			} else if (token.type == NOOML_TOKEN_STRING) {
-				fputs("\x1b[38;2;255;0;0m", stdout);
-				for (noom_uint_t i = 0; i < token.length; i++) putchar((code + token.offset)[i]);
-			} else if (token.type == NOOML_TOKEN_NUMBER) {
-				fputs("\x1b[38;2;0;255;0m", stdout);
-				for (noom_uint_t i = 0; i < token.length; i++) putchar((code + token.offset)[i]);
-			} else {
-				fputs("\x1b[0m\n", stdout);
-				printf("%s ", noomL_formatTokenType(token.type));
-				for (noom_uint_t i = 0; i < token.length; i++) putchar((code + token.offset)[i]);
-				fputs("\x1b[48;2;10;10;10m", stdout);
-				putchar('\n');
-			}
-
-			pos += token.length;
-
-			if (token.type == NOOML_TOKEN_EOF) break;
-		}
-		puts("\x1b[0m");
-		puts("PARSE OUTPUT:");
-		print_node(program, 0);
-	} else {
-		noom_uint_t bleh = noom_format_error(&parser, program_name, NULL, 0);
+	if (noomP_parse(code, filename, version, &program, &parser) < 0) {
+		const noom_uint_t bleh = noom_format_error(&parser, program_name, NULL, 0);
 		char* buf = noom_alloc(bleh);
 		noom_format_error(&parser, program_name, buf, bleh);
 		fputs(buf, stdout);
+		noomP_freeNode(parser.last_node);
 		noom_free(buf);
-	}
-
-	if (success == 0) {
-		noom_LuaVM* vm = noom_createVM(version);
-		noomV_Value peak;
-
-		noom_Exit e = noomC_compile(vm, &parser, program, 0, 0, &peak);
-		if (e) {
-			printf("error: %d\n", e);
-			success = e;
-			noom_destroyVM(vm);
-			goto wellShit;
-		}
-
-		noomV_Function* f = (noomV_Function*)peak.obj;
-
-		printf("Insts: %u\n", f->codesize);
-		printf("Consts: %hu\n", f->constsize);
-		printf("Ups: %u\n", (int)f->upvalsize);
-		printf("Locals: %u\n", (int)f->localsize);
-		for (int i = 0; i < f->codesize; i++) {
-			noomV_Inst inst = f->code[i];
-			noomV_DisInfo dis = noomV_disInfo[inst.op];
-
-			printf("%s %d ", dis.name, inst.a);
-
-			switch (dis.arg) {
-				case NOOMV_DIS_NONE:
-					break;
-				case NOOMV_DIS_BC:
-					printf("%d, %d", inst.b, inst.c);
-					break;
-				case NOOMV_DIS_uD:
-					printf("%d", inst.us);
-					break;
-				case NOOMV_DIS_sD:
-					printf("%d", inst.ss);
-					break;
-			}
-			printf("\n");
-		}
-		noom_destroyVM(vm);
+		return 1;
 	}
 	
-wellShit:;
-	// freeing time
-	noomP_Node* last_node = parser.last_node;
-	while (last_node) {
-		noomP_Node* next = last_node->previous_node;
-		// subnodes could be null if we OOM'd during a realloc of it
-		if (last_node->subnodes) noom_free(last_node->subnodes);
-		noom_free(last_node);
-		last_node = next;
-	}
+#ifdef LEX_OUTPUT
+	puts("LEX OUTPUT:");
+	fputs("\x1b[48;2;10;10;10m", stdout);
+	noom_uint_t pos = 0;
+	while (1) {
+		noomL_Token token;
 
-	return success;
+		noomL_ErrorType err = noomL_lex(code, pos, &token, version);
+		if (err) break;
+
+		if (token.type == NOOML_TOKEN_KEYWORD) {
+			fputs("\x1b[38;2;207;142;109m", stdout);
+			for (noom_uint_t i = 0; i < token.length; i++) putchar((code + token.offset)[i]);
+		} else if (token.type == NOOML_TOKEN_WHITESPACE) {
+			for (noom_uint_t i = 0; i < token.length; i++) putchar((code + token.offset)[i]);
+		} else if (token.type == NOOML_TOKEN_IDENTIFIER) {
+			fputs("\x1b[38;2;255;255;255m", stdout);
+			for (noom_uint_t i = 0; i < token.length; i++) putchar((code + token.offset)[i]);
+		} else if (token.type == NOOML_TOKEN_SYMBOL) {
+			fputs("\x1b[38;2;0;255;255m", stdout);
+			for (noom_uint_t i = 0; i < token.length; i++) putchar((code + token.offset)[i]);
+		} else if (token.type == NOOML_TOKEN_STRING) {
+			fputs("\x1b[38;2;255;0;0m", stdout);
+			for (noom_uint_t i = 0; i < token.length; i++) putchar((code + token.offset)[i]);
+		} else if (token.type == NOOML_TOKEN_NUMBER) {
+			fputs("\x1b[38;2;0;255;0m", stdout);
+			for (noom_uint_t i = 0; i < token.length; i++) putchar((code + token.offset)[i]);
+		} else {
+			fputs("\x1b[0m\n", stdout);
+			printf("%s ", noomL_formatTokenType(token.type));
+			for (noom_uint_t i = 0; i < token.length; i++) putchar((code + token.offset)[i]);
+			fputs("\x1b[48;2;10;10;10m", stdout);
+			putchar('\n');
+		}
+
+		pos += token.length;
+
+		if (token.type == NOOML_TOKEN_EOF) break;
+	}
+	puts("\x1b[0m");
+#endif
+	
+#ifdef PARSE_OUTPUT
+	puts("PARSE OUTPUT:");
+	pretty(code, version, program, 0);
+	//print_node(program, 0);
+#endif
+
+	noom_LuaVM* vm = noom_createVM(version);
+	noomV_Value peak;
+
+	const noom_Exit e = noomC_compile(vm, &parser, program, 0, 0, &peak);
+	if (e) {
+		printf("error: %d\n", e);
+		noomP_freeNode(parser.last_node);
+		return 1;
+	}
+	noomP_freeNode(parser.last_node);
+
+#ifdef COMPILER_OUTPUT
+	noomV_Function* f = (noomV_Function*)peak.obj;
+
+	for (int i = 0; i < f->codesize; i++) {
+		noomV_Inst inst = f->code[i];
+		noomV_DisInfo dis = noomV_disInfo[inst.op];
+
+		printf("%s %d ", dis.name, inst.a);
+
+		switch (dis.arg) {
+			case NOOMV_DIS_NONE:
+				break;
+			case NOOMV_DIS_BC:
+				printf("%d, %d", inst.b, inst.c);
+				break;
+			case NOOMV_DIS_uD:
+				printf("%d", inst.us);
+				break;
+			case NOOMV_DIS_sD:
+				printf("%d", inst.ss);
+				break;
+		}
+		printf("\n");
+	}
+#endif
+	noom_destroyVM(vm);
+	
+	return 0;
 }
 
 static char* read_file(const char* filename) {
@@ -271,6 +289,8 @@ int main(int argc, char** argv) {
 			}
 			params.script_exec = argv[i];
 			params.do_i_already_know_what_to_do = 1;
+			i++;
+			continue;
 		}
 
 		if (argv[i][1] == 'l') {
@@ -283,6 +303,7 @@ int main(int argc, char** argv) {
 					goto die;
 				}
 				version_string = argv[i];
+				i++;
 			}
 			if (noom_strcmp(version_string, "51") == 0) params.lua_version = NOOM_VERSION_51;
 			else if (noom_strcmp(version_string, "52") == 0) params.lua_version = NOOM_VERSION_52;
@@ -304,11 +325,13 @@ int main(int argc, char** argv) {
 		goto die;
 	}
 	if (params.lua_version != 0) {
-		params.lua_version = NOOM_VERSION_54;
 		if (!params.do_i_already_know_what_to_do) {
 			params.enter_repl = 1;
 			params.do_i_already_know_what_to_do = 1;
 		}
+	}
+	if (params.lua_version == 0) {
+		params.lua_version = NOOM_VERSION_54;
 	}
 	if (!params.do_i_already_know_what_to_do) {
 		err = "script not set";

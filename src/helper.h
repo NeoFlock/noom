@@ -1,10 +1,9 @@
 #include "noom.h"
+#include "vm.h"
 
 #define NOOM_USHORT_MAX 0xffff
 
-// isn't quite strtod, is it
-// doesn't skip whitespace unlike actual C stdlib strtod!!!!
-double noom_strtod(const char* s, const char** endptr, int* error);
+noomV_Value noom_tonumber_except_different_name_so_public_fucking_api_works(const char* s, const char** endptr, noom_LuaVersion luauauauaua);
 double noom_pow(double x, int y);
 
 int noom_startswith(const char* str, const char* compare);

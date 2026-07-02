@@ -310,6 +310,7 @@ typedef struct noomV_Function {
 
 // exactly 64 bytes, aka one cache line.
 // TODO: ensure it is 64-byte aligned for a perfect 1:1 struct to cache line ratio for perf
+// it IS 64 bit aligned with 7 bytes wasted ^^^^^^^
 typedef struct noomV_CallFrame {
 	// stack index of function
 	noom_uint_t funcIdx;

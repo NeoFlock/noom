@@ -171,5 +171,6 @@ noomP_Node* noomP_parseStatement(noomP_Parser* parser);
 int noomP_parse(const char* code, const char* filename, noom_LuaVersion version, noomP_Node** outpointer, noomP_Parser* parser);
 
 int noomP_initParser(noomP_Parser* parser, const char* code, const char* filename, noom_LuaVersion version);
+void noomP_freeNode(noomP_Node* node);
 
 #endif

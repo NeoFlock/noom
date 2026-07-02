@@ -1806,3 +1806,13 @@ int noomP_initParser(noomP_Parser* parser, const char* code, const char* filenam
 
 	return 0;
 }
+
+void noomP_freeNode(noomP_Node* node) {
+	while (node) {
+		noomP_Node* next = node->previous_node;
+		// subnodes could be null if we OOM'd during a realloc of it
+		if (node->subnodes) noom_free(node->subnodes);
+		noom_free(node);
+		node = next;
+	}
+}
