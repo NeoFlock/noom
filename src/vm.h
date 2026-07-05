@@ -130,10 +130,6 @@ typedef enum noomV_Opcode : unsigned char {
 	NOOMV_INSTR_GETFIELD,
 	// pops (table, value), sets `table[consts[op.uD]] = value`, an optimization for changing fields
 	NOOMV_INSTR_SETFIELD,
-	// pushes `(*upvals[op.A])[consts[op.uD]]`
-	NOOMV_INSTR_GETUPFIELD,
-	// pops [value], sets `(*upvals[op.A])[consts[op.uD]] = value`
-	NOOMV_ISNTR_SETUPFIELD,
 
 	// does a unary or binary operation.
 	// if op.a == 1, its a unary operation.

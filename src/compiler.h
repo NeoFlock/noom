@@ -18,7 +18,7 @@ typedef struct noomC_Upval {
 	unsigned int namelen;
 	unsigned short slot;
 	// if stolen, this means that slot is actually an upvalue index
-	noom_bool_t stolen;
+	noom_bool_t isParentUpvalue;
 	noom_bool_t constant;
 } noomC_Upval;
 
@@ -29,6 +29,8 @@ typedef struct noomC_Compiler {
 	// steal constants from this
 	struct noomC_Compiler* parent;
 	noomV_Function* target;
+	char *stringTmpBuf;
+	noom_uint_t maxStringLen;
 	unsigned localc;
 	unsigned upvalc;
 	unsigned curstack;
@@ -36,19 +38,12 @@ typedef struct noomC_Compiler {
 	noomC_Upval upvals[NOOMC_MAXUPVAL];
 } noomC_Compiler;
 
-// TODO: probably many of these don't really need to be exposed to other code but whatever
-noom_Exit noomC_addLocal(noomC_Compiler* c, noomC_Local local);
-noom_Exit noomC_addUpval(noomC_Compiler* c, noomC_Upval upval);
-int noomC_stealUpval(noomC_Compiler* c, const char* name, noom_uint_t namelen);
-
 void noomC_compiler_init(noomC_Compiler* compiler);
+void noomC_compiler_deinit(noomC_Compiler* compiler);
 
 noom_Exit noomC_emit(noomV_Function* func, noomV_Inst inst);
 #define noomC_emit_ABC(func, _op, _a, _b, _c) noomC_emit((func), (noomV_Inst){.op = (_op), .a = (_a), .b = (_b), .c = (_c)})
 #define noomC_emit_AuD(func, _op, _a, _uD) noomC_emit((func), (noomV_Inst){.op = (_op), .a = (_a), .us = (_uD)})
-noom_Exit noomC_addconst(noomV_Function* func, noomV_Value val);
-noomV_String* noomC_internString(const noomC_Compiler* c, noom_LuaVM* vm, const char* str, noom_uint_t len);
-noom_Exit noomC_addconst_str(noomC_Compiler* c, noom_LuaVM* vm, const char* str, noom_uint_t len);
 noom_BinOp noomC_lex_bin_op(const noomP_Parser* parser, noom_uint_t offset);
 noom_UnaryOp noomC_lex_un_op(const noomP_Parser* parser, noom_uint_t offset);
 

@@ -76,14 +76,6 @@ noomV_DisInfo noomV_disInfo[NOOMV_INSTR_NOP2] = {
         .name = "SETFIELD",
         .arg = NOOMV_DIS_uD,
     },
-    [NOOMV_INSTR_GETUPFIELD] = {
-        .name = "GETUPFIELD",
-        .arg = NOOMV_DIS_uD,
-    },
-    [NOOMV_ISNTR_SETUPFIELD] = {
-        .name = "SETUPFIELD",
-        .arg = NOOMV_DIS_uD,
-    },
 
     [NOOMV_INSTR_OP] = {
         .name = "OP",
@@ -358,7 +350,7 @@ noom_Exit noomV_rawsetTable(noom_LuaVM* vm, noomV_Table* t, noomV_Value key, noo
 		noomV_Value key2 = t->entrydata[idx];
 		// tombstone, for creation!
 		if(key2.isptr) {
-			freshTomb = t->entrydata + idx;
+			if(freshTomb == 0) freshTomb = t->entrydata + idx;
 			idx++;
 			idx %= t->entries;
 			count++;

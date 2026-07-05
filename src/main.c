@@ -133,6 +133,7 @@ int execute(const char* code, noom_LuaVersion version, const char* program_name,
 	if (e) {
 		printf("error: %d\n", e);
 		noomP_freeNode(parser.last_node);
+		noom_destroyVM(vm);
 		return 1;
 	}
 	noomP_freeNode(parser.last_node);

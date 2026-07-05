@@ -1,6 +1,7 @@
 #include "noom.h"
 #include "compiler.h"
 #include "helper.h"
+#include <stdio.h>
 
 // COMPILATION!!!!!!!!!!!!!!!!!!!
 // ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣀⣴⢲⣞⣭⣟⣿⣻⣷⢶⢦⣄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
@@ -33,7 +34,8 @@ typedef struct noomC_LocalInfo {
 	enum { NOOMC_GLOBAL,
 		   NOOMC_LOCAL,
 		   NOOMC_UPVAL } type;
-	unsigned int idx;
+	unsigned short idx;
+	noom_bool_t isConst;
 } noomC_LocalInfo;
 
 noom_Exit noomC_addLocal(noomC_Compiler* c, noomC_Local local) {
@@ -48,15 +50,72 @@ noom_Exit noomC_addUpval(noomC_Compiler* c, noomC_Upval upval) {
 	return NOOM_OK;
 }
 
-int noomC_stealUpval(noomC_Compiler* c, const char* name, noom_uint_t namelen) {
+noom_Exit noomC_addconst(noomV_Function* func, noomV_Value val) {
+	if (func->constsize == NOOM_USHORT_MAX) return NOOM_PLEASEHELPMEIAMSCARED;
+	noomV_Value* newConsts = noom_realloc(func->consts, sizeof(noomV_Value) * (func->constsize + 1));
+	if (newConsts == 0) return NOOM_ENOMEM;
+	func->consts = newConsts;
+	func->consts[func->constsize++] = val;
+	return NOOM_OK;
+}
+
+noom_Exit noomC_addconst_str(noomC_Compiler* c, noom_LuaVM* vm, const char* str, noom_uint_t len, noom_uint_t *outIdx) {
+	noomV_Function *f = c->target;
+	for(int i = 0; i < f->constsize; i++) {
+		noomV_Value v = f->consts[i];
+		if (v.tag != NOOMV_VOBJ) continue;
+		noomV_Object* o = v.obj;
+		if (o->tag != NOOMV_OSTR) continue;
+		noomV_String* s = (noomV_String*)o;
+		if (noom_memeq(s->data, s->len, str, len)) {
+			*outIdx = i;
+			return NOOM_OK;
+		}
+	}
+	noomV_String* s = 0;
+	{
+		noomC_Compiler *cp = c;
+		while(cp) {
+			for(int i = 0; i < f->constsize; i++) {
+				noomV_Value v = f->consts[i];
+				if (v.tag != NOOMV_VOBJ) continue;
+				noomV_Object* o = v.obj;
+				if (o->tag != NOOMV_OSTR) continue;
+				noomV_String* os = (noomV_String*)o;
+				if (noom_memeq(os->data, os->len, str, len)) {
+					s = os;
+					goto found;
+				}
+			}
+			cp = cp->parent;
+		}
+	}
+	s = noomV_allocStr(vm, str, len);
+	if (s == 0) return NOOM_ENOMEM;
+found:
+	*outIdx = c->target->constsize;
+	return noomC_addconst(c->target, (noomV_Value){.tag = NOOMV_VOBJ, .autoclose = 0, .isptr = 0, .obj = (noomV_Object*)s});
+}
+
+noom_Exit noomC_stealUpval(noomC_Compiler* c, const char* name, noom_uint_t namelen, noomC_LocalInfo *local) {
 	// hold on hold on hold on but what if...
 	for (unsigned i = 0; i < c->upvalc; i++) {
 		const noomC_Upval u = c->upvals[i];
-		if (noom_memeq(u.name, u.namelen, name, namelen)) return (int)i;
+		if (noom_memeq(u.name, u.namelen, name, namelen)) {
+			local->type = NOOMC_UPVAL;
+			local->idx = i;
+			local->isConst = u.constant;
+			return NOOM_OK;
+		}
 	}
 	// damn it
 
-	if (c->parent == 0) return -1;
+	if (c->parent == 0) {
+		// signal that this is not found
+		local->type = NOOMC_GLOBAL;
+		local->isConst = 0;
+		return NOOM_OK;
+	}
 
 	// maybe you have smth useful
 	for (int i = (int)c->parent->localc - 1; i >= 0; i--) {
@@ -64,58 +123,79 @@ int noomC_stealUpval(noomC_Compiler* c, const char* name, noom_uint_t namelen) {
 		if (l.dropped) continue;
 		if (noom_memeq(l.name, l.namelen, name, namelen)) {
 			// yay!!!! wahoo!!!! yippee!!!!!!!!!!!
-			if (c->upvalc == NOOMC_MAXUPVAL) return -1;
 			noomC_Upval upval;
 			upval.name = name;
 			upval.namelen = namelen;
 			upval.slot = (unsigned short)l.stackslot;
-			upval.stolen = 0;
+			upval.isParentUpvalue = 0;
 			upval.constant = l.constant;
-			const unsigned idx = c->upvalc;
-			c->upvals[c->upvalc++] = upval;
-			return (int)idx;
+			local->type = NOOMC_UPVAL;
+			local->idx = c->upvalc;
+			local->isConst = upval.constant;
+			return noomC_addUpval(c, upval);
 		}
 	}
 
-	const int parent_upval = noomC_stealUpval(c->parent, name, namelen);
-	if (parent_upval >= 0) {
-		if (c->upvalc == NOOMC_MAXUPVAL) return -1;
-		noomC_Upval upval;
-		upval.name = name;
-		upval.namelen = namelen;
-		upval.slot = (unsigned short)parent_upval;
-		upval.stolen = 1; 
-		upval.constant = c->parent->upvals[parent_upval].constant;
-		const unsigned idx = c->upvalc;
-		c->upvals[c->upvalc++] = upval;
-		return (int)idx;
+	noomC_LocalInfo parentUpval;
+	noom_Exit e = noomC_stealUpval(c->parent, name, namelen, &parentUpval);
+	if(e) return e;
+	if(parentUpval.type == NOOMC_GLOBAL) {
+		// not found
+		*local = parentUpval;
+		return NOOM_OK;
 	}
-
-	return -1;
+	noomC_Upval upval;
+	upval.name = name;
+	upval.namelen = namelen;
+	upval.slot = parentUpval.idx;
+	upval.isParentUpvalue = 1; 
+	upval.constant = parentUpval.isConst;
+	local->type = NOOMC_UPVAL;
+	local->idx = c->upvalc;
+	local->isConst = upval.constant;
+	return noomC_addUpval(c, upval);
 }
 
-static noomC_LocalInfo noomC_identifyLocal(noomC_Compiler* compiler, const char* name, noom_uint_t namelen) {
+static noom_Exit noomC_identifyLocal(noomC_Compiler* compiler, const char* name, noom_uint_t namelen, noomC_LocalInfo *info) {
 	for (int i = compiler->localc - 1; i >= 0; i--) {
 		const noomC_Local l = compiler->locals[i];
 		if (l.dropped) continue;
 		if (noom_memeq(l.name, l.namelen, name, namelen)) {
-			return (noomC_LocalInfo){ .type = NOOMC_LOCAL, .idx = l.stackslot };
+			info->type = NOOMC_LOCAL;
+			info->idx = l.stackslot;
+			info->isConst = l.constant;
+			return NOOM_OK;
 		}
 	}
 
-	const int upval_idx = noomC_stealUpval(compiler, name, namelen);
-	if (upval_idx >= 0) {
-		return (noomC_LocalInfo){ .type = NOOMC_UPVAL, .idx = (unsigned)upval_idx };
-	}
-
-	return (noomC_LocalInfo){ .type = NOOMC_GLOBAL };
+	return noomC_stealUpval(compiler, name, namelen, info);
 }
 
-static noom_Exit noomC_identifyLocalAndSet(noomC_Compiler* compiler, const char* name, noom_uint_t namelen) {
-	const noomC_LocalInfo info = noomC_identifyLocal(compiler, name, namelen);
+static noom_Exit noomC_identifyLocalAndSet(noomC_Compiler* compiler, noom_LuaVM *vm, const char* name, noom_uint_t namelen) {
+	// TODO: burn this with fire
+	noomC_LocalInfo info;
+	noom_Exit e = noomC_identifyLocal(compiler, name, namelen, &info);
+	if(e) return e;
 	if (info.type == NOOMC_LOCAL) return noomC_emit_AuD(compiler->target, NOOMV_INSTR_SETVAL, compiler->curstack++, (unsigned short)info.idx);
 	if (info.type == NOOMC_UPVAL) return noomC_emit_AuD(compiler->target, NOOMV_INSTR_SETUPVAL, compiler->curstack++, (unsigned short)info.idx);
-	if (info.type == NOOMC_GLOBAL) return noomC_emit_AuD(compiler->target, NOOMV_INSTR_SETGLOBAL, compiler->curstack++, (unsigned short)info.idx);
+	noom_uint_t fieldIdx;
+	e = noomC_addconst_str(compiler, vm, name, namelen, &fieldIdx);
+	if(e) return e;
+	if (info.type == NOOMC_GLOBAL) {
+		if(vm->version > NOOM_VERSION_51) {
+			noomC_LocalInfo _ENV;
+			e = noomC_identifyLocal(compiler, "_ENV", 4, &_ENV);
+			if(e) return e;
+			if(_ENV.type == NOOMC_GLOBAL) return NOOM_EINTERNAL;
+			if(_ENV.type == NOOMC_UPVAL) {
+				return noomC_emit_AuD(compiler->target, NOOMV_INSTR_SETGLOBAL, compiler->curstack++, fieldIdx);
+			}
+			// TODO: impl this bullshit
+			return NOOM_EINTERNAL;
+		}
+		return noomC_emit_AuD(compiler->target, NOOMV_INSTR_SETGLOBAL, compiler->curstack++, fieldIdx);
+	}
+	return NOOM_EINTERNAL;
 }
 
 void noomC_compiler_init(noomC_Compiler* compiler) {
@@ -125,6 +205,13 @@ void noomC_compiler_init(noomC_Compiler* compiler) {
 	compiler->localc = 0;
 	compiler->upvalc = 0;
 	compiler->curstack = 0;
+
+	compiler->stringTmpBuf = 0;
+	compiler->maxStringLen = 0;
+}
+
+void noomC_compiler_deinit(noomC_Compiler* compiler) {
+	noom_free(compiler->stringTmpBuf);
 }
 
 noom_Exit noomC_emit(noomV_Function* func, noomV_Inst inst) {
@@ -135,36 +222,6 @@ noom_Exit noomC_emit(noomV_Function* func, noomV_Inst inst) {
 	return NOOM_OK;
 }
 
-noom_Exit noomC_addconst(noomV_Function* func, noomV_Value val) {
-	if (func->constsize == NOOM_USHORT_MAX) return NOOM_PLEASEHELPMEIAMSCARED;
-	noomV_Value* newConsts = noom_realloc(func->consts, sizeof(noomV_Value) * (func->constsize + 1));
-	if (newConsts == 0) return NOOM_ENOMEM;
-	func->consts = newConsts;
-	func->consts[func->constsize++] = val;
-	return NOOM_OK;
-}
-
-noomV_String* noomC_internString(const noomC_Compiler* c, noom_LuaVM* vm, const char* str, noom_uint_t len) {
-	while (c) {
-		const noomV_Function* f = c->target;
-		for (int i = 0; i < f->constsize; i++) {
-			const noomV_Value v = f->consts[i];
-			if (v.tag != NOOMV_VOBJ) continue;
-			noomV_Object* o = v.obj;
-			if (o->tag != NOOMV_OSTR) continue;
-			noomV_String* s = (noomV_String*)o;
-			if (noom_memeq(s->data, s->len, str, len)) return s;
-		}
-		c = c->parent;
-	}
-	return noomV_allocStr(vm, str, len);
-}
-
-noom_Exit noomC_addconst_str(noomC_Compiler* c, noom_LuaVM* vm, const char* str, noom_uint_t len) {
-	noomV_String* s = noomC_internString(c, vm, str, len);
-	if (s == 0) return NOOM_ENOMEM;
-	return noomC_addconst(c->target, (noomV_Value){.tag = NOOMV_VOBJ, .autoclose = 0, .isptr = 0, .obj = (noomV_Object*)s});
-}
 
 noom_BinOp noomC_lex_bin_op(const noomP_Parser* parser, noom_uint_t offset) {
 	const char* op = parser->code + offset;
@@ -205,10 +262,20 @@ noom_UnaryOp noomC_lex_un_op(const noomP_Parser* parser, noom_uint_t offset) {
 	return 0;
 }
 
-static const char* noomC_decode_string_token(const char* s, noom_LuaVersion how_the_fuck, noom_uint_t* outlen) {
+static const char* noomC_decode_string_token(noomC_Compiler *c, const char* s, noom_uint_t tokenlen, noom_LuaVersion how_the_fuck, noom_uint_t* outlen) {
+	// token is bigger than contents, so if we can't even fit token, we def can't fit contents
+	if(c->maxStringLen < tokenlen) {
+		char *s = noom_realloc(c->stringTmpBuf, tokenlen);
+		if(s == 0) return 0;
+		c->stringTmpBuf = s;
+		c->maxStringLen = tokenlen;
+	}
+	// really not good for now
+	noom_memcpy(c->stringTmpBuf, s + 1, tokenlen - 1);
+	*outlen = tokenlen - 2;
 	// nah fuck it TODO atom pls save me
 	// actually don't i will repair this one day
-	return s;
+	return c->stringTmpBuf;
 }
 
 noom_Exit noomC_compile_proto(
@@ -300,7 +367,7 @@ noom_Exit noomC_emit_assign_to(
 	if (target->type == NOOMP_NODE_VARIABLE) {
 		const char* varname = parser->code + target->source_offset;
 		noom_uint_t namelen = noomL_tokenlen(varname, 0, parser->version);
-		return noomC_identifyLocalAndSet(compiler, varname, namelen);
+		return noomC_identifyLocalAndSet(compiler, vm, varname, namelen);
 	}
 
 	if (target->type == NOOMP_NODE_GETFIELD) {
@@ -354,10 +421,11 @@ noom_Exit noomC_compile_expr(
 	}
 
 	if (node->type == NOOMP_NODE_STRINGLITERAL) {
-		const unsigned short const_idx = func->constsize;
+		noom_uint_t const_idx;
 		noom_uint_t len;
-		const char* sptr = noomC_decode_string_token(parser->code + node->source_offset, parser->version, &len);
-		if ((result = noomC_addconst_str(compiler, vm, sptr, len)) != NOOM_OK) return result;
+		const char* sptr = noomC_decode_string_token(compiler, parser->code + node->source_offset, noomL_tokenlen(parser->code, node->source_offset, parser->version), parser->version, &len);
+		if(sptr == 0) return NOOM_ENOMEM;
+		if ((result = noomC_addconst_str(compiler, vm, sptr, len, &const_idx)) != NOOM_OK) return result;
 		compiler->curstack++;
 		return noomC_emit_AuD(func, NOOMV_INSTR_PUSHCONST, 0, const_idx);
 	}
@@ -387,9 +455,9 @@ noom_Exit noomC_compile_expr(
 
 				if (key_node->type == NOOMP_NODE_FIELDNAME) {
 					// string key
-					const unsigned short constidx = func->constsize;
+					noom_uint_t constidx;
 					const noom_uint_t length = noomL_tokenlen(parser->code, key_node->source_offset, parser->version);
-					if ((result = noomC_addconst_str(compiler, vm, parser->code + key_node->source_offset, length))) return result;
+					if ((result = noomC_addconst_str(compiler, vm, parser->code + key_node->source_offset, length, &constidx))) return result;
 					if ((result = noomC_compile_expr(vm, compiler, parser, func, val_node, 1))) return result;
 					compiler->curstack--;
 					if ((result = noomC_emit_AuD(func, NOOMV_INSTR_SETFIELD, table_slot, constidx))) return result;
@@ -466,9 +534,9 @@ noom_Exit noomC_compile_expr(
 
 	if (node->type == NOOMP_NODE_GETFIELD) {
 		if ((result = noomC_compile_expr(vm, compiler, parser, func, node->subnodes[0], 1))) return result;
-		noom_uint_t constidx = func->constsize;
+		noom_uint_t constidx;
 		// dumbass oneliner
-		if ((result = noomC_addconst_str(compiler, vm, parser->code + node->subnodes[1]->source_offset, noomL_tokenlen(parser->code, node->subnodes[1]->source_offset, parser->version)))) return result;
+		if ((result = noomC_addconst_str(compiler, vm, parser->code + node->subnodes[1]->source_offset, noomL_tokenlen(parser->code, node->subnodes[1]->source_offset, parser->version), &constidx))) return result;
 		return noomC_emit_AuD(func, NOOMV_INSTR_GETFIELD, 0, (unsigned short)constidx);
 	}
 
@@ -495,8 +563,8 @@ noom_Exit noomC_compile_expr(
 		if (isMethod) {
 			const char* fieldname = parser->code + node->subnodes[1]->source_offset;
 			const noom_uint_t fieldlen = noomL_tokenlen(parser->code, node->subnodes[1]->source_offset, parser->version);
-			noom_uint_t constidx = func->constsize;
-			if ((result = noomC_addconst_str(compiler, vm, fieldname, fieldlen))) return result;
+			noom_uint_t constidx;
+			if ((result = noomC_addconst_str(compiler, vm, fieldname, fieldlen, &constidx))) return result;
 			compiler->curstack++; // self is pushed alongside the method
 			if ((result = noomC_emit_AuD(func, NOOMV_INSTR_GETMETHOD, funcIdx, (unsigned short)constidx))) return result;
 		}
@@ -526,7 +594,38 @@ noom_Exit noomC_compile_expr(
 	if (node->type == NOOMP_NODE_VARIABLE) {
 		const char* varname = parser->code + node->source_offset;
 		noom_uint_t namelen = noomL_tokenlen(varname, 0, parser->version);
-		return noomC_identifyLocalAndSet(compiler, varname, namelen);
+		noomC_LocalInfo info;
+		result = noomC_identifyLocal(compiler, varname, namelen, &info);
+		if(result) return result;
+		compiler->curstack++;
+
+		switch (info.type) {
+			case NOOMC_LOCAL:
+				return noomC_emit_AuD(func, NOOMV_INSTR_PUSHVAL, 0, info.idx);
+			case NOOMC_UPVAL:
+				return noomC_emit_AuD(func, NOOMV_INSTR_PUSHUPVAL, 0, info.idx);
+			case NOOMC_GLOBAL: {
+				noom_uint_t constidx;
+				if((result = noomC_addconst_str(compiler, vm, varname, namelen, &constidx))) return result;
+				if(parser->version == NOOM_VERSION_51) {
+					return noomC_emit_AuD(func, NOOMV_INSTR_PUSHGLOBAL, 0, constidx);
+				}
+				noomC_LocalInfo _ENV;
+				if((result = noomC_identifyLocal(compiler, "_ENV", 4, &_ENV))) return result;
+				// not meant to be possible
+				if(_ENV.type == NOOMC_GLOBAL) return NOOM_EINTERNAL;
+				// most likely branch in human history
+				if(_ENV.type == NOOMC_UPVAL) {
+					if((result = noomC_emit_AuD(func, NOOMV_INSTR_PUSHUPVAL, _ENV.idx, constidx))) return result;
+				} else {
+					// bitchass
+					if((result = noomC_emit_AuD(func, NOOMV_INSTR_PUSHVAL, 0, _ENV.idx))) return result;
+				}
+				return noomC_emit_AuD(func, NOOMV_INSTR_GETFIELD, 0, constidx);
+			}
+		}
+		// forgot a case
+		return NOOM_EINTERNAL;
 	}
 
 	if (node->type == NOOMP_NODE_LAMBDAFUNCTIONLITERAL) {
@@ -705,6 +804,14 @@ noom_Exit noomC_add_stuff_to_function(noom_LuaVM* vm, noomC_Compiler* compiler, 
 		noom_uint_t place_count = 0;
 		while (place_count < node->subnodec && node->subnodes[place_count]->type == NOOMP_NODE_ASSIGNPLACE) place_count++;
 		noom_uint_t value_count = node->subnodec - place_count;
+		
+		// subtly wrong execution but also just wrong... order of instructions!
+		// TODO: burn it with fire
+		// WHY: assigning instructions fundamentally assume the value is on the top of the stack,
+		// so this is just bad. Lua also evalutes stuff differently, with f().x = g() calling f before g.
+		// IF WE WANT TO KEEP THE BROKEN ORDER: we should push all of the values first, then do the assignments in reverse order.
+		// IF WE WANT TO FIX THE ORDER: we'd need the emit_assign_to output extra information for the 2nd half of the assingment,
+		// so it can for example call f() and get th return but store how to assign to its result.
 
 		unsigned char value_base = (unsigned char)compiler->curstack;
 		for (noom_uint_t i = 0; i < value_count; i++) {
@@ -884,11 +991,13 @@ noom_Exit noomC_compile(noom_LuaVM* vm, const noomP_Parser* parser, const noomP_
 		upval.name = "_ENV";
 		upval.namelen = 4;
 		upval.slot = 0;
-		upval.stolen = 1;
+		upval.isParentUpvalue = 1;
 		upval.constant = 0;
 		noomC_addUpval(&compiler, upval);
 		// TODO: we need to wrap the value as a *closure*, with one upvalue, the environment (_ENV).
 	}
 
-	return noomC_compile_block(vm, &compiler, parser, program, node);
+	noom_Exit err = noomC_compile_block(vm, &compiler, parser, program, node);
+	noomC_compiler_deinit(&compiler);
+	return err;
 }
