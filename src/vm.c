@@ -251,9 +251,9 @@ noom_uint_t noomV_rawhashValue(noomV_Value v) {
 	}
 }
 
-noom_bool_t noomV_isNil(noomV_Value key) { return key.tag == NOOMV_VNIL; }
+bool noomV_isNil(noomV_Value key) { return key.tag == NOOMV_VNIL; }
 
-noom_bool_t noomV_isLegalKey(noomV_Value key) {
+bool noomV_isLegalKey(noomV_Value key) {
 	if (key.tag == NOOMV_VNIL) return 0;
 	if (key.tag == NOOMV_VNUM) {
 		noom_float_t n = key.number;
@@ -263,7 +263,7 @@ noom_bool_t noomV_isLegalKey(noomV_Value key) {
 	return 1;
 }
 
-noom_bool_t noomV_rawequalValue(noomV_Value a, noomV_Value b) {
+bool noomV_rawequalValue(noomV_Value a, noomV_Value b) {
 	// special case: integers and numbers
 	if (a.tag == NOOMV_VINT && b.tag == NOOMV_VNUM) {
 		return a.integer == b.number;
@@ -475,7 +475,7 @@ void noomV_freeObj(noom_LuaVM* vm, noomV_Object* obj) {
 noom_Exit noomV_pushCallFrame(noom_LuaVM* vm, noomV_Thread* coro, noomV_CallFrame cf);
 
 noomV_CallFrame* noomV_topCallFrame(noomV_Thread* coro) {
-	if (coro->calldepth == 0) return 0;
+	if (coro->calldepth == 0) return NULL;
 	return &coro->calls[coro->calldepth - 1];
 }
 
@@ -566,4 +566,39 @@ void noom_destroyVM(noom_LuaVM* vm) {
 		noomV_freeObj(vm, cur);
 	}
 	noom_free(vm);
+}
+
+noom_Exit noomV_pushRawValue(noom_LuaVM *vm, noomV_Value val);
+
+noom_Exit noomV_getStackValue(noom_LuaVM *vm, noom_slot_t slot, noomV_Value *outVal) {
+	noomV_Thread *curThread = vm->currentThread;
+	size_t stacksize = noom_getstacksize(vm);
+	if(slot < 0) slot += stacksize;
+	if(slot < 0) {
+		noomV_setErrorStr(vm, curThread, "stack underflow");
+		return NOOM_ERUNTIME;
+	}
+	if(slot >= stacksize) {
+		noomV_setErrorStr(vm, curThread, "stack overflow");
+		return NOOM_ENOSTACK;
+	}
+	if(curThread->calldepth == 0) {
+		*outVal = curThread->stack[slot];
+	} else {
+		noomV_CallFrame *cf = noomV_topCallFrame(curThread);
+		*outVal = curThread->stack[cf->funcIdx+1];
+	}
+	if(outVal->isptr) {
+		*outVal = outVal->ptr->value;
+	}
+	return NOOM_OK;
+}
+
+noom_Exit noomV_setStackValue(noom_LuaVM *vm, noom_slot_t slot, noomV_Value val);
+
+noom_int_t noom_getstacksize(noom_LuaVM* vm) {
+	noomV_Thread *cur = vm->currentThread;
+	if(cur->calldepth == 0) return cur->stacklen;
+	noomV_CallFrame *cf = noomV_topCallFrame(cur);
+	return cur->stacklen - cf->funcIdx - 1;
 }

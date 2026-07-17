@@ -35,7 +35,7 @@ typedef struct noomC_LocalInfo {
 		   NOOMC_LOCAL,
 		   NOOMC_UPVAL } type;
 	unsigned short idx;
-	noom_bool_t isConst;
+	bool isConst;
 } noomC_LocalInfo;
 
 noom_Exit noomC_addLocal(noomC_Compiler* c, noomC_Local local) {
@@ -113,7 +113,7 @@ noom_Exit noomC_stealUpval(noomC_Compiler* c, const char* name, noom_uint_t name
 	if (c->parent == 0) {
 		// signal that this is not found
 		local->type = NOOMC_GLOBAL;
-		local->isConst = 0;
+		local->isConst = false;
 		return NOOM_OK;
 	}
 
@@ -127,7 +127,7 @@ noom_Exit noomC_stealUpval(noomC_Compiler* c, const char* name, noom_uint_t name
 			upval.name = name;
 			upval.namelen = namelen;
 			upval.slot = (unsigned short)l.stackslot;
-			upval.isParentUpvalue = 0;
+			upval.isParentUpvalue = false;
 			upval.constant = l.constant;
 			local->type = NOOMC_UPVAL;
 			local->idx = c->upvalc;
@@ -148,7 +148,7 @@ noom_Exit noomC_stealUpval(noomC_Compiler* c, const char* name, noom_uint_t name
 	upval.name = name;
 	upval.namelen = namelen;
 	upval.slot = parentUpval.idx;
-	upval.isParentUpvalue = 1; 
+	upval.isParentUpvalue = true; 
 	upval.constant = parentUpval.isConst;
 	local->type = NOOMC_UPVAL;
 	local->idx = c->upvalc;
@@ -199,14 +199,14 @@ static noom_Exit noomC_identifyLocalAndSet(noomC_Compiler* compiler, noom_LuaVM 
 }
 
 void noomC_compiler_init(noomC_Compiler* compiler) {
-	compiler->parent = 0;
-	compiler->target = 0;
+	compiler->parent = NULL;
+	compiler->target = NULL;
 
 	compiler->localc = 0;
 	compiler->upvalc = 0;
 	compiler->curstack = 0;
 
-	compiler->stringTmpBuf = 0;
+	compiler->stringTmpBuf = NULL;
 	compiler->maxStringLen = 0;
 }
 
@@ -266,7 +266,7 @@ static const char* noomC_decode_string_token(noomC_Compiler *c, const char* s, n
 	// token is bigger than contents, so if we can't even fit token, we def can't fit contents
 	if(c->maxStringLen < tokenlen) {
 		char *s = noom_realloc(c->stringTmpBuf, tokenlen);
-		if(s == 0) return 0;
+		if(s == NULL) return NULL;
 		c->stringTmpBuf = s;
 		c->maxStringLen = tokenlen;
 	}
@@ -285,7 +285,7 @@ noom_Exit noomC_compile_proto(
     noomV_Function* parent_func,
     const noomP_Node* params_node,
     const noomP_Node* block_node,
-    noom_bool_t has_self,
+    bool has_self,
     noomV_Function** out_proto) {
 	noom_Exit result;
 
@@ -299,10 +299,10 @@ noom_Exit noomC_compile_proto(
 
 	// [varname..., vararg?]
 	noom_uint_t param_count = 0;
-	noom_bool_t has_vararg = 0; // do we even need that
+	bool has_vararg = false; // do we even need that
 	for (noom_uint_t i = 0; i < params_node->subnodec; i++) {
 		if (params_node->subnodes[i]->type == NOOMP_NODE_VARARG) {
-			has_vararg = 1;
+			has_vararg = true;
 		} else {
 			param_count++;
 		}
@@ -315,9 +315,9 @@ noom_Exit noomC_compile_proto(
 		self_local.name = "self";
 		self_local.namelen = 4;
 		self_local.stackslot = 0;
-		self_local.dropped = 0;
-		self_local.constant = 0;
-		self_local.close = 0;
+		self_local.dropped = false;
+		self_local.constant = false;
+		self_local.close = false;
 		if ((result = noomC_addLocal(&child, self_local)) != NOOM_OK) return result;
 		child.curstack = 1;
 		param_count++;
@@ -335,9 +335,9 @@ noom_Exit noomC_compile_proto(
 		noomC_Local a;
 		a.startpc = 0;
 		a.endpc = 0;
-		a.dropped = 0;
-		a.close = 0;
-		a.constant = 0;
+		a.dropped = false;
+		a.close = false;
+		a.constant = false;
 		a.name = parser->code + p->source_offset;
 		a.namelen = length;
 		a.stackslot = child.curstack++;
@@ -407,7 +407,7 @@ noom_Exit noomC_compile_expr(
 	if (node->type == NOOMP_NODE_BOOLEANLITERAL) {
 		compiler->curstack++;
 		noom_uint_t length = noomL_tokenlen(parser->code, node->source_offset, parser->version);
-		noom_bool_t val = noom_memeq(parser->code + node->source_offset, length, "true", 4);
+		bool val = noom_memeq(parser->code + node->source_offset, length, "true", 4);
 		// TODO: analyze last instruction to optimize automatically	
 		return noomC_emit_AuD(func, NOOMV_INSTR_PUSHBOOLS, 0, val ? 1 : 0);
 	}
@@ -468,7 +468,7 @@ noom_Exit noomC_compile_expr(
 					if ((result = noomC_emit_ABC(func, NOOMV_INSTR_SETTABLE, table_slot, 0, 0))) return result;
 				}
 			} else {
-				const noom_bool_t is_last = i == node->subnodec - 1;
+				const bool is_last = i == node->subnodec - 1;
 				if ((result = noomC_compile_expr(vm, compiler, parser, func, entry, is_last ? -1 : 1))) return result;
 				if (is_last) {
 					if ((result = noomC_emit_AuD(func, NOOMV_INSTR_SETLIST, table_slot, (unsigned short)array_idx))) return result;
@@ -555,7 +555,7 @@ noom_Exit noomC_compile_expr(
 		node->type == NOOMP_NODE_TABLEMETHODCALL) {
 		// welcome to multivalue hell
 		const unsigned char returnToGlory = (unsigned char)compiler->curstack;
-		const noom_bool_t isMethod = node->type == NOOMP_NODE_METHODCALL || node->type == NOOMP_NODE_STRINGMETHODCALL || node->type == NOOMP_NODE_TABLEMETHODCALL;
+		const bool isMethod = node->type == NOOMP_NODE_METHODCALL || node->type == NOOMP_NODE_STRINGMETHODCALL || node->type == NOOMP_NODE_TABLEMETHODCALL;
 
 		if ((result = noomC_compile_expr(vm, compiler, parser, func, node->subnodes[0], 1))) return result;
 		const unsigned char funcIdx = (unsigned char)(compiler->curstack - 1);
@@ -578,7 +578,7 @@ noom_Exit noomC_compile_expr(
 			}
 		} else {
 			for (noom_uint_t i = isMethod ? 2 : 1; i < node->subnodec; i++) {
-				const noom_bool_t isLast = i == node->subnodec - 1;
+				const bool isLast = i == node->subnodec - 1;
 				if ((result = noomC_compile_expr(vm, compiler, parser, func, node->subnodes[i], isLast ? -1 : 1))) return result;
 			}
 		}
@@ -668,7 +668,7 @@ noom_Exit noomC_add_stuff_to_function(noom_LuaVM* vm, noomC_Compiler* compiler, 
 		unsigned int base_slot = compiler->curstack;
 
 		for (noom_uint_t i = 0; i < value_count; i++) {
-			noom_bool_t is_last = i == value_count - 1;
+			bool is_last = i == value_count - 1;
 			int wanted = is_last ? (int)(name_count - i) : 1;
 			if ((result = noomC_compile_expr(vm, compiler, parser, func, node->subnodes[name_count + i], wanted))) return result;
 		}
@@ -683,9 +683,9 @@ noom_Exit noomC_add_stuff_to_function(noom_LuaVM* vm, noomC_Compiler* compiler, 
 			local.name = parser->code + varname_node->source_offset;
 			local.namelen = length;
 			local.stackslot = base_slot + i;
-			local.dropped = 0;
-			local.constant = 0;
-			local.close = 0;
+			local.dropped = false;
+			local.constant = false;
+			local.close = false;
 
 			for (noom_uint_t ai = 1; ai < varname_node->subnodec; ai++) {
 				noom_uint_t offset = varname_node->subnodes[ai]->source_offset;
@@ -694,10 +694,10 @@ noom_Exit noomC_add_stuff_to_function(noom_LuaVM* vm, noomC_Compiler* compiler, 
 				noom_uint_t al = alength;
 				if (noom_memeq(ap, al, "close", 5)) {
 					if (local.close) return NOOM_EINTERNAL;
-					local.close = 1;
+					local.close = true;
 				} else if (noom_memeq(ap, al, "const", 5)) {
 					if (local.constant) return NOOM_EINTERNAL;
-					local.constant = 1;
+					local.constant = true;
 				} else {
 					return NOOM_EINTERNAL;
 				}
@@ -737,9 +737,9 @@ noom_Exit noomC_add_stuff_to_function(noom_LuaVM* vm, noomC_Compiler* compiler, 
 		local.name = parser->code + varname_node->source_offset;
 		local.namelen = length;
 		local.stackslot = self_slot;
-		local.dropped = 0;
-		local.constant = 0;
-		local.close = 0;
+		local.dropped = false;
+		local.constant = false;
+		local.close = false;
 
 		return noomC_addLocal(compiler, local);
 	}
@@ -752,10 +752,10 @@ noom_Exit noomC_add_stuff_to_function(noom_LuaVM* vm, noomC_Compiler* compiler, 
 		const noomP_Node* params_node = node->subnodes[1];
 		const noomP_Node* block_node = node->subnodes[2];
 
-		noom_bool_t has_self = 0;
+		bool has_self = false;
 		if (fname_node->subnodec > 0) {
 			const noomP_Node* last = fname_node->subnodes[fname_node->subnodec - 1];
-			if (last->type == NOOMP_NODE_METHODNAME) has_self = 1;
+			if (last->type == NOOMP_NODE_METHODNAME) has_self = true;
 		}
 
 		noomV_Function* proto;
@@ -792,7 +792,7 @@ noom_Exit noomC_add_stuff_to_function(noom_LuaVM* vm, noomC_Compiler* compiler, 
 		unsigned char base_slot = (unsigned char)compiler->curstack;
 
 		for (noom_uint_t i = 0; i < node->subnodec; i++) {
-			noom_bool_t is_last = i == node->subnodec - 1;
+			bool is_last = i == node->subnodec - 1;
 			if ((result = noomC_compile_expr(vm, compiler, parser, func, node->subnodes[i], is_last ? -1 : 1))) return result;
 		}
 
@@ -815,7 +815,7 @@ noom_Exit noomC_add_stuff_to_function(noom_LuaVM* vm, noomC_Compiler* compiler, 
 
 		unsigned char value_base = (unsigned char)compiler->curstack;
 		for (noom_uint_t i = 0; i < value_count; i++) {
-			noom_bool_t is_last = i == value_count - 1;
+			bool is_last = i == value_count - 1;
 			int wanted = is_last ? (int)(place_count - i) : 1;
 			if ((result = noomC_compile_expr(vm, compiler, parser, func, node->subnodes[place_count + i], wanted))) return result;
 		}
@@ -991,8 +991,8 @@ noom_Exit noomC_compile(noom_LuaVM* vm, const noomP_Parser* parser, const noomP_
 		upval.name = "_ENV";
 		upval.namelen = 4;
 		upval.slot = 0;
-		upval.isParentUpvalue = 1;
-		upval.constant = 0;
+		upval.isParentUpvalue = true;
+		upval.constant = false;
 		noomC_addUpval(&compiler, upval);
 		// TODO: we need to wrap the value as a *closure*, with one upvalue, the environment (_ENV).
 	}

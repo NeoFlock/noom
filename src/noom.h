@@ -1,6 +1,10 @@
 #ifndef NOOM_H
 #define NOOM_H
 
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
 #define NN_STR(x) #x
 #define NN_XSTR(x) NN_STR(x)
 
@@ -30,10 +34,9 @@ extern "C" {
 // To prevent recursion from using up infinitely much memory
 #define NOOM_MAXSTACK 16384
 
-typedef unsigned long long int noom_uint_t;
-typedef signed long long int noom_int_t;
+typedef uintptr_t noom_uint_t;
+typedef intptr_t noom_int_t;
 typedef double noom_float_t;
-typedef unsigned char noom_bool_t;
 
 typedef enum noom_LuaVersion {
 	// no 5.0, at least for now, cause it doesn't seem to be used much and is a bit *weird*
@@ -161,7 +164,7 @@ typedef noom_int_t noom_slot_t;
 
 noom_Exit noom_pushint(noom_LuaVM* vm, noom_int_t integer);
 noom_Exit noom_pushnumber(noom_LuaVM* vm, noom_float_t number);
-noom_Exit noom_pushbool(noom_LuaVM* vm, noom_bool_t boolean);
+noom_Exit noom_pushbool(noom_LuaVM* vm, bool boolean);
 noom_Exit noom_pushstring(noom_LuaVM* vm, const char* s);
 noom_Exit noom_pushlstring(noom_LuaVM* vm, const char* s, noom_uint_t len);
 noom_Exit noom_createtable(noom_LuaVM* vm, noom_uint_t prealloc);
@@ -277,7 +280,7 @@ noom_Exit noom_next(noom_LuaVM* vm);
 
 // Taking data out
 
-noom_Exit noom_tobool(noom_LuaVM* vm, noom_slot_t x, noom_bool_t* b);
+noom_Exit noom_tobool(noom_LuaVM* vm, noom_slot_t x, bool* b);
 noom_Exit noom_toint(noom_LuaVM* vm, noom_slot_t x, noom_int_t* n);
 noom_Exit noom_tonumber(noom_LuaVM* vm, noom_slot_t x, noom_float_t* n);
 // NOTE: the string is not automatically retained until function exit.

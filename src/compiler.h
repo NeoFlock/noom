@@ -8,9 +8,9 @@ typedef struct noomC_Local {
 	const char* name;
 	unsigned int namelen;
 	unsigned int stackslot;
-	noom_bool_t dropped;
-	noom_bool_t constant;
-	noom_bool_t close;
+	bool dropped;
+	bool constant;
+	bool close;
 } noomC_Local;
 
 typedef struct noomC_Upval {
@@ -18,8 +18,8 @@ typedef struct noomC_Upval {
 	unsigned int namelen;
 	unsigned short slot;
 	// if stolen, this means that slot is actually an upvalue index
-	noom_bool_t isParentUpvalue;
-	noom_bool_t constant;
+	bool isParentUpvalue;
+	bool constant;
 } noomC_Upval;
 
 #define NOOMC_MAXLOCAL 200
@@ -54,7 +54,7 @@ static noom_Exit noomC_compile_proto(
 	noomV_Function* parent_func,
 	const noomP_Node* params_node,
 	const noomP_Node* block_node,
-	noom_bool_t has_self,
+	bool has_self,
 	noomV_Function** out_proto);
 noom_Exit noomC_emit_assign_to(
 	noom_LuaVM* vm,

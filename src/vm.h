@@ -25,7 +25,7 @@ typedef enum noomV_ObjTag {
 
 typedef struct noomV_Object {
 	noomV_ObjTag tag;
-	noom_bool_t marked;
+	bool marked;
 	struct noomV_Object* next;
 	struct noomV_Object* nextGray;
 } noomV_Object;
@@ -43,11 +43,11 @@ typedef enum noomV_ValueTag : unsigned char {
 typedef struct noomV_Value {
 	noomV_ValueTag tag;
 	// for stack slots
-	noom_bool_t autoclose;
+	bool autoclose;
 	// pointer to value
-	noom_bool_t isptr;
+	bool isptr;
 	union {
-		noom_bool_t boolean;
+		bool boolean;
 		noom_int_t integer;
 		noom_float_t number;
 		noom_CFunction* cfunc;
@@ -207,14 +207,14 @@ typedef struct noomV_UpvalDesc {
 	char* name;
 	unsigned char idx;
 	// whether the index is a stack index
-	noom_bool_t isStack;
+	bool isStack;
 } noomV_UpvalDesc;
 
 typedef struct noomV_LocalDesc {
 	char* name;
 	unsigned char stackIdx;
 	// to forbid changing it with debug.setlocal
-	noom_bool_t isConst;
+	bool isConst;
 	// offset of first instruction where local exists
 	unsigned int pcStart;
 	// offset of first instruction where local is dropped
@@ -311,7 +311,7 @@ typedef struct noomV_CallFrame {
 	// stack index of function
 	noom_uint_t funcIdx;
 	noom_uint_t returnCount;
-	noom_bool_t isC;
+	bool isC;
 	noomV_Value errhandler;
 	noomV_Pointer** upvals;
 	union {
@@ -363,9 +363,9 @@ noomV_String* noomV_allocStr(noom_LuaVM* vm, const char* str, noom_uint_t len);
 noomV_Function* noomV_allocFunc(noom_LuaVM* vm, noomV_String* chunkname);
 noomV_Table* noomV_allocTable(noom_LuaVM* vm, noom_uint_t arraylen, noom_uint_t fields);
 noom_uint_t noomV_rawhashValue(noomV_Value v);
-noom_bool_t noomV_isNil(noomV_Value key);
-noom_bool_t noomV_isLegalKey(noomV_Value key);
-noom_bool_t noomV_rawequalValue(noomV_Value a, noomV_Value b);
+bool noomV_isNil(noomV_Value key);
+bool noomV_isLegalKey(noomV_Value key);
+bool noomV_rawequalValue(noomV_Value a, noomV_Value b);
 noomV_Value noomV_rawgetTable(noomV_Table* t, noomV_Value key);
 noomV_Value noomV_rawgetiTable(noomV_Table* t, noom_int_t idx);
 noom_Exit noomV_rawsetTable(noom_LuaVM* vm, noomV_Table* t, noomV_Value key, noomV_Value val);
@@ -387,5 +387,9 @@ noom_Exit noomV_pushCallFrame(noom_LuaVM* vm, noomV_Thread* coro, noomV_CallFram
 noomV_CallFrame* noomV_topCallFrame(noomV_Thread* coro);
 
 noom_Exit noomV_setThreadStackSize(noom_LuaVM* vm, noomV_Thread* coro, noom_int_t stack);
+
+noom_Exit noomV_pushRawValue(noom_LuaVM *vm, noomV_Value val);
+noom_Exit noomV_getStackValue(noom_LuaVM *vm, noom_slot_t slot, noomV_Value *outVal);
+noom_Exit noomV_setStackValue(noom_LuaVM *vm, noom_slot_t slot, noomV_Value val);
 
 #endif
