@@ -7,7 +7,7 @@ noomV_Value noom_tonumber_except_different_name_so_public_fucking_api_works(cons
 	// Num???? Is that a fucking noom reference???????
 	noom_float_t num = 0.0;
 
-	const noom_bool_t negative = *s == '-';
+	const bool negative = *s == '-';
 	if (*s == '-' || *s == '+')
 		s++;
 
@@ -16,14 +16,14 @@ noomV_Value noom_tonumber_except_different_name_so_public_fucking_api_works(cons
 	if (*s == '0' && noomL_lower(s[1]) == 'x') {
 		s += 2;
 		// if the string starts with "0x" but does not contain digits it's invalid
-		noom_bool_t error = 1;
+		bool error = true;
 		while (noomL_ishex(*s)) {
 			int digit;
 			if (noomL_isnumber(*s)) digit = *s - '0';
 			else digit = noomL_lower(*s) - 'a' + 10;
 
 			num = num * 16.0 + digit;
-			error = 0;
+			error = false;
 			s++;
 		}
 
@@ -33,7 +33,7 @@ noomV_Value noom_tonumber_except_different_name_so_public_fucking_api_works(cons
 			// damn then
 			s++;
 			int exponent = 0;
-			const noom_bool_t exponent_negative = *s == '-';
+			const bool exponent_negative = *s == '-';
 			if (*s == '-' || *s == '+')
 				s++;
 
@@ -47,10 +47,10 @@ noomV_Value noom_tonumber_except_different_name_so_public_fucking_api_works(cons
 			num *= noom_pow(2.0, exponent_negative ? -exponent : exponent);
 		}
 	} else {
-		noom_bool_t error = 1;
+		bool error = true;
 		while (noomL_isnumber(*s)) {
 			num = num * 10.0 + (*s - '0');
-			error = 0;
+			error = false;
 			s++;
 		}
 		if (*s == '.') {
@@ -69,7 +69,7 @@ noomV_Value noom_tonumber_except_different_name_so_public_fucking_api_works(cons
 		if (noomL_lower(*s) == 'e') {
 			s++;
 			int exponent = 0;
-			const noom_bool_t exponent_negative = *s == '-';
+			const bool exponent_negative = *s == '-';
 			if (*s == '-' || *s == '+')
 				s++;
 

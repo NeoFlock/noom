@@ -25,11 +25,11 @@ void print_node(const noomP_Node* node, noom_uint_t depth) {
 	printf("type: %s\n", noomP_formatNodeType(node->type));
 
 	tab(depth + 1);
-	printf("location: %lld\n", node->source_offset);
+	printf("location: %zu\n", node->source_offset);
 
 	if (node->subnodec > 0) {
 		tab(depth + 1);
-		printf("subnodes (%llu):\n", node->subnodec);
+		printf("subnodes (%zu):\n", node->subnodec);
 
 		for (noom_uint_t i = 0; i < node->subnodec; i++) {
 			print_node(node->subnodes[i], depth + 1);
@@ -48,7 +48,7 @@ void pretty(const char* code, noom_LuaVersion version, const noomP_Node* node, n
 	}
 	printf("%s %s", code[node->source_offset] != '\0' ? " -" : "", noomP_formatNodeType(node->type));
 	if (node->subnodec) {
-		printf(" with %lld entr%s {\n", node->subnodec, node->subnodec == 1 ? "y" : "ies");
+		printf(" with %zu entr%s {\n", node->subnodec, node->subnodec == 1 ? "y" : "ies");
 		for (int i = 0; i < node->subnodec; i++) {
 			pretty(code, version, node->subnodes[i], indent + 1);
 		}
@@ -231,23 +231,23 @@ static int read_prompt(char* buf, int buf_size, char* prompt, const int required
 int main(int argc, char** argv) {
 	const char* err = 0;
 	struct {
-		noom_bool_t enter_repl;
-		noom_bool_t use_stdin;
+		bool enter_repl;
+		bool use_stdin;
 		const char* script_exec;
 		const char* script_path;
-		noom_bool_t do_i_already_know_what_to_do;
+		bool do_i_already_know_what_to_do;
 		noom_LuaVersion lua_version;
 	} params = {0};
 
 	if (argc < 2) {
-		params.enter_repl = 1;
-		params.do_i_already_know_what_to_do = 1;
+		params.enter_repl = true;
+		params.do_i_already_know_what_to_do = true;
 	}
 
 	for (int i = 1; i < argc; i++) {
 		if (noom_strcmp(argv[i], "-") == 0) {
-			params.use_stdin = 1;
-			params.do_i_already_know_what_to_do = 1;
+			params.use_stdin = true;
+			params.do_i_already_know_what_to_do = true;
 			continue;
 		}
 
