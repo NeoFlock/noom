@@ -2,6 +2,8 @@
 #include "vm.h"
 #include "parser.h"
 
+// I am sorry
+
 typedef struct noomC_Local {
 	unsigned int startpc;
 	unsigned int endpc;
@@ -25,6 +27,24 @@ typedef struct noomC_Upval {
 #define NOOMC_MAXLOCAL 200
 #define NOOMC_MAXUPVAL 64
 
+#define NOOMC_MAXBREAKS 64
+#define NOOMC_MAXLOOPDEPTH 32
+
+#define NOOMC_MAXLABELS 32
+#define NOOMC_MAXGOTOS 32
+
+typedef struct noomC_Label {
+	const char* name;
+	noom_uint_t namelen;
+	unsigned int pc;
+} noomC_Label;
+
+typedef struct noomC_PendingGoto {
+	const char* name;
+	noom_uint_t namelen;
+	unsigned int patchpc;
+} noomC_PendingGoto;
+
 typedef struct noomC_Compiler {
 	// steal constants from this
 	struct noomC_Compiler* parent;
@@ -36,6 +56,16 @@ typedef struct noomC_Compiler {
 	unsigned curstack;
 	noomC_Local locals[NOOMC_MAXLOCAL];
 	noomC_Upval upvals[NOOMC_MAXUPVAL];
+	
+	noomC_Label labels[NOOMC_MAXLABELS];
+	unsigned int labelc;
+	noomC_PendingGoto pendingGotos[NOOMC_MAXGOTOS];
+	unsigned int pendingGotoc;
+	
+	unsigned int breakPatches[NOOMC_MAXBREAKS];
+	unsigned int breakPatchCount;
+	unsigned int loopBreakBase[NOOMC_MAXLOOPDEPTH];
+	unsigned int loopDepth;
 } noomC_Compiler;
 
 void noomC_compiler_init(noomC_Compiler* compiler);
