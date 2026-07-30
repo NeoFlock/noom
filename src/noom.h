@@ -5,19 +5,20 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#define NN_STR(x) #x
-#define NN_XSTR(x) NN_STR(x)
+#ifdef NOT_DEFINE_THIS_SHIT_PLEASE
+/* Hi someone from the future
+ * If you will touch this then update both the string and the numbers
+ * If the patch == 0 leave only MAJOR.MINOR
+ * Otherwise MAJOR.MINOR.PATCH
+ * Thank you I love you
+ */
 
-/*
 #define NOOM_VERSION_MAJOR 0
 #define NOOM_VERSION_MINOR 0
 #define NOOM_VERSION_PATCH 0
-#if NOOM_VERSION_PATCH==0
-#define NOOM_VERSION_FULL NN_XSTR(NOOM_VERSION_MAJOR) "." NN_XSTR(NOOM_VERSION_MINOR)
-#else
-#define NOOM_VERSION_FULL NN_XSTR(NOOM_VERSION_MAJOR) "." NN_XSTR(NOOM_VERSION_MINOR) "." NN_XSTR(NOOM_VERSION_PATCH)
+#define NOOM_VERSION_FULL "0.0"
 #endif
-*/
+
 #define NOOM_VERSION_FULL "development build"
 
 #define NOOM_VERSION_TEXT "Noom " NOOM_VERSION_FULL "  (c) 2026 NeoFlock and Noom contributors"
