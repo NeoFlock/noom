@@ -17,20 +17,22 @@ local separator = package.config:sub(1, 1)
 local windows = separator == '\\'
 
 local help = [[
-usage: lua build.lua [commands...] [options]
+usage: lua build.lua [commands...] [options] -- args...
 
 commands:
-	(none)|build	compile and link noom
-	run		compile, link and run noom
-	files		print source files separated by spaces (for shell use)
-			e.g. clang -O3 $(lua build.lua files) -o noom
-	clean		clean the build cache
-	help		show this!!! hello :DDDDD!!!!!
+    (none)|build    compile and link noom
+    run     compile, link and run noom
+    test    run tests
+    files   print source files separated by spaces (for shell use)
+                e.g. clang -O3 $(lua build.lua files) -o noom
+    clean   clean the build cache
+    help    show this!!! hello :DDDDD!!!!!
 
 options:
-	-O<level>	optimisation level passed to clang (e.g. -O2, -O3)
-			defaults to -O0
-	-j		parallel compilation (UNIX only!!!!)
+    -O<level>    optimisation level passed to clang (e.g. -O2, -O3)
+                     defaults to -O0
+    -j           parallel compilation (UNIX only!!!!)
+    -- args...	 anything after -- is forwarded to noom when running it
 ]]
 
 local function filename(path)
@@ -56,14 +58,18 @@ local function runCommand(cmd, ignore_fail)
 	end
 end
 
+local function preadall(cmd)
+    local handle = io.popen(cmd)
+    if handle == nil then return end
+    local result = handle:read("*a")
+    handle:close()
+	return result
+end
 -- might fail on MacOS and other *NIXes, haven't tried
 -- prob can be get functional there with just stat -c shit || ...
 local function getTime(path)
 	if windows then return 0 end
-	local handle = assert(io.popen('stat -c %Y "' .. path .. '" 2>/dev/null'))
-	local result = handle:read("*a")
-	handle:close()
-	return tonumber(result) or 0
+	return preadall('stat -c %Y "' .. path .. '" 2>/dev/null') or 0
 end
 
 local function needsRebuild(src, obj)
@@ -96,15 +102,29 @@ local function rmdir(path)
 	end
 end
 
+-- Good enough posix-ish shell quoting for forwarded args ehhh
+local function shellQuote(s)
+	if windows then
+		return '"' .. s:gsub('"', '\\"') .. '"'
+	end
+	return "'" .. s:gsub("'", "'\\''") .. "'"
+end
+
 local commands = {}
 local optLevel = nil
 local parallel = false
+local forwardedArgs = {}
 
-local shi = { build=true, clean=true, run=true, files=true, help=true }
+local shi = { build = true, clean = true, run = true, files = true, help = true, test = true }
 
 for i = 1, #arg do
 	local a = arg[i]
-	if shi[a] then
+	if a == '--' then
+		for j = i + 1, #arg do
+			table.insert(forwardedArgs, arg[j])
+		end
+		break
+	elseif shi[a] then
 		if commands[a] then
 			io.stderr:write("warning: duplicate command '" .. a .. "'\n")
 		end
@@ -127,6 +147,7 @@ optLevel = optLevel or "-O0"
 
 if not next(commands) then commands.build = true end
 if commands.run then commands.build = true end
+if commands.test then commands.build = true end
 
 if commands.help then
 	print(help)
@@ -142,11 +163,18 @@ if commands.clean then
 	rmdir("build")
 end
 
+local interpreters = {
+	["51"] = { lua = "lua5.1", noom = "." .. (windows and "\\" or "/") .. "noom -l51" },
+	["52"] = { lua = "lua5.2", noom = "." .. (windows and "\\" or "/") .. "noom -l52" },
+	["53"] = { lua = "lua5.3", noom = "." .. (windows and "\\" or "/") .. "noom -l53" },
+	["54"] = { lua = "lua5.4", noom = "." .. (windows and "\\" or "/") .. "noom -l54" }
+}
+
 if commands.build then
 	ensureDir("build")
-	
+
 	local coolArgs = { optLevel }
-	
+
 	-- Why does blendi even need that bro 😭🙏 Do not run noom on your RISC-V shi
 	if not isBlendi then table.insert(coolArgs, '-fsanitize=undefined,address') end
 	local coolerArgs = table.concat(coolArgs, ' ')
@@ -182,8 +210,44 @@ if commands.build then
 	if needsLinking then
 		runCommand('clang -g -o ' .. exe .. ' ' .. table.concat(objects, ' ') .. ' ' .. coolerArgs)
 	end
-	
+
 	if commands.run then
-		runCommand(exe)
+		local parts = { exe }
+		for _, a in ipairs(forwardedArgs) do
+			table.insert(parts, shellQuote(a))
+		end
+		local final = table.concat(parts, ' ')
+
+		if not windows and os.execute('command -v rlwrap > /dev/null 2>&1') == true then
+			final = 'rlwrap ' .. final
+		end
+
+		runCommand(final)
+	end
+
+	if commands.test then
+		if windows then
+			io.stderr:write("womp womp this doesn't work here\n")
+			os.exit(1)
+		end
+		local handle = io.popen("ls -d tests/* 2>/dev/null")
+		if handle == nil then
+			io.stderr:write("why does your computer not have ls")
+			os.exit(1)
+		end
+		local things_to_test = {}
+		for thing_to_test in handle:lines() do
+			table.insert(things_to_test, thing_to_test)
+		end
+		for i = 1, #things_to_test do
+			local interpreter = interpreters[things_to_test[i]:match("%d+")] or { lua = "lua", noom = "noom" }
+			io.write("[" .. i .. "/" .. #things_to_test .. "] " .. things_to_test[i] .. " ")
+			local luaOut = preadall(interpreter["lua"] .. " " .. things_to_test[i])
+			local noomOut = preadall(interpreter["noom"] .. " " .. things_to_test[i])
+			if (luaOut == noomOut) then io.write("+") 
+			else io.write("-\nLua output:\n" .. luaOut .. "\nNoom output:\n" .. noomOut) end
+			io.write("\n")
+		end
+		handle:close()
 	end
 end

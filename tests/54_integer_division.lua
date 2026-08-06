@@ -1,0 +1,7 @@
+print(7 // 2)
+print(-7 // 2)
+print(7 & 3)
+print(7 | 8)
+print(~0)
+print(1 << 4)
+print(256 >> 4)

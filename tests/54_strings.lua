@@ -1,0 +1,7 @@
+print(string.format("%d-%s", 42, "woaw"))
+print(("noom when"):upper())
+print(string.sub("vroom broom", 1, 5))
+print(string.rep("k", 46))
+print((string.gsub("noom when oooro oo o oo o", "o", "0")))
+print(#"glungus")
+print(string.find("noom when", "when"))
