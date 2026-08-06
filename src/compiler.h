@@ -101,7 +101,7 @@ noom_Exit noomC_compile_expr(
 	const noomP_Node* node,
 	// retc of -1 means all values!!!!!!!!!!!
 	int retc);
-noom_Exit noomC_compile_block(noom_LuaVM* vm, noomC_Compiler* compiler, const noomP_Parser* parser, noomV_Function* func, const noomP_Node* node);
+noom_Exit noomC_compile_block(noom_LuaVM* vm, noomC_Compiler* compiler, const noomP_Parser* parser, noomV_Function* func, const noomP_Node* node, bool is_toplevel);
 noom_Exit noomC_add_stuff_to_function(noom_LuaVM* vm, noomC_Compiler* compiler, const noomP_Parser* parser, noomV_Function* func, const noomP_Node* node);
 
 // pushes the compiled function on the stack, or just crashes lol
