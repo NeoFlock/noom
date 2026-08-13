@@ -9,6 +9,16 @@ const noomV_Value noomV_nil = {
     .autoclose = 0,
 };
 
+noomV_Value noomV_intVal(noom_int_t i) {
+	return (noomV_Value){.tag = NOOMV_VINT, .isptr = 0, .autoclose = 0, .integer = i};
+}
+noomV_Value noomV_numVal(noom_float_t n) {
+	return (noomV_Value){.tag = NOOMV_VNUM, .isptr = 0, .autoclose = 0, .number = n};
+}
+noomV_Value noomV_boolVal(bool b) {
+	return (noomV_Value){.tag = NOOMV_VBOOL, .isptr = 0, .autoclose = 0, .boolean = b};
+}
+
 noomV_DisInfo noomV_disInfo[NOOMV_INSTR_NOP2] = {
     [NOOMV_INSTR_PUSHVAL] = {
         .name = "PUSHVAL",
@@ -266,10 +276,10 @@ bool noomV_isLegalKey(noomV_Value key) {
 bool noomV_rawequalValue(noomV_Value a, noomV_Value b) {
 	// special case: integers and numbers
 	if (a.tag == NOOMV_VINT && b.tag == NOOMV_VNUM) {
-		return a.integer == b.number;
+		return (noom_float_t)a.integer == b.number;
 	}
 	if (a.tag == NOOMV_VNUM && b.tag == NOOMV_VINT) {
-		return a.number == b.integer;
+		return a.number == (noom_float_t)b.integer;
 	}
 	if (a.tag != b.tag) return 0;
 	switch (a.tag) {
@@ -378,14 +388,15 @@ noom_Exit noomV_rawsetTable(noom_LuaVM* vm, noomV_Table* t, noomV_Value key, noo
 }
 
 noom_uint_t noomV_rawlenTable(noomV_Table* t) {
-	noom_uint_t guess = t->len;
-	// TODO: optimize with a bsearch
-	while (1) {
-		if (!noomV_isNil(noomV_rawgetiTable(t, guess + 1))) guess++;
-		if (guess == 0) break;
-		if (noomV_isNil(noomV_rawgetiTable(t, guess))) guess--;
+	noom_uint_t l = 0, h = t->len;
+    
+	while (l < h) {
+		const noom_uint_t mid = l + (h - l) / 2 + 1; 
+		if (noomV_isNil(noomV_rawgetiTable(t, (noom_int_t)mid))) h = mid - 1;
+		else l = mid;
 	}
-	return t->len = guess;
+    
+	return t->len = l;
 }
 
 noomV_Thread* noomV_allocCoroutine(noom_LuaVM* vm) {
@@ -422,12 +433,6 @@ noom_Exit noomV_setErrorFromExit(noom_LuaVM* vm, noomV_Thread* coro, noom_Exit e
 		case NOOM_OK:
 			coro->errObj = noomV_nil;
 			break;
-		case NOOM_PLEASEHELPMEIAMSCARED:
-			noomV_setErrorStr(vm, coro, "temporary error");
-			break;
-		case NOOM_IAMNOTSCAREDJUSTLAZYTHISTIME:
-			noomV_setErrorStr(vm, coro, "programmer laziness error");
-			break;
 		case NOOM_EINTERNAL:
 			noomV_setErrorStr(vm, coro, "unrecoverable internal error");
 			break;
@@ -444,6 +449,9 @@ noom_Exit noomV_setErrorFromExit(noom_LuaVM* vm, noomV_Thread* coro, noom_Exit e
 			break;
 		case NOOM_ELIMIT:
 			noomV_setErrorStr(vm, coro, "buffer overflow");
+			break;
+		case NOOM_EGOTONOLABEL:
+			noomV_setErrorStr(vm, coro, "goto without a label");
 			break;
 		case NOOM_EERROR:
 			break;
@@ -472,7 +480,21 @@ void noomV_freeObj(noom_LuaVM* vm, noomV_Object* obj) {
 	vm->objCount--;
 }
 
-noom_Exit noomV_pushCallFrame(noom_LuaVM* vm, noomV_Thread* coro, noomV_CallFrame cf);
+noom_Exit noomV_pushCallFrame(noom_LuaVM* vm, noomV_Thread* coro, noomV_CallFrame cf) {
+	if (coro->calldepth >= NOOM_MAXCALL) {
+		noomV_setErrorStr(vm, coro, "stack overflow");
+		return NOOM_ENOSTACK;
+	}
+	if (coro->calldepth >= coro->callcap) {
+		noom_uint_t newCap = coro->callcap * 2;
+		noomV_CallFrame* newCalls = noom_realloc(coro->calls, sizeof(noomV_CallFrame) * newCap);
+		if (newCalls == 0) return NOOM_ENOMEM;
+		coro->calls = newCalls;
+		coro->callcap = newCap;
+	}
+	coro->calls[coro->calldepth++] = cf;
+	return NOOM_OK;
+}
 
 noomV_CallFrame* noomV_topCallFrame(noomV_Thread* coro) {
 	if (coro->calldepth == 0) return NULL;
@@ -568,7 +590,24 @@ void noom_destroyVM(noom_LuaVM* vm) {
 	noom_free(vm);
 }
 
-noom_Exit noomV_pushRawValue(noom_LuaVM *vm, noomV_Value val);
+noom_Exit noomV_pushRawValue(noom_LuaVM *vm, noomV_Value val) {
+	noomV_Thread *coro = vm->currentThread;
+	if (coro->stacklen >= NOOM_MAXSTACK) {
+		noomV_setErrorStr(vm, coro, "stack overflow");
+		return NOOM_ENOSTACK;
+	}
+	if (coro->stacklen >= coro->stackcap) {
+		noom_uint_t newCap = coro->stackcap * 2;
+		if (newCap > NOOM_MAXSTACK) newCap = NOOM_MAXSTACK;
+		noomV_Value* newStack = noom_realloc(coro->stack, sizeof(noomV_Value) * newCap);
+		if (newStack == 0) return NOOM_ENOMEM;
+		coro->stack = newStack;
+		coro->stackcap = newCap;
+	}
+	val.isptr = 0;
+	coro->stack[coro->stacklen++] = val;
+	return NOOM_OK;
+}
 
 noom_Exit noomV_getStackValue(noom_LuaVM *vm, noom_slot_t slot, noomV_Value *outVal) {
 	noomV_Thread *curThread = vm->currentThread;
@@ -586,7 +625,7 @@ noom_Exit noomV_getStackValue(noom_LuaVM *vm, noom_slot_t slot, noomV_Value *out
 		*outVal = curThread->stack[slot];
 	} else {
 		noomV_CallFrame *cf = noomV_topCallFrame(curThread);
-		*outVal = curThread->stack[cf->funcIdx+1];
+		*outVal = curThread->stack[cf->funcIdx+1+slot];
 	}
 	if(outVal->isptr) {
 		*outVal = outVal->ptr->value;
@@ -594,11 +633,152 @@ noom_Exit noomV_getStackValue(noom_LuaVM *vm, noom_slot_t slot, noomV_Value *out
 	return NOOM_OK;
 }
 
-noom_Exit noomV_setStackValue(noom_LuaVM *vm, noom_slot_t slot, noomV_Value val);
+noom_Exit noomV_setStackValue(noom_LuaVM *vm, noom_slot_t slot, noomV_Value val) {
+	noomV_Thread *curThread = vm->currentThread;
+	size_t stacksize = noom_getstacksize(vm);
+	if(slot < 0) slot += stacksize;
+	if(slot < 0) {
+		noomV_setErrorStr(vm, curThread, "stack underflow");
+		return NOOM_ERUNTIME;
+	}
+	if(slot >= stacksize) {
+		noomV_setErrorStr(vm, curThread, "stack overflow");
+		return NOOM_ENOSTACK;
+	}
+
+	noom_uint_t idx;
+	if(curThread->calldepth == 0) {
+		idx = slot;
+	} else {
+		noomV_CallFrame *cf = noomV_topCallFrame(curThread);
+		idx = cf->funcIdx + 1 + slot;
+	}
+
+	noomV_Value *target = &curThread->stack[idx];
+	if (target->isptr) {
+		target->ptr->value = val;
+		return NOOM_OK;
+	}
+
+	val.isptr = 0;
+	*target = val;
+	return NOOM_OK;
+}
 
 noom_int_t noom_getstacksize(noom_LuaVM* vm) {
 	noomV_Thread *cur = vm->currentThread;
 	if(cur->calldepth == 0) return cur->stacklen;
 	noomV_CallFrame *cf = noomV_topCallFrame(cur);
 	return cur->stacklen - cf->funcIdx - 1;
+}
+
+noom_Exit noomV_do_some_useful_shit_for_once(noom_LuaVM *vm) {
+	noomV_Thread* coro = vm->currentThread;
+	if (coro->stacklen == 0) {
+		noomV_setErrorStr(vm, coro, "nothing to call");
+		return NOOM_ERUNTIME;
+	}
+
+	noom_uint_t funcSlot = coro->stacklen - 1;
+	noomV_Value fval = coro->stack[funcSlot];
+	if (fval.tag != NOOMV_VOBJ || fval.obj == 0 || fval.obj->tag != NOOMV_OFUNC) {
+		noomV_setErrorStr(vm, coro, "attempt to call a non-function value");
+		return NOOM_ERUNTIME;
+	}
+
+	noomV_CallFrame cf;
+	cf.funcIdx = funcSlot;
+	cf.returnCount = 0; 
+	cf.isC = false;
+	cf.errhandler = noomV_nil;
+	cf.upvals = NULL;
+	cf.lua.pc = 0;
+	cf.lua.varargc = 0;
+
+	noom_Exit err = noomV_pushCallFrame(vm, coro, cf);
+	if (err) return err;
+
+/* Implemented instructions are marked with asterisks
+ * NOP
+   PUSHVAL
+ * PUSHCONST
+   PUSHGLOBAL
+ * PUSHINT
+ * PUSHNIL
+   PUSHBOOLS
+   PUSHUPVAL
+   PUSHARGS
+   CREATETABLE
+   PUSHCLOSURE
+   CALL
+   GETTABLE
+   SETTABLE
+   SETLIST
+   GETFIELD
+   SETFIELD
+   OP
+   SETVAL
+   SETUPVAL
+   SETGLOBAL
+ * RET
+ * JMP
+   CJMP
+   CNJMP
+   GETMETHOD
+   ROTATE
+   POP
+   SETSTACK
+   CONCAT
+   CLOSE
+ * NOP2
+ */
+	while (coro->calldepth) {
+		noomV_CallFrame* cf = noomV_topCallFrame(coro);
+		if (cf == NULL) return NOOM_OK; // is it really OK
+
+		noomV_Object* fobj = coro->stack[cf->funcIdx].obj;
+		noomV_Function* func = (noomV_Function*)fobj;
+
+		noomV_Inst inst = func->code[cf->lua.pc++];
+		
+		switch (inst.op) {
+			case NOOMV_INSTR_NOP:
+			case NOOMV_INSTR_NOP2:
+				break;
+				
+			case NOOMV_INSTR_PUSHCONST: 
+				if ((err = noomV_pushRawValue(vm, func->consts[inst.us]))) return err;
+				break;
+				
+			case NOOMV_INSTR_PUSHINT:
+				if ((err = noomV_pushRawValue(vm, noomV_intVal(inst.ss)))) return err;
+				break;
+				
+			case NOOMV_INSTR_PUSHNIL: 
+				for (unsigned int i = 0; i < inst.us + 1; i++)
+					if ((err = noomV_pushRawValue(vm, noomV_nil))) return err;
+				break;
+				
+			case NOOMV_INSTR_RET: {
+				noom_uint_t retStart = cf->funcIdx + 1 + inst.us;
+				noom_uint_t nret = 0;
+				if (retStart < coro->stacklen) {
+					nret = coro->stacklen - retStart;
+					noom_memcpy(&coro->stack[cf->funcIdx], &coro->stack[retStart], sizeof(noomV_Value) * nret);
+				}
+				coro->stacklen = cf->funcIdx + nret;
+				coro->calldepth--;
+				break;
+			}
+			case NOOMV_INSTR_JMP: 
+				cf->lua.pc = ((unsigned int)inst.a << 16) + inst.us;
+				break;
+				
+			default:
+				noomV_setErrorStr(vm, coro, "this shi not implemented");
+				return NOOM_EINTERNAL;
+		}
+	}
+
+	return NOOM_OK;
 }
