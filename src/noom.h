@@ -219,7 +219,7 @@ noom_Exit noom_dupearr(noom_LuaVM* vm, noom_uint_t n, noom_uint_t m);
 #define noom_dupe(vm) noom_dupen((vm), 1)
 
 // Calls a function with a given continuation function in case of yield.
-// If f's memory address is 0, the call CANNOT yield, and any attempts to do so are an error.
+// If f is NULL, the call CANNOT yield, and any attempts to do so are an error.
 // If this call cannot yield, it is fine to run code after it returns. If it can yield, DO NOT, as even if the call does not yield,
 // the continuation function is invoked, and thus you should return it directly.
 // This will pop argc+1 values, where the first one, at [-argc-1], is the value being called, and everything after is arguments.

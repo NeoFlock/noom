@@ -204,7 +204,7 @@ int main(int argc, char** argv) {
 		}
 	}
 	if (params.lua_version == 0) {
-		params.lua_version = NOOM_VERSION_54;
+		params.lua_version = NOOM_VERSION_51;
 	}
 	if (!params.do_i_already_know_what_to_do) {
 		err = "script not set";

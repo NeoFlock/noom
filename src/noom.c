@@ -135,7 +135,7 @@ PUBLIC_EXECUTION /* !!!!!!!!!!!!! */
 #endif
 	noomV_Value peak;
 
-	const noom_Exit e = noomC_compile(vm, &parser, program, 0, 0, &peak);
+	const noom_Exit e = noomC_compile(vm, &parser, program, NULL, vm->globals, &peak);
 	noomP_freeNode(parser.last_node);
 	
 	if (e) {
@@ -170,7 +170,8 @@ PUBLIC_EXECUTION /* !!!!!!!!!!!!! */
 		printf("\n");
 	}
 #endif
-	noom_Exit err = noomV_do_some_useful_shit_for_once(vm);
+	noomV_pushRawValue(vm, peak);
+	noom_Exit err = noom_call(vm, 0, 0);
 	if (err != NOOM_OK) {
 		char not_cool[9] = "error: 0\n";
 		not_cool[7] += err; // that will work for now

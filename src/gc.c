@@ -11,7 +11,7 @@ static void noomG_grayValue(noom_LuaVM* vm, noomV_Value value) {
 static void noomG_grayObj(noom_LuaVM* vm, noomV_Object* obj) {
 	if (obj == 0) return;
 	if (obj->marked) return;
-	obj->marked = 1;
+	obj->marked = true;
 	obj->nextGray = vm->graySet;
 	vm->graySet = obj;
 }

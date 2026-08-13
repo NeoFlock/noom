@@ -314,24 +314,21 @@ typedef struct noomV_CallFrame {
 	bool isC;
 	noomV_Value errhandler;
 	noomV_Pointer** upvals;
-	union {
-		struct {
-			// program counter
-			unsigned int pc;
-			// amount of varargs
-			unsigned int varargc;
-		} lua;
-		struct {
-			noom_KFunction* resumeFunc;
-			void* resumeCtx;
-		} c;
-	};
+	noom_KFunction* resumeFunc;
+	void* resumeCtx;
+	noomV_Function *proto;
+	// program counter
+	unsigned int pc;
+	// amount of varargs
+	unsigned int varargc;
 } noomV_CallFrame;
 
 typedef struct noomV_Thread {
 	noomV_Object obj;
 	unsigned int stacklen, calldepth;
 	unsigned int stackcap, callcap;
+	// if negative, thread did not yield.
+	int yielded;
 	noomV_Value errObj;
 	// can have pointers!
 	noomV_Value* stack;
@@ -394,8 +391,7 @@ noomV_CallFrame* noomV_topCallFrame(noomV_Thread* coro);
 noom_Exit noomV_setThreadStackSize(noom_LuaVM* vm, noomV_Thread* coro, noom_int_t stack);
 
 noom_Exit noomV_pushRawValue(noom_LuaVM *vm, noomV_Value val);
+noom_Exit noomV_pushRawObject(noom_LuaVM *vm, noomV_Object *obj);
 noom_Exit noomV_getStackValue(noom_LuaVM *vm, noom_slot_t slot, noomV_Value *outVal);
 noom_Exit noomV_setStackValue(noom_LuaVM *vm, noom_slot_t slot, noomV_Value val);
-
-noom_Exit noomV_do_some_useful_shit_for_once(noom_LuaVM *vm);
 #endif
