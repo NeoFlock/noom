@@ -54,7 +54,7 @@ static noom_Exit noomC_addUpval(noomC_Compiler* c, noomC_Upval upval) {
 }
 
 static noom_Exit noomC_addconst(noomV_Function* func, noomV_Value val) {
-	if (func->constsize == NOOM_USHORT_MAX) return NOOM_PLEASEHELPMEIAMSCARED;
+	if (func->constsize == NOOM_USHORT_MAX) return NOOM_EINTERNAL;
 	noomV_Value* newConsts = noom_realloc(func->consts, sizeof(noomV_Value) * (func->constsize + 1));
 	if (newConsts == 0) return NOOM_ENOMEM;
 	func->consts = newConsts;
@@ -316,9 +316,9 @@ static const char* noomC_decode_string_token(noomC_Compiler* c, const char* s, n
 		noom_uint_t nooming_my_uint_t = tokenlen - (level + 2) * 2;
 		
 		if (c->maxStringLen < nooming_my_uint_t) {
-			char *s = noom_realloc_free(c->stringTmpBuf, nooming_my_uint_t);
-			if (s == NULL) return NULL;
-			c->stringTmpBuf = s;
+			char *s2 = noom_realloc_free(c->stringTmpBuf, nooming_my_uint_t);
+			if (s2 == NULL) return NULL;
+			c->stringTmpBuf = s2;
 			c->maxStringLen = nooming_my_uint_t;
 		}
 		noom_memcpy(c->stringTmpBuf, s + i, nooming_my_uint_t);
@@ -361,7 +361,7 @@ static const char* noomC_decode_string_token(noomC_Compiler* c, const char* s, n
 		else if (esc == '\r') { meow[meowmeow++] = '\r'; i++; }
 		else if (esc == 'x' && version >= NOOM_VERSION_52) {
 			i++;
-			meow[meowmeow++] = (unsigned)noomC_hexval(s[i]) * 16 + (unsigned)noomC_hexval(s[i + 1]);
+			meow[meowmeow++] = (unsigned char)noomC_hexval(s[i]) * 16 + (unsigned char)noomC_hexval(s[i + 1]);
 			i += 2;
 		}
 		else if (esc == 'z' && version >= NOOM_VERSION_53) {
@@ -848,7 +848,7 @@ noom_Exit noomC_compile_block(noom_LuaVM* vm, noomC_Compiler* compiler, const no
 		noom_Exit r = noomC_add_stuff_to_function(vm, compiler, parser, func, node->subnodes[i]);
 		if (r != NOOM_OK) return r;
 	}
-	if (compiler->pendingGotoc > 0) return NOOM_EINTERNAL; // TODO make a separate error for this
+	if (compiler->pendingGotoc > 0) return NOOM_EGOTONOLABEL;
 
 	if (is_toplevel)
 		return noomC_emit_AuD(func, NOOMV_INSTR_RET, 0, 1);
@@ -1255,6 +1255,8 @@ noom_Exit noomC_compile(noom_LuaVM* vm, const noomP_Parser* parser, const noomP_
 	}
 
 	noom_Exit err = noomC_compile_block(vm, &compiler, parser, program, node, true);
+	if (err != NOOM_OK) return err;
 	noomC_compiler_deinit(&compiler);
-	return err;
+	noomV_Value val = { .tag = NOOMV_VOBJ, .obj = (noomV_Object*)program };
+	return noomV_pushRawValue(vm, val);
 }

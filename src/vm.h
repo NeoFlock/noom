@@ -357,6 +357,11 @@ struct noom_LuaVM {
 // for conveniently passing around nil
 extern const noomV_Value noomV_nil;
 
+
+noomV_Value noomV_intVal(noom_int_t i);
+noomV_Value noomV_numVal(noom_float_t n);
+noomV_Value noomV_boolVal(bool b);
+
 // Allocating objects
 noomV_Object* noomV_allocObj(noom_LuaVM* vm, noomV_ObjTag tag, noom_uint_t size);
 noomV_String* noomV_allocStr(noom_LuaVM* vm, const char* str, noom_uint_t len);
@@ -392,4 +397,5 @@ noom_Exit noomV_pushRawValue(noom_LuaVM *vm, noomV_Value val);
 noom_Exit noomV_getStackValue(noom_LuaVM *vm, noom_slot_t slot, noomV_Value *outVal);
 noom_Exit noomV_setStackValue(noom_LuaVM *vm, noom_slot_t slot, noomV_Value val);
 
+noom_Exit noomV_do_some_useful_shit_for_once(noom_LuaVM *vm);
 #endif

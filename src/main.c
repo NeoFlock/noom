@@ -7,164 +7,37 @@
 
 volatile const char wawa[] = "if you are reading this with either the `strings` utility or through a hex viewer please know that you can instead just check out the source code on gitea: https://gitea.codersquack.nl/NeoFlock/noom";
 
-void tab(noom_uint_t amount) {
-	amount *= 2;
-	for (noom_uint_t i = 0; i < amount; i++) {
-		putchar(' ');
-		putchar(' ');
-		putchar(' ');
-		putchar(' ');
-	}
-}
-
-void print_node(const noomP_Node* node, noom_uint_t depth) {
-	tab(depth);
-	printf("{\n");
-
-	tab(depth + 1);
-	printf("type: %s\n", noomP_formatNodeType(node->type));
-
-	tab(depth + 1);
-	printf("location: %zu\n", node->source_offset);
-
-	if (node->subnodec > 0) {
-		tab(depth + 1);
-		printf("subnodes (%zu):\n", node->subnodec);
-
-		for (noom_uint_t i = 0; i < node->subnodec; i++) {
-			print_node(node->subnodes[i], depth + 1);
-		}
-	}
-
-	tab(depth);
-	printf("}\n");
-}
-
-void pretty(const char* code, noom_LuaVersion version, const noomP_Node* node, noom_uint_t indent) {
-	for (noom_uint_t i = 0; i < indent; i++) putchar('\t');
-	const noom_uint_t len = noomL_tokenlen(code, node->source_offset, version);
-	for (int i = 0; i < len; i++) {
-		putchar(*(code + node->source_offset + i));
-	}
-	printf("%s %s", code[node->source_offset] != '\0' ? " -" : "", noomP_formatNodeType(node->type));
-	if (node->subnodec) {
-		printf(" with %zu entr%s {\n", node->subnodec, node->subnodec == 1 ? "y" : "ies");
-		for (int i = 0; i < node->subnodec; i++) {
-			pretty(code, version, node->subnodes[i], indent + 1);
-		}
-		for (noom_uint_t i = 0; i < indent; i++) putchar('\t');
-		putchar('}');
-		putchar('\n');
-	}
-	else
-		putchar('\n');
-}
-
-// #define LEX_OUTPUT
-#define PARSE_OUTPUT
-#define COMPILER_OUTPUT
-
 int execute(const char* code, noom_LuaVersion version, const char* program_name, const char* filename) {
-	noomP_Parser parser;
-	noomP_Node* program;
-
-	if (noomP_parse(code, filename, version, &program, &parser) < 0) {
-		const noom_uint_t bleh = noom_format_error(&parser, program_name, NULL, 0);
-		char* buf = noom_alloc(bleh);
-		noom_format_error(&parser, program_name, buf, bleh);
-		fputs(buf, stdout);
-		noomP_freeNode(parser.last_node);
-		noom_free(buf);
-		return 1;
-	}
-	
-#ifdef LEX_OUTPUT
-	puts("LEX OUTPUT:");
-	fputs("\x1b[48;2;10;10;10m", stdout);
-	noom_uint_t pos = 0;
-	while (1) {
-		noomL_Token token;
-
-		noomL_ErrorType err = noomL_lex(code, pos, &token, version);
-		if (err) break;
-
-		if (token.type == NOOML_TOKEN_KEYWORD) {
-			fputs("\x1b[38;2;207;142;109m", stdout);
-			for (noom_uint_t i = 0; i < token.length; i++) putchar((code + token.offset)[i]);
-		} else if (token.type == NOOML_TOKEN_WHITESPACE) {
-			for (noom_uint_t i = 0; i < token.length; i++) putchar((code + token.offset)[i]);
-		} else if (token.type == NOOML_TOKEN_IDENTIFIER) {
-			fputs("\x1b[38;2;255;255;255m", stdout);
-			for (noom_uint_t i = 0; i < token.length; i++) putchar((code + token.offset)[i]);
-		} else if (token.type == NOOML_TOKEN_SYMBOL) {
-			fputs("\x1b[38;2;0;255;255m", stdout);
-			for (noom_uint_t i = 0; i < token.length; i++) putchar((code + token.offset)[i]);
-		} else if (token.type == NOOML_TOKEN_STRING) {
-			fputs("\x1b[38;2;255;0;0m", stdout);
-			for (noom_uint_t i = 0; i < token.length; i++) putchar((code + token.offset)[i]);
-		} else if (token.type == NOOML_TOKEN_NUMBER) {
-			fputs("\x1b[38;2;0;255;0m", stdout);
-			for (noom_uint_t i = 0; i < token.length; i++) putchar((code + token.offset)[i]);
-		} else {
-			fputs("\x1b[0m\n", stdout);
-			printf("%s ", noomL_formatTokenType(token.type));
-			for (noom_uint_t i = 0; i < token.length; i++) putchar((code + token.offset)[i]);
-			fputs("\x1b[48;2;10;10;10m", stdout);
-			putchar('\n');
-		}
-
-		pos += token.length;
-
-		if (token.type == NOOML_TOKEN_EOF) break;
-	}
-	puts("\x1b[0m");
-#endif
-	
-#ifdef PARSE_OUTPUT
-	puts("PARSE OUTPUT:");
-	pretty(code, version, program, 0);
-	//print_node(program, 0);
-#endif
-
 	noom_LuaVM* vm = noom_createVM(version);
-	noomV_Value peak;
-
-	const noom_Exit e = noomC_compile(vm, &parser, program, 0, 0, &peak);
-	if (e) {
-		printf("error: %d\n", e);
-		noomP_freeNode(parser.last_node);
-		noom_destroyVM(vm);
-		return 1;
-	}
-	noomP_freeNode(parser.last_node);
-
-#ifdef COMPILER_OUTPUT
-	noomV_Function* f = (noomV_Function*)peak.obj;
-
-	for (int i = 0; i < f->codesize; i++) {
-		noomV_Inst inst = f->code[i];
-		noomV_DisInfo dis = noomV_disInfo[inst.op];
-
-		printf("%s %d ", dis.name, inst.a);
-
-		switch (dis.arg) {
-			case NOOMV_DIS_NONE:
-				break;
-			case NOOMV_DIS_BC:
-				printf("%d, %d", inst.b, inst.c);
-				break;
-			case NOOMV_DIS_uD:
-				printf("%d", inst.us);
-				break;
-			case NOOMV_DIS_sD:
-				printf("%d", inst.ss);
-				break;
-		}
-		printf("\n");
-	}
-#endif
-	noom_destroyVM(vm);
+PUBLIC_EXECUTION /* !!!!!!!!!!!!! */
+// ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣀⣴⢲⣞⣭⣟⣿⣻⣷⢶⢦⣄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+// ⠀⠀⠀⠀⠀⠀⠀⠀⣤⣞⣵⢯⣿⣞⣷⣿⣷⣿⣿⣿⣿⣜⣦⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+// ⠀⠀⠀⠀⠀⠀⣤⣶⢿⣾⣽⣿⣿⣾⣿⣿⣿⣿⣿⣿⣿⣿⣯⣇⠀⠀⠀⠀⠀⠀⠀⠀⠀
+// ⠀⠀⠀⠀⡤⢿⣿⣿⣿⣿⣯⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣷⢫⡀⠀⠀⠀⠀⠀⠀⠀⠀
+// ⠀⠀⠀⢆⣴⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣯⡗⡇⠀⠀⠀⠀⠀⠀⠀⠀
+// ⠀⢠⣼⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣻⠀⠀⠀⠀⠀⠀⠀⠀⠀
+// ⢰⣾⣿⣿⠿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡑⠀⠀⠀⠀⠀⠀⠀⠀⠀
+// ⠋⠉⠀⠀⠀⠀⠘⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡷⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀
+// ⠀⠀⠀⠀⠀⠀⠀⠻⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠆⠀⠀⠀⠀⠀⠀⠀⠀⠀
+// ⠀⠀⠀⠀⠀⠀⠀⠀⠈⠛⠻⠿⢿⣿⠟⠛⠛⠻⣿⣿⣿⣿⡿⠂⠀⠀⠀⠀⠀⠀⠀⠀⠀
+// ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠸⣿⣇⠀⠀⠀⠉⢿⡟⠛⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+// ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢸⣿⣿⠀⠀⠀⠀⣼⣧⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+// ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣿⡇⠀⠀⠀⠀⣿⣿⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+// ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣿⠁⠀⠀⠀⢨⣿⡷⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+// ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢸⣿⠀⠀⠀⠀⠀⣿⠿⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+// ⠀⡀⠀⢀⠀⠀⠀⠀⠀⠀⠀⠀⢼⣿⣧⡴⢤⣶⡴⢻⡏⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+// ⠀⠘⠛⠿⠻⠷⠾⠶⠷⠾⠶⡷⣿⣿⣀⠀⠀⠀⠀⢸⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+// ⠀⠀⠀⠀⠀⠀⠀⠀⣀⠴⠮⠃⠉⠛⢷⣦⣠⡄⠀⣸⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+// ⠀⠀⠀⠀⠀⠀⣠⠶⠘⠁⠀⠀⠀⠀⠀⠙⢮⡿⣧⢾⡟⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+// ⠀⠀⠀⠀⣤⠓⠈⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣈⣽⡿⢿⣤⣀⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+// ⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⢀⣠⣠⣴⣮⠾⠟⠋⠉⢹⠌⠈⠙⠻⢷⣶⣤⣤⣀⡀⠀⠀⠀
+// ⠀⠀⠀⠀⠀⠀⠀⠀⠙⠛⠛⠉⠁⠀⠀⠀⠀⠀⠀⡘⠂⠀⠀⠀⠀⠈⠉⠛⠛⠻⠿⠷⠦
+// ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣸⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+// ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+// ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡘⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+	(vm, code, filename, program_name);
 	
+	noom_destroyVM(vm);
 	return 0;
 }
 

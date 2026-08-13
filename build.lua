@@ -1,5 +1,6 @@
 #!/usr/bin/env lua
 local files = {
+	'src/noom.c',
 	'src/error.c',
 	'src/helper.c',
 	'src/lexer.c',
