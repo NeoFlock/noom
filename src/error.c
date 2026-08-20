@@ -15,6 +15,7 @@ noom_uint_t noom_format_error(const noomP_Parser* parser, const char* program_na
 	    [NOOMP_ERROR_EXPECTED_RCURLY] = {"expected '}' to close table literal", 1},
 	    [NOOMP_ERROR_EXPECTED_RBRACKET_AFTER_KEY] = {"expected ']' to close computed key", 1},
 	    [NOOMP_ERROR_EXPECTED_EQUALS_AFTER_KEY] = {"expected '=' after table key", 1},
+	    [NOOMP_ERROR_EXPECTED_FUNCTION_NAME_PART] = {"expected '.', ':' or '(' after identifier in function name", 1},
 	    [NOOMP_ERROR_EXPECTED_FIELD_IDENTIFIER] = {"expected identifier after '.' for field access", 1},
 	    [NOOMP_ERROR_EXPECTED_METHOD_CALL] = {"expected identifier after ':' for method call", 1},
 	    [NOOMP_ERROR_EXPECTED_RBRACKET_AFTER_INDEX] = {"expected ']' after index expression", 1},

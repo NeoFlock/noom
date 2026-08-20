@@ -1261,7 +1261,10 @@ noomP_Node* noomP_parseRawStatement(noomP_Parser* parser) {
 			while (1) {
 				if (noomP_peek(parser, &token)) return 0;
 
-				if (token.type != NOOML_TOKEN_SYMBOL) return 0; // unexp.
+				if (token.type != NOOML_TOKEN_SYMBOL) {
+					parser->error_state = NOOMP_ERROR_EXPECTED_FUNCTION_NAME_PART;
+					return 0;
+				}
 
 				if (noom_memeq(parser->code + token.offset, token.length, ".", 1)) {
 					// just keep on going at it

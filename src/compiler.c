@@ -1,6 +1,8 @@
+#include "lexer.h"
 #include "noom.h"
 #include "compiler.h"
 #include "helper.h"
+#include "vm.h"
 #include <stdio.h>
 
 // FUCK THIS STUPID COMPILER
@@ -966,7 +968,7 @@ noom_Exit noomC_add_stuff_to_function(noom_LuaVM* vm, noomC_Compiler* compiler, 
 
 		unsigned short proto_idx = (unsigned short)(func->protosize - 1);
 		compiler->curstack++;
-		const unsigned char closure_slot = (unsigned char)(compiler->curstack - 1);
+		// const unsigned char closure_slot = (unsigned char)(compiler->curstack - 1);
 		if ((result = noomC_emit_AuD(func, NOOMV_INSTR_PUSHCLOSURE, 0, proto_idx))) return result;
 
 		// now assign it uhhh
@@ -975,12 +977,93 @@ noom_Exit noomC_add_stuff_to_function(noom_LuaVM* vm, noomC_Compiler* compiler, 
 		noom_uint_t chain_len = fname_node->subnodec;
 
 		if (chain_len == 1) {
-			// function foo() => assign closure to global foo
-			// TODO the fuck i look i know
-			return NOOM_EINTERNAL;
+			const noomP_Node* name_node = fname_node->subnodes[0];
+
+			const char* name = parser->code + name_node->source_offset;
+			noom_uint_t namelen = noomL_tokenlen(parser->code, name_node->source_offset, parser->version);
+
+			return noomC_identifyLocalAndSet(compiler, vm, name, namelen); // i think this *should* just work:tm:
 		} else {
 			// TODO idk either
-			return NOOM_EINTERNAL;
+
+			const noomP_Node* root = fname_node->subnodes[0];
+
+			if (root->type != NOOMP_NODE_FIELDNAME) return NOOM_EINTERNAL; // just in case
+
+			const char* root_name = parser->code + root->source_offset;
+			noom_uint_t root_name_len = noomL_tokenlen(parser->code, root->source_offset, parser->version);
+
+			noomC_LocalInfo info;
+			if ((result = noomC_identifyLocal(compiler, root_name, root_name_len, &info))) {
+				return result;
+			}
+
+			compiler->curstack++; // will contain our new beautiful child
+
+			// TODO: abstract away? or did i miss a pre-existing abstraction? anyhow; stolen (basically) from the NOOMP_NODE_VARIABLE code.
+			// can someone else turn it into a function? i'm kinda ultimate lazy rn frfr ngl
+			switch (info.type) {
+				case NOOMC_LOCAL:
+					if ((result = noomC_emit_AuD(func, NOOMV_INSTR_PUSHVAL, 0, info.idx))) {
+						return result;
+					}
+					break;
+				case NOOMC_UPVAL:
+					if ((result = noomC_emit_AuD(func, NOOMV_INSTR_PUSHUPVAL, 0, info.idx))) {
+						return result;
+					}
+					break;
+				case NOOMC_GLOBAL: {
+					unsigned short constidx;
+					if((result = noomC_addconst_str(compiler, vm, root_name, root_name_len, &constidx))) return result;
+					if(parser->version == NOOM_VERSION_51) {
+						if ((result = noomC_emit_AuD(func, NOOMV_INSTR_PUSHGLOBAL, 0, constidx))) return result;
+						break; // we done here
+					}
+					noomC_LocalInfo _ENV;
+					if((result = noomC_identifyLocal(compiler, "_ENV", 4, &_ENV))) return result;
+					// not meant to be possible
+					if(_ENV.type == NOOMC_GLOBAL) return NOOM_EINTERNAL;
+					// most likely branch in human history
+					if(_ENV.type == NOOMC_UPVAL) {
+						if((result = noomC_emit_AuD(func, NOOMV_INSTR_PUSHUPVAL, _ENV.idx, constidx))) return result;
+					} else {
+						// bitchass
+						if((result = noomC_emit_AuD(func, NOOMV_INSTR_PUSHVAL, 0, _ENV.idx))) return result;
+					}
+					if ((result = noomC_emit_AuD(func, NOOMV_INSTR_GETFIELD, 0, constidx))) return result;
+					break;
+				}
+			}
+
+			// okay, now we loop from second one to the second-to-last one.
+			for (noom_uint_t i = 1; i < (fname_node->subnodec-1); i++) {
+				const noomP_Node* field = fname_node->subnodes[i];
+
+				if (field->type != NOOMP_NODE_FIELDNAME) return NOOM_EINTERNAL; // must be this; only last one can be method
+
+				noom_uint_t field_len = noomL_tokenlen(parser->code, field->source_offset, parser->version);
+
+				unsigned short fieldidx; // i think that's the right type? idk man
+				const char* field_name = parser->code + field->source_offset;
+				if ((result = noomC_addconst_str(compiler, vm, field_name, field_len, &fieldidx))) return result;
+
+				if ((result = noomC_emit_AuD(func, NOOMV_INSTR_GETFIELD, 0, fieldidx))) return result;
+			}
+			// we should now just have the final table in the stack (if i did it right; which honestly; no clue.
+
+			// last one.
+			const noomP_Node* final = fname_node->subnodes[fname_node->subnodec-1];
+
+			const char* final_name = parser->code + final->source_offset;
+			noom_uint_t fieldlen = noomL_tokenlen(parser->code, final->source_offset, parser->version);
+			
+			unsigned short fieldidx;
+			if ((result = noomC_addconst_str(compiler, vm, final_name, fieldlen, &fieldidx))) return result;
+
+			if ((result = noomC_emit_AuD(func, NOOMV_INSTR_SETFIELD, 0, fieldidx))) return result;
+
+			// fall through to the curstack--
 		}
 
 		compiler->curstack--;
