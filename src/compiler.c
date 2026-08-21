@@ -43,6 +43,27 @@ typedef struct noomC_LocalInfo {
 	bool isConst;
 } noomC_LocalInfo;
 
+typedef struct noomC_AssignPlace {
+	enum {
+		NOOMC_FIELD,
+		NOOMC_INDEX,
+		NOOMC_VARIABLE,
+	} type;
+	union {
+		struct {
+			unsigned char table_slot;
+			union {
+				unsigned short field_idx;
+				unsigned char index_slot;
+			};
+		};
+		struct {
+			const char* varname;
+			noom_uint_t name_len;
+		};
+	};
+} noomC_AssignPlace;
+
 static noom_Exit noomC_addLocal(noomC_Compiler* c, noomC_Local local) {
 	if (c->localc == NOOMC_MAXLOCAL) return NOOM_EINTERNAL;
 	c->locals[c->localc++] = local;
@@ -507,6 +528,111 @@ noom_Exit noomC_compile_proto(
 	return NOOM_OK;
 }
 
+noom_Exit noomC_emit_assign_location(
+    noom_LuaVM* vm,
+    noomC_Compiler* compiler,
+    const noomP_Parser* parser,
+    noomV_Function* func,
+    const noomP_Node* target,
+    noomC_AssignPlace* place) {
+
+	noom_Exit result;
+	
+	if (target->type == NOOMP_NODE_VARIABLE) {
+		const char* varname = parser->code + target->source_offset;
+		noom_uint_t namelen = noomL_tokenlen(parser->code, target->source_offset, parser->version);
+
+		*place = (noomC_AssignPlace){
+			.type = NOOMC_VARIABLE,
+			.varname = varname,
+			.name_len = namelen
+		};
+
+		return NOOM_OK;
+	}
+
+	if (target->type == NOOMP_NODE_GETFIELD) {
+		if ((result = noomC_compile_expr(vm, compiler, parser, func, target->subnodes[0], 1))) return result;
+		const unsigned char table_slot = (unsigned char)(compiler->curstack - 1);
+
+		const noomP_Node* name_node = target->subnodes[1];
+		const char* fieldname = parser->code + name_node->source_offset;
+		noom_uint_t fieldname_len = noomL_tokenlen(parser->code, name_node->source_offset, parser->version);
+
+		unsigned short const_idx;
+		if ((result = noomC_addconst_str(compiler, vm, fieldname, fieldname_len, &const_idx))) return result;
+
+		*place = (noomC_AssignPlace){
+			.type = NOOMC_FIELD,
+			.table_slot = table_slot,
+			.field_idx = const_idx,
+		};
+
+		return NOOM_OK;
+	}
+
+	if (target->type == NOOMP_NODE_INDEX) {
+		if ((result = noomC_compile_expr(vm, compiler, parser, func, target->subnodes[0], 1))) return result;
+		const unsigned char table_slot = (unsigned char)(compiler->curstack - 1);
+
+		if ((result = noomC_compile_expr(vm, compiler, parser, func, target->subnodes[1], 1))) return result;
+		const unsigned char field_slot = (unsigned char)(compiler->curstack - 1);
+
+		*place = (noomC_AssignPlace){
+			.type = NOOMC_INDEX,
+			.table_slot = table_slot,
+			.index_slot = field_slot,
+		};
+
+		return NOOM_OK;
+	}
+
+	return NOOM_EINTERNAL;
+}
+
+// does NOT clean up the values/assignment locations for you. YOU have to do that.
+noom_Exit noomC_emit_assignment(noom_LuaVM* vm,
+    noomC_Compiler* compiler,
+    const noomP_Parser* parser,
+    noomV_Function* func,
+    noomC_AssignPlace assign_place,
+    unsigned char value_slot) {
+
+	noom_Exit result;
+
+	// TODO: optimize by removing worthless PUSHVALs lol
+	switch (assign_place.type) {
+		case NOOMC_VARIABLE:
+			if ((result = noomC_emit_AuD(func, NOOMV_INSTR_PUSHVAL, 0, value_slot))) return result; // copy value
+			compiler->curstack++;
+			return noomC_identifyLocalAndSet(compiler, vm, assign_place.varname, assign_place.name_len); // should eat the copy for us
+		case NOOMC_FIELD:
+			if ((result = noomC_emit_AuD(func, NOOMV_INSTR_PUSHVAL, 0, assign_place.table_slot))) return result; // copy table
+			compiler->curstack++;
+			if ((result = noomC_emit_AuD(func, NOOMV_INSTR_PUSHVAL, 0, value_slot))) return result; // copy value
+			compiler->curstack++;
+
+			if ((result = noomC_emit_AuD(func, NOOMV_INSTR_SETFIELD, 0, assign_place.field_idx))) return result;
+			compiler->curstack -= 2;
+			
+			return NOOM_OK;
+		case NOOMC_INDEX:
+			if ((result = noomC_emit_AuD(func, NOOMV_INSTR_PUSHVAL, 0, assign_place.table_slot))) return result; // copy table
+			compiler->curstack++;
+			if ((result = noomC_emit_AuD(func, NOOMV_INSTR_PUSHVAL, 0, assign_place.index_slot))) return result; // copy value
+			compiler->curstack++;
+			if ((result = noomC_emit_AuD(func, NOOMV_INSTR_PUSHVAL, 0, value_slot))) return result; // copy value
+			compiler->curstack++;
+
+			if ((result = noomC_emit_ABC(func, NOOMV_INSTR_SETTABLE, 0, 0, 0))) return result;
+			compiler->curstack -= 3;
+			return NOOM_OK;
+	}
+
+	return NOOM_EINTERNAL;
+ }
+
+// assumes value is at TOP OF STACK!!!!! (idk why it takes a value_slot either but i'm too lazy to change it)
 noom_Exit noomC_emit_assign_to(
     noom_LuaVM* vm,
     noomC_Compiler* compiler,
@@ -523,8 +649,12 @@ noom_Exit noomC_emit_assign_to(
 	}
 	
 	if (target->type == NOOMP_NODE_GETFIELD) {
+		// stack: <value>
+	
 		if ((result = noomC_compile_expr(vm, compiler, parser, func, target->subnodes[0], 1))) return result;
 		const unsigned char table_slot = (unsigned char)(compiler->curstack - 1);
+
+		// <value, table>
 
 		const noom_uint_t length = noomL_tokenlen(parser->code, target->subnodes[1]->source_offset, parser->version);
 		
@@ -534,29 +664,45 @@ noom_Exit noomC_emit_assign_to(
 		if ((result = noomC_emit_AuD(func, NOOMV_INSTR_PUSHVAL, 0, value_slot))) return result;
 		compiler->curstack++;
 
-		if ((result = noomC_emit_AuD(func, NOOMV_INSTR_SETFIELD, table_slot, constidx))) return result;
+		// <value, table, value> TODO: maybe rotate instead?
+		if ((result = noomC_emit_AuD(func, NOOMV_INSTR_SETFIELD, 0, constidx))) return result;
+		compiler->curstack -= 2;
+
+		// <value>
+
+		if ((result = noomC_emit_AuD(func, NOOMV_INSTR_POP, 0, 0))) return result;
 		compiler->curstack--;
 
-		if ((result = noomC_emit_AuD(func, NOOMV_INSTR_POP, 0, 1))) return result;
-		compiler->curstack -= 2;
+		// <>
 
 		return NOOM_OK;
 	}
 
 	if (target->type == NOOMP_NODE_INDEX) {
+		// <value>
+	
 		if ((result = noomC_compile_expr(vm, compiler, parser, func, target->subnodes[0], 1))) return result;
 		const unsigned char table_slot = (unsigned char)(compiler->curstack - 1);
 
+		// <value, table>
+
 		if ((result = noomC_compile_expr(vm, compiler, parser, func, target->subnodes[1], 1))) return result;
+
+		// <value, table, index>
 
 		if ((result = noomC_emit_AuD(func, NOOMV_INSTR_PUSHVAL, 0, value_slot))) return result;
 		compiler->curstack++;
 
-		if ((result = noomC_emit_ABC(func, NOOMV_INSTR_SETTABLE, table_slot, 0, 0))) return result;
-		compiler->curstack -= 2;
+		// <value, table, index, value> TODO: maybe rotate instead here too?
+		if ((result = noomC_emit_ABC(func, NOOMV_INSTR_SETTABLE, 0, 0, 0))) return result;
+		compiler->curstack -= 3;
 
-		if ((result = noomC_emit_AuD(func, NOOMV_INSTR_POP, 0, 1))) return result;
-		compiler->curstack -= 2;
+		// <value>
+
+		if ((result = noomC_emit_AuD(func, NOOMV_INSTR_POP, 0, 0))) return result;
+		compiler->curstack--;
+
+		// <>
 
 		return NOOM_OK;
 	}
@@ -1092,28 +1238,56 @@ noom_Exit noomC_add_stuff_to_function(noom_LuaVM* vm, noomC_Compiler* compiler, 
 		while (place_count < node->subnodec && node->subnodes[place_count]->type == NOOMP_NODE_ASSIGNPLACE) place_count++;
 		noom_uint_t value_count = node->subnodec - place_count;
 		
-		// subtly wrong execution but also just wrong... order of instructions!
-		// TODO: burn it with fire
-		// WHY: assigning instructions fundamentally assume the value is on the top of the stack,
-		// so this is just bad. Lua also evalutes stuff differently, with f().x = g() calling f before g.
-		// IF WE WANT TO KEEP THE BROKEN ORDER: we should push all of the values first, then do the assignments in reverse order.
-		// IF WE WANT TO FIX THE ORDER: we'd need the emit_assign_to output extra information for the 2nd half of the assingment,
-		// so it can for example call f() and get th return but store how to assign to its result.
+		// evil blendi goose evil fixed this
 
-		unsigned char value_base = (unsigned char)compiler->curstack;
+		noomC_AssignPlace* assign_places = noom_alloc(sizeof(noomC_AssignPlace) * place_count);
+		if (assign_places == 0) return NOOM_ENOMEM;
+
+		noom_uint_t pop_count = value_count;
+
+		for (noom_uint_t i = 0; i < place_count; i++) {
+			noomP_Node* target_full = node->subnodes[i];
+			noomP_Node* target = target_full->subnodes[0]; // should be fine?
+			if ((result = noomC_emit_assign_location(vm, compiler, parser, func, target, &assign_places[i]))) return result;
+
+			switch (assign_places[i].type) {
+				case NOOMC_VARIABLE:
+					// nothing to pop
+					break;
+				case NOOMC_FIELD:
+					pop_count += 1; // table
+					break;
+				case NOOMC_INDEX:
+					pop_count += 2; // table AND index
+					break;
+			}
+		}
+
+		unsigned char first_val_slot = compiler->curstack;
 		for (noom_uint_t i = 0; i < value_count; i++) {
-			bool is_last = i == value_count - 1;
-			int wanted = is_last ? (int)(place_count - i) : 1;
-			if ((result = noomC_compile_expr(vm, compiler, parser, func, node->subnodes[place_count + i], wanted))) return result;
+			bool is_last = i == (value_count - 1);
+			noom_uint_t wanted_c = is_last ? (place_count - i) : 1;
+			if ((result = noomC_compile_expr(vm, compiler, parser, func, node->subnodes[place_count + i], wanted_c))) return result;
 		}
 
-		for (int i = (int)place_count - 1; i >= 0; i--) {
-			unsigned char val_slot = (unsigned char)(value_base + i);
-			const noomP_Node* target = node->subnodes[i]->subnodes[0];
-			if ((result = noomC_emit_assign_to(vm, compiler, parser, func, target, val_slot))) return result;
+		// now we need to ACTUALLY assign.
+		// here i'm assuming we actually got exactly the right amount of things pushed to the stack; i think that's right?
+		// TODO: make sure that's right; if not, push extra nils or pop extra values maybe???
+		for (noom_uint_t i = 0; i < place_count; i++) {
+			unsigned char val_slot = first_val_slot + i;
+
+			if ((result = noomC_emit_assignment(vm, compiler, parser, func, assign_places[i], val_slot))) return result;
 		}
 
-		compiler->curstack = value_base;
+		// now to pop it all away
+		// TODO: maybe add a way to emit multiple pops if needed.
+		if (pop_count > 0) {
+			if ((result = noomC_emit_AuD(func, NOOMV_INSTR_POP, 0, pop_count - 1))) return result;
+			compiler->curstack -= pop_count;
+		}
+
+		noom_free(assign_places); // almost forgot!
+
 		return NOOM_OK;
 	}
 
