@@ -1244,7 +1244,10 @@ noom_Exit noomC_add_stuff_to_function(noom_LuaVM* vm, noomC_Compiler* compiler, 
 		for (noom_uint_t i = 0; i < place_count; i++) {
 			noomP_Node* target_full = node->subnodes[i];
 			noomP_Node* target = target_full->subnodes[0]; // should be fine?
-			if ((result = noomC_emit_assign_location(vm, compiler, parser, func, target, &assign_places[i]))) return result;
+			if ((result = noomC_emit_assign_location(vm, compiler, parser, func, target, &assign_places[i]))) {
+				noom_free(assign_places);
+				return result;
+			}
 
 			switch (assign_places[i].type) {
 				case NOOMC_VARIABLE:
@@ -1263,7 +1266,10 @@ noom_Exit noomC_add_stuff_to_function(noom_LuaVM* vm, noomC_Compiler* compiler, 
 		for (noom_uint_t i = 0; i < value_count; i++) {
 			bool is_last = i == (value_count - 1);
 			noom_uint_t wanted_c = is_last ? (place_count - i) : 1;
-			if ((result = noomC_compile_expr(vm, compiler, parser, func, node->subnodes[place_count + i], wanted_c))) return result;
+			if ((result = noomC_compile_expr(vm, compiler, parser, func, node->subnodes[place_count + i], wanted_c))) {
+				noom_free(assign_places);
+				return result;
+			}
 		}
 
 		// now we need to ACTUALLY assign.
@@ -1272,8 +1278,12 @@ noom_Exit noomC_add_stuff_to_function(noom_LuaVM* vm, noomC_Compiler* compiler, 
 		for (noom_uint_t i = 0; i < place_count; i++) {
 			unsigned char val_slot = first_val_slot + i;
 
-			if ((result = noomC_emit_assignment(vm, compiler, parser, func, assign_places[i], val_slot))) return result;
+			if ((result = noomC_emit_assignment(vm, compiler, parser, func, assign_places[i], val_slot))) {
+				noom_free(assign_places);
+				return result;
+			}
 		}
+		noom_free(assign_places); // almost forgot!
 
 		// now to pop it all away
 		// TODO: maybe add a way to emit multiple pops if needed.
@@ -1282,7 +1292,6 @@ noom_Exit noomC_add_stuff_to_function(noom_LuaVM* vm, noomC_Compiler* compiler, 
 			compiler->curstack -= pop_count;
 		}
 
-		noom_free(assign_places); // almost forgot!
 
 		return NOOM_OK;
 	}
