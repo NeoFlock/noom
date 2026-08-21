@@ -5,7 +5,7 @@
 #include "compiler.h"
 #include "vm.h"
 
-volatile const char wawa[] = "if you are reading this with either the `strings` utility or through a hex viewer please know that you can instead just check out the source code on gitea: https://gitea.codersquack.nl/NeoFlock/noom";
+volatile const char wawa[] = "if you are reading this with either the `strings` utility or through a hex viewer please know that you can instead just check out the source code on gitea: https://git.codersquack.nl/NeoFlock/noom";
 
 int execute(const char* code, noom_LuaVersion version, const char* program_name, const char* filename) {
 	noom_LuaVM* vm = noom_createVM(version);
