@@ -999,7 +999,7 @@ noom_Exit noomC_compile_block(noom_LuaVM* vm, noomC_Compiler* compiler, const no
 	if (compiler->pendingGotoc > 0) return NOOM_EGOTONOLABEL;
 
 	if (is_toplevel)
-		return noomC_emit_AuD(func, NOOMV_INSTR_RET, 0, 1);
+		return noomC_emit_AuD(func, NOOMV_INSTR_RET, 0, compiler->curstack);
 	else
 		return NOOM_OK;
 }
@@ -1218,10 +1218,6 @@ noom_Exit noomC_add_stuff_to_function(noom_LuaVM* vm, noomC_Compiler* compiler, 
 
 	// return expr1, expr2, ...
 	if (node->type == NOOMP_NODE_RETURN) {
-		if (node->subnodec == 0) {
-			return noomC_emit_AuD(func, NOOMV_INSTR_RET, 0, 1);
-		}
-
 		unsigned char base_slot = (unsigned char)compiler->curstack;
 
 		for (noom_uint_t i = 0; i < node->subnodec; i++) {
@@ -1229,7 +1225,7 @@ noom_Exit noomC_add_stuff_to_function(noom_LuaVM* vm, noomC_Compiler* compiler, 
 			if ((result = noomC_compile_expr(vm, compiler, parser, func, node->subnodes[i], is_last ? -1 : 1))) return result;
 		}
 
-		return noomC_emit_AuD(func, NOOMV_INSTR_RET, base_slot, 0);
+		return noomC_emit_AuD(func, NOOMV_INSTR_RET, 0, base_slot);
 	}
 
 	// a, b.c, d[e] = expr1, expr2, ...
