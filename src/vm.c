@@ -758,7 +758,11 @@ noom_Exit noomV_runCodeResumed(noom_LuaVM *vm, noom_Exit status, void *_ctx) {
 			break;
 		case NOOMV_INSTR_PUSHBOOLS:
 			{
-				return NOOM_EINTERNAL;
+				for (noom_uint_t i = 0; i <= inst.a; i++) {
+					unsigned char bit = (inst.us & (1 << i)) != 0; // according to vm spec; correct me if i'm wrong
+					e = noom_pushbool(vm, bit);
+					if(e) return e;
+				}
 			}
 			break;
 		case NOOMV_INSTR_PUSHUPVAL:
