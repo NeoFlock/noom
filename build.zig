@@ -25,6 +25,7 @@ pub fn build(b: *std.Build) void {
 			"src/gc.c",
 			"src/error.c",
 			"src/main.c",
+			"src/noom.c",
 		}
 	});
 
