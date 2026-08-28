@@ -513,7 +513,7 @@ noom_Exit noomV_setThreadStackSize(noom_LuaVM* vm, noomV_Thread* coro, noom_int_
 		noom_uint_t newCap = coro->stackcap;
 		while (newCap < stack) newCap *= 2;
 
-		noomV_Value* newStack = noom_realloc(coro->stack, sizeof(noomV_Value) * coro->stackcap);
+		noomV_Value* newStack = noom_realloc(coro->stack, sizeof(noomV_Value) * newCap);
 		if (newStack == 0) return NOOM_ENOMEM;
 		coro->stack = newStack;
 		coro->stackcap = newCap;
