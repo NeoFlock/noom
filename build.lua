@@ -39,7 +39,7 @@ options:
 local function filename(path)
 	local s, e = 1, #path
 	for i = 1, #path do
-		if path:sub(i, i) == '/' then s = i + 1 end;
+		if path:sub(i, i) == separator then s = i + 1 end;
 		if path:sub(i, i) == '.' then e = i - 1 end;
 	end
 
