@@ -710,6 +710,17 @@ noom_Exit noomC_emit_assign_to(
 	return NOOM_EINTERNAL;
 }
 
+// does NOT increment curstack!!!!!!
+noom_Exit noomC_emit_nils(noom_LuaVM* vm, noomC_Compiler* compiler, const noomP_Parser* parser, noomV_Function* func, noom_uint_t nil_c) {
+	if (nil_c == 0) return NOOM_OK;
+
+	if (func->codesize > 0 && func->code[func->codesize - 1].op == NOOMV_INSTR_PUSHNIL) {
+		func->code[func->codesize - 1].us += nil_c; // TODO: check if passing the unsigned short limit
+		return NOOM_OK;
+	}
+	return noomC_emit_AuD(func, NOOMV_INSTR_PUSHNIL, 0, nil_c - 1);
+}
+
 noom_Exit noomC_compile_expr(
     noom_LuaVM* vm,
     noomC_Compiler* compiler,
@@ -721,16 +732,20 @@ noom_Exit noomC_compile_expr(
 	noom_Exit result;
 
 	if (node->type == NOOMP_NODE_NILLITERAL) {
-		compiler->curstack++;
-		if (func->codesize > 0 && func->code[func->codesize - 1].op == NOOMV_INSTR_PUSHNIL) {
-			func->code[func->codesize - 1].us++;
-			return NOOM_OK;
-		}
-		return noomC_emit_AuD(func, NOOMV_INSTR_PUSHNIL, 0, 1);
+		if (retc == 0) return NOOM_OK;
+	
+		noom_uint_t nil_c = (retc == -1) ? 1 : retc;
+		
+		if (retc != -1) compiler->curstack += nil_c;
+
+		return noomC_emit_nils(vm, compiler, parser, func, nil_c);
 	}
 
 	if (node->type == NOOMP_NODE_BOOLEANLITERAL) {
-		compiler->curstack++;
+		if (retc == 0) return NOOM_OK;
+	
+		if (retc != -1) compiler->curstack++;
+		
 		noom_uint_t length = noomL_tokenlen(parser->code, node->source_offset, parser->version);
 		bool val = noom_memeq(parser->code + node->source_offset, length, "true", 4);
 		// Merge consecutive PUSHBOOLs...
@@ -741,25 +756,58 @@ noom_Exit noomC_compile_expr(
 			if (val) last->us |= (unsigned short)(1 << last->a);
 			return NOOM_OK;
 		}
-		return noomC_emit_AuD(func, NOOMV_INSTR_PUSHBOOLS, 0, val ? 1 : 0);
+		if ((result = noomC_emit_AuD(func, NOOMV_INSTR_PUSHBOOLS, 0, val ? 1 : 0))) return result;
+
+		if (retc != -1) {
+			noom_uint_t nil_c = retc - 1;
+
+			compiler->curstack += nil_c;
+			return noomC_emit_nils(vm, compiler, parser, func, nil_c);
+		} else {
+			return NOOM_OK;
+		}
 	}
 
 	if (node->type == NOOMP_NODE_NUMBERLITERAL) {
+		if (retc == 0) return NOOM_OK;
+	
 		noomV_Value val = noom_tonumber_except_different_name_so_public_fucking_api_works(parser->code + node->source_offset, 0, parser->version);
 		unsigned short const_idx;
 		if ((result = noomC_addconst_val(compiler, val, &const_idx))) return result;
-		compiler->curstack++;
-		return noomC_emit_AuD(func, NOOMV_INSTR_PUSHCONST, 0, const_idx);
+		if (retc != -1) compiler->curstack++;
+		
+		if ((result = noomC_emit_AuD(func, NOOMV_INSTR_PUSHCONST, 0, const_idx))) return result;
+
+		if (retc != -1) {
+			noom_uint_t nil_c = retc - 1;
+
+			compiler->curstack += nil_c;
+			return noomC_emit_nils(vm, compiler, parser, func, nil_c);
+		} else {
+			return NOOM_OK;
+		}
 	}
 
 	if (node->type == NOOMP_NODE_STRINGLITERAL) {
+		if (retc == 0) return NOOM_OK;
+	
 		unsigned short const_idx;
 		noom_uint_t len;
 		const char* sptr = noomC_decode_string_token(compiler, parser->code + node->source_offset, noomL_tokenlen(parser->code, node->source_offset, parser->version), parser->version, &len);
 		if (sptr == 0) return NOOM_ENOMEM;
 		if ((result = noomC_addconst_str(compiler, vm, sptr, len, &const_idx)) != NOOM_OK) return result;
-		compiler->curstack++;
-		return noomC_emit_AuD(func, NOOMV_INSTR_PUSHCONST, 0, const_idx);
+		if (retc != -1) compiler->curstack++;
+		
+		if ((result = noomC_emit_AuD(func, NOOMV_INSTR_PUSHCONST, 0, const_idx))) return result;
+
+		if (retc != -1) {
+			noom_uint_t nil_c = retc - 1;
+
+			compiler->curstack += nil_c;
+			return noomC_emit_nils(vm, compiler, parser, func, nil_c);
+		} else {
+			return NOOM_OK;
+		}
 	}
 
 	if (node->type == NOOMP_NODE_VARARGLITERAL) {
@@ -770,12 +818,25 @@ noom_Exit noomC_compile_expr(
 	}
 
 	if (node->type == NOOMP_NODE_PARENTHESIZED) {
-		return noomC_compile_expr(vm, compiler, parser, func, node->subnodes[0], 1);
+		if ((result = noomC_compile_expr(vm, compiler, parser, func, node->subnodes[0], 1))) return result;
+
+		if (retc == 0) {
+			return noomC_emit_AuD(func, NOOMV_INSTR_POP, 0, 0); // 0 means 1 pop
+			// we still want it evaluated, but we don't want the result.
+		} else if (retc == -1) {
+			compiler->curstack--; // previous compile added one to it, but for -1 we want to leave this unchanged (i think)
+			return NOOM_OK;
+		} else {
+			// might need to push nils
+			noom_uint_t nil_c = retc - 1;
+			compiler->curstack += nil_c;
+			return noomC_emit_nils(vm, compiler, parser, func, nil_c);
+		}
 	}
 
 	if (node->type == NOOMP_NODE_TABLELITERAL) {
 		if ((result = noomC_emit_AuD(func, NOOMV_INSTR_CREATETABLE, 0, node->subnodec))) return result;
-		const unsigned table_slot = compiler->curstack++; // FIXME is this right?
+		const unsigned table_slot = compiler->curstack;
 
 		noom_uint_t array_idx = 1; // 1 BASED LUA ARRAY INDEXATION!!!!!!!!! DAMN!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -806,19 +867,41 @@ noom_Exit noomC_compile_expr(
 				if ((result = noomC_compile_expr(vm, compiler, parser, func, entry, is_last ? -1 : 1))) return result;
 				if (is_last) {
 					if ((result = noomC_emit_AuD(func, NOOMV_INSTR_SETLIST, table_slot, (unsigned short)array_idx))) return result;
-					compiler->curstack = table_slot + 1;
+					compiler->curstack = table_slot;
 				} else {
 					array_idx++;
 				}
 			}
 		}
 
-		return NOOM_OK;
+		if (retc != -1) compiler->curstack++;
+
+		if (retc != -1) {
+			noom_uint_t nil_c = retc - 1;
+
+			compiler->curstack += nil_c;
+			return noomC_emit_nils(vm, compiler, parser, func, nil_c);
+		} else {
+			return NOOM_OK;
+		}
 	}
 
 	if (node->type == NOOMP_NODE_UNARYOPERATOR) {
 		if ((result = noomC_compile_expr(vm, compiler, parser, func, node->subnodes[0], 1))) return result;
-		return noomC_emit_ABC(func, NOOMV_INSTR_OP, 0, noomC_lex_un_op(parser, node->source_offset), 0);
+		if ((result = noomC_emit_ABC(func, NOOMV_INSTR_OP, 0, noomC_lex_un_op(parser, node->source_offset), 0))) return result;
+
+		if (retc == 0) {
+			return noomC_emit_AuD(func, NOOMV_INSTR_POP, 0, 0); // 0 means 1 pop
+			// we still want it evaluated, but we don't want the result.
+		} else if (retc == -1) {
+			compiler->curstack--; // previous stuff added one to it, but for -1 we want to leave this unchanged (i think)
+			return NOOM_OK;
+		} else {
+			// might need to push nils
+			noom_uint_t nil_c = retc - 1;
+			compiler->curstack += nil_c;
+			return noomC_emit_nils(vm, compiler, parser, func, nil_c);
+		}
 	}
 
 	if (node->type == NOOMP_NODE_BINARYOPERATOR) {
@@ -846,7 +929,20 @@ noom_Exit noomC_compile_expr(
 			}
 			compiler->curstack -= (unsigned)amount;
 			compiler->curstack++;
-			return noomC_emit_AuD(func, NOOMV_INSTR_CONCAT, 0, (unsigned short)(amount - 1));
+			if ((result = noomC_emit_AuD(func, NOOMV_INSTR_CONCAT, 0, (unsigned short)(amount - 1)))) return result;
+
+			if (retc == 0) {
+				return noomC_emit_AuD(func, NOOMV_INSTR_POP, 0, 0); // 0 means 1 pop
+				// we still want it evaluated, but we don't want the result.
+			} else if (retc == -1) {
+				compiler->curstack--; // previous stuff added one to it, but for -1 we want to leave this unchanged (i think)
+				return NOOM_OK;
+			} else {
+				// might need to push nils
+				noom_uint_t nil_c = retc - 1;
+				compiler->curstack += nil_c;
+				return noomC_emit_nils(vm, compiler, parser, func, nil_c);
+			}
 		}
 
 		// Fuck me
@@ -868,14 +964,41 @@ noom_Exit noomC_compile_expr(
 			compiler->curstack--;
 
 			func->code[what_are_we_doing_bro].us = (unsigned short)func->codesize;
-			return NOOM_OK;
+
+
+			// see, i have no clue how this code works so i'm just going to ASSUME that this will just work
+			if (retc == 0) {
+				return noomC_emit_AuD(func, NOOMV_INSTR_POP, 0, 0); // 0 means 1 pop
+				// we still want it evaluated, but we don't want the result.
+			} else if (retc == -1) {
+				compiler->curstack--; // previous stuff added one to it, but for -1 we want to leave this unchanged (i think)
+				return NOOM_OK;
+			} else {
+				// might need to push nils
+				noom_uint_t nil_c = retc - 1;
+				compiler->curstack += nil_c;
+				return noomC_emit_nils(vm, compiler, parser, func, nil_c);
+			}
 		}
 
 		if ((result = noomC_compile_expr(vm, compiler, parser, func, node->subnodes[0], 1))) return result;
 		if ((result = noomC_compile_expr(vm, compiler, parser, func, node->subnodes[1], 1))) return result;
 		// this consumes 2 operands and pushes 1 value, thus having a net stack effect of removing 1 item
 		compiler->curstack--;
-		return noomC_emit_ABC(func, NOOMV_INSTR_OP, 1, noomC_lex_bin_op(parser, node->source_offset), 0);
+		if ((result = noomC_emit_ABC(func, NOOMV_INSTR_OP, 1, noomC_lex_bin_op(parser, node->source_offset), 0))) return result;
+
+		if (retc == 0) {
+			return noomC_emit_AuD(func, NOOMV_INSTR_POP, 0, 0); // 0 means 1 pop
+			// we still want it evaluated, but we don't want the result.
+		} else if (retc == -1) {
+			compiler->curstack--; // previous stuff added one to it, but for -1 we want to leave this unchanged (i think)
+			return NOOM_OK;
+		} else {
+			// might need to push nils
+			noom_uint_t nil_c = retc - 1;
+			compiler->curstack += nil_c;
+			return noomC_emit_nils(vm, compiler, parser, func, nil_c);
+		}
 	}
 
 	if (node->type == NOOMP_NODE_GETFIELD) {
@@ -883,14 +1006,40 @@ noom_Exit noomC_compile_expr(
 		unsigned short constidx;
 		// dumbass oneliner
 		if ((result = noomC_addconst_str(compiler, vm, parser->code + node->subnodes[1]->source_offset, noomL_tokenlen(parser->code, node->subnodes[1]->source_offset, parser->version), &constidx))) return result;
-		return noomC_emit_AuD(func, NOOMV_INSTR_GETFIELD, 0, constidx);
+		if ((result = noomC_emit_AuD(func, NOOMV_INSTR_GETFIELD, 0, constidx))) return result;
+
+		if (retc == 0) {
+			return noomC_emit_AuD(func, NOOMV_INSTR_POP, 0, 0); // 0 means 1 pop
+			// we still want it evaluated, but we don't want the result.
+		} else if (retc == -1) {
+			compiler->curstack--; // previous stuff added one to it, but for -1 we want to leave this unchanged (i think)
+			return NOOM_OK;
+		} else {
+			// might need to push nils
+			noom_uint_t nil_c = retc - 1;
+			compiler->curstack += nil_c;
+			return noomC_emit_nils(vm, compiler, parser, func, nil_c);
+		}
 	}
 
 	if (node->type == NOOMP_NODE_INDEX) {
 		if ((result = noomC_compile_expr(vm, compiler, parser, func, node->subnodes[0], 1))) return result;
 		if ((result = noomC_compile_expr(vm, compiler, parser, func, node->subnodes[1], 1))) return result;
 		compiler->curstack--;
-		return noomC_emit_ABC(func, NOOMV_INSTR_GETTABLE, 0, 0, 0);
+		if ((result = noomC_emit_ABC(func, NOOMV_INSTR_GETTABLE, 0, 0, 0))) return result;
+
+		if (retc == 0) {
+			return noomC_emit_AuD(func, NOOMV_INSTR_POP, 0, 0); // 0 means 1 pop
+			// we still want it evaluated, but we don't want the result.
+		} else if (retc == -1) {
+			compiler->curstack--; // previous stuff added one to it, but for -1 we want to leave this unchanged (i think)
+			return NOOM_OK;
+		} else {
+			// might need to push nils
+			noom_uint_t nil_c = retc - 1;
+			compiler->curstack += nil_c;
+			return noomC_emit_nils(vm, compiler, parser, func, nil_c);
+		}
 	}
 
 	if (node->type == NOOMP_NODE_CALL ||
@@ -934,7 +1083,7 @@ noom_Exit noomC_compile_expr(
 		if (retc >= 0) {
 			compiler->curstack = returnToGlory + (unsigned)retc;
 		}
-		return NOOM_OK;
+		return NOOM_OK; // TODO: check if this has the right influence on the stack (i cannot be fucked to check ts rn fr)
 	}
 
 	if (node->type == NOOMP_NODE_VARIABLE) {
@@ -949,14 +1098,17 @@ noom_Exit noomC_compile_expr(
 
 		switch (info.type) {
 			case NOOMC_LOCAL:
-				return noomC_emit_AuD(func, NOOMV_INSTR_PUSHVAL, 0, info.idx);
+				if ((result = noomC_emit_AuD(func, NOOMV_INSTR_PUSHVAL, 0, info.idx))) return result;
+				break;
 			case NOOMC_UPVAL:
-				return noomC_emit_AuD(func, NOOMV_INSTR_PUSHUPVAL, 0, info.idx);
+				if ((result = noomC_emit_AuD(func, NOOMV_INSTR_PUSHUPVAL, 0, info.idx))) return result;
+				break;
 			case NOOMC_GLOBAL: {
 				unsigned short constidx;
 				if((result = noomC_addconst_str(compiler, vm, varname, namelen, &constidx))) return result;
 				if(parser->version == NOOM_VERSION_51) {
-					return noomC_emit_AuD(func, NOOMV_INSTR_PUSHGLOBAL, 0, constidx);
+					if ((result = noomC_emit_AuD(func, NOOMV_INSTR_PUSHGLOBAL, 0, constidx))) return result;
+					break;
 				}
 				noomC_LocalInfo _ENV;
 				if((result = noomC_identifyLocal(compiler, "_ENV", 4, &_ENV))) return result;
@@ -969,11 +1121,25 @@ noom_Exit noomC_compile_expr(
 					// bitchass
 					if((result = noomC_emit_AuD(func, NOOMV_INSTR_PUSHVAL, 0, _ENV.idx))) return result;
 				}
-				return noomC_emit_AuD(func, NOOMV_INSTR_GETFIELD, 0, constidx);
+				if ((result = noomC_emit_AuD(func, NOOMV_INSTR_GETFIELD, 0, constidx))) return result;
+				break;
+			default:
+				return NOOM_EINTERNAL;
 			}
 		}
-		// forgot a case
-		return NOOM_EINTERNAL;
+
+		if (retc == 0) {
+			return noomC_emit_AuD(func, NOOMV_INSTR_POP, 0, 0); // 0 means 1 pop
+			// we still want it evaluated, but we don't want the result.
+		} else if (retc == -1) {
+			compiler->curstack--; // previous stuff added one to it, but for -1 we want to leave this unchanged (i think)
+			return NOOM_OK;
+		} else {
+			// might need to push nils
+			noom_uint_t nil_c = retc - 1;
+			compiler->curstack += nil_c;
+			return noomC_emit_nils(vm, compiler, parser, func, nil_c);
+		}
 	}
 
 	if (node->type == NOOMP_NODE_LAMBDAFUNCTIONLITERAL) {
@@ -985,7 +1151,20 @@ noom_Exit noomC_compile_expr(
 
 		const unsigned short proto_idx = (unsigned short)(func->protosize - 1);
 		compiler->curstack++;
-		return noomC_emit_AuD(func, NOOMV_INSTR_PUSHCLOSURE, 0, proto_idx);
+		if ((result = noomC_emit_AuD(func, NOOMV_INSTR_PUSHCLOSURE, 0, proto_idx))) return result;
+
+		if (retc == 0) {
+			return noomC_emit_AuD(func, NOOMV_INSTR_POP, 0, 0); // 0 means 1 pop
+			// we still want it evaluated, but we don't want the result. TODO: check if that's actually true for this one. idk.
+		} else if (retc == -1) {
+			compiler->curstack--; // previous stuff added one to it, but for -1 we want to leave this unchanged (i think)
+			return NOOM_OK;
+		} else {
+			// might need to push nils
+			noom_uint_t nil_c = retc - 1;
+			compiler->curstack += nil_c;
+			return noomC_emit_nils(vm, compiler, parser, func, nil_c);
+		}
 	}
 
 	return NOOM_EINTERNAL;
