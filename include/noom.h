@@ -1,7 +1,6 @@
 #ifndef NOOM_H
 #define NOOM_H
 
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -80,7 +79,6 @@ typedef enum noom_Exit {
 	NOOM_EERROR,
 } noom_Exit;
 
-// shouldn't this go to vm.h....?
 typedef enum noom_UnaryOp {
 	// -x
 	NOOM_UNARY_NEGATE,
