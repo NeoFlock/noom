@@ -768,7 +768,7 @@ noom_Exit noomC_compile_expr(
 		}
 	}
 
-	if (node->type == NOOMP_NODE_NUMBERLITERAL) {
+	if (node->type == NOOMP_NODE_NUMBERLITERAL) { // TODO: use pushint
 		if (retc == 0) return NOOM_OK;
 	
 		noomV_Value val = noom_tonumber_except_different_name_so_public_fucking_api_works(parser->code + node->source_offset, 0, parser->version);
@@ -1171,6 +1171,10 @@ noom_Exit noomC_compile_expr(
 }
 
 noom_Exit noomC_compile_block(noom_LuaVM* vm, noomC_Compiler* compiler, const noomP_Parser* parser, noomV_Function* func, const noomP_Node* node, bool is_toplevel) {
+	noom_Exit result;
+	unsigned var_count = compiler->localc;
+	unsigned stack_start = compiler->curstack;
+	
 	for (noom_uint_t i = 0; i < node->subnodec; i++) {
 		noom_Exit r = noomC_add_stuff_to_function(vm, compiler, parser, func, node->subnodes[i]);
 		if (r != NOOM_OK) return r;
@@ -1178,9 +1182,21 @@ noom_Exit noomC_compile_block(noom_LuaVM* vm, noomC_Compiler* compiler, const no
 	if (compiler->pendingGotoc > 0) return NOOM_EGOTONOLABEL;
 
 	if (is_toplevel)
-		return noomC_emit_AuD(func, NOOMV_INSTR_RET, 0, compiler->curstack);
-	else
-		return NOOM_OK;
+		if ((result = noomC_emit_AuD(func, NOOMV_INSTR_RET, 0, compiler->curstack))) return result;
+	// else
+	// 	return NOOM_OK;
+
+	for (noom_uint_t i = var_count; i < compiler->localc; i++) {
+		compiler->locals[i].dropped = true;
+		compiler->locals[i].endpc = func->codesize;
+	}
+
+	if (compiler->curstack > stack_start) {
+		if ((result = noomC_emit_AuD(func, NOOMV_INSTR_POP, 0, compiler->curstack - stack_start - 1))) return result;
+		compiler->curstack = stack_start;
+	}
+	
+	return NOOM_OK;
 }
 
 // They say you use only 10% of your brain
@@ -1593,10 +1609,67 @@ noom_Exit noomC_add_stuff_to_function(noom_LuaVM* vm, noomC_Compiler* compiler, 
 		// [VARNAME, start, stop, step?, BLOCK]
 		noom_uint_t value_count = node->subnodec - 2; 
 
+		const noomP_Node* varname_node = node->subnodes[0];
+		const noom_uint_t varname_len = noomL_tokenlen(parser->code, varname_node->source_offset, parser->version);
+
+		noom_uint_t var_pos = compiler->curstack;
 		for (noom_uint_t i = 1; i <= value_count; i++) {
 			if ((result = noomC_compile_expr(vm, compiler, parser, func, node->subnodes[i], 1))) return result;
 		}
-		// TODO i don't want to bother doing this
+
+		if (value_count == 2) {
+			// push a 1
+			if ((result = noomC_emit_AuD(func, NOOMV_INSTR_PUSHINT, 0, (unsigned short)1))) return result;
+			compiler->curstack++;
+		}
+
+		noom_uint_t loop_start = func->codesize;
+		if ((result = noomC_emit_AuD(func, NOOMV_INSTR_ITER, 0, 0))) return result; // make sure to fill the jump in later
+
+		unsigned var_count = compiler->localc;
+		unsigned stack_start = compiler->curstack;
+
+		// copy the value so we can use it for a local
+		if ((result = noomC_emit_AuD(func, NOOMV_INSTR_PUSHVAL, 0, var_pos))) return result;
+		unsigned local_pos = compiler->curstack++;
+
+		// add the local
+		noomC_Local local;
+		local.startpc = func->codesize;
+		local.endpc = 0;
+		local.name = parser->code + varname_node->source_offset;
+		local.namelen = varname_len;
+		local.stackslot = local_pos;
+		local.dropped = false;
+		local.constant = false; // if adding 5.5, make this true there
+		local.close = false;
+
+		if ((result = noomC_addLocal(compiler, local))) return result;
+
+		const noomP_Node* block = node->subnodes[node->subnodec-1];
+		noomC_compile_block(vm, compiler, parser, func, block, false);
+
+		// basically copied from compile_block. probably more generic than needed here but whateverrr
+		for (noom_uint_t i = var_count; i < compiler->localc; i++) {
+			compiler->locals[i].dropped = true;
+			compiler->locals[i].endpc = func->codesize;
+		}
+
+		if (compiler->curstack > stack_start) {
+			if ((result = noomC_emit_AuD(func, NOOMV_INSTR_POP, 0, compiler->curstack - stack_start - 1))) return result;
+			compiler->curstack = stack_start;
+		}
+
+		if ((result = noomC_emit_AuD(func, NOOMV_INSTR_JMP, 0, (unsigned short)loop_start))) return result;
+		func->code[loop_start].us = (unsigned short)func->codesize;
+
+		// pop the 3 things from the loop
+
+		if ((result = noomC_emit_AuD(func, NOOMV_INSTR_POP, 0, 2))) return result;
+		compiler->curstack -= 3;
+
+		// genuinely just did shit; please fact check this @atom @tema
+		
 		return NOOM_OK;
 	}
 
