@@ -1714,6 +1714,9 @@ noomP_Node* noomP_parseRawStatement(noomP_Parser* parser) {
 						assignment->source_offset = token.offset;
 						noomP_skip(parser, &token);
 						break;
+					} else {
+						parser->error_state = NOOMP_ERROR_EXPECTED_COMMA_OR_EQUAL_IN_ASSIGNMENT;
+						return 0; // unexpected
 					}
 				} else {
 					parser->error_state = NOOMP_ERROR_EXPECTED_COMMA_OR_EQUAL_IN_ASSIGNMENT;
