@@ -1418,7 +1418,7 @@ noom_Exit noomC_add_stuff_to_function(noom_LuaVM* vm, noomC_Compiler* compiler, 
 		noomC_AssignPlace* assign_places = noom_alloc(sizeof(noomC_AssignPlace) * place_count);
 		if (assign_places == 0) return NOOM_ENOMEM;
 
-		noom_uint_t pop_count = value_count;
+		noom_uint_t pop_count = place_count;
 
 		for (noom_uint_t i = 0; i < place_count; i++) {
 			noomP_Node* target_full = node->subnodes[i];
