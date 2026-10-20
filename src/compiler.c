@@ -3,7 +3,6 @@
 #include "compiler.h"
 #include "helper.h"
 #include "vm.h"
-#include <stdio.h>
 
 // FUCK THIS STUPID COMPILER
 // IT DESERVES...
@@ -1647,7 +1646,7 @@ noom_Exit noomC_add_stuff_to_function(noom_LuaVM* vm, noomC_Compiler* compiler, 
 		if ((result = noomC_addLocal(compiler, local))) return result;
 
 		const noomP_Node* block = node->subnodes[node->subnodec-1];
-		noomC_compile_block(vm, compiler, parser, func, block, false);
+		if ((result = noomC_compile_block(vm, compiler, parser, func, block, false))) return result;
 
 		// basically copied from compile_block. probably more generic than needed here but whateverrr
 		for (noom_uint_t i = var_count; i < compiler->localc; i++) {
@@ -1661,7 +1660,7 @@ noom_Exit noomC_add_stuff_to_function(noom_LuaVM* vm, noomC_Compiler* compiler, 
 		}
 
 		if ((result = noomC_emit_AuD(func, NOOMV_INSTR_JMP, 0, (unsigned short)loop_start))) return result;
-		func->code[loop_start].us = (unsigned short)func->codesize;
+		func->code[loop_start].us = (unsigned short)func->codesize; // TODO: use a if needed
 
 		// pop the 3 things from the loop
 
@@ -1675,7 +1674,76 @@ noom_Exit noomC_add_stuff_to_function(noom_LuaVM* vm, noomC_Compiler* compiler, 
 
 	// for k, v in expr do block end
 	if (node->type == NOOMP_NODE_FORLOOPIN) {
-		// todo nah bro
+		// varname+ expression+ block
+
+		noom_uint_t varnamec = 0;
+		while (node->subnodes[varnamec]->type == NOOMP_NODE_VARNAME) varnamec++;
+
+		noom_uint_t closer_slot = compiler->curstack;
+
+		// load all the expressions
+		for (noom_uint_t i = varnamec; i < (node->subnodec-1); i++) {
+			noom_uint_t retc = 1;
+			if ((i-varnamec) > 3) {
+				retc = 0; // even if we won't use the values; evaluate this anyway
+			} else if (i == (node->subnodec - 2)) {
+				retc = 4 - (i - varnamec); // we never want to get too many, but we DO want to be able to get up to 4 cause pairs()
+			}
+
+			if ((result = noomC_compile_expr(vm, compiler, parser, func, node->subnodes[i], retc))) return result;
+		}
+
+		if ((result = noomC_emit_AuD(func, NOOMV_INSTR_ROTATE, 4, 1))) return result;
+
+		// the to-be-closed the last argument but after the rotation it's back there.
+		if ((result = noomC_emit_AuD(func, NOOMV_INSTR_CLOSE, 0, closer_slot))) return result;
+
+		unsigned var_count = compiler->localc;
+		unsigned stack_start = compiler->curstack;
+
+		noom_uint_t loop_start = func->codesize;
+		if ((result = noomC_emit_AuD(func, NOOMV_INSTR_NEXT, 0, 0))) return result;
+
+		if ((result = noomC_emit_AuD(func, NOOMV_INSTR_SETSTACK, 0, stack_start + varnamec))) return result;
+		compiler->curstack = stack_start + varnamec;
+
+		for (noom_uint_t i = 0; i < varnamec; i++) {
+			const noomP_Node* varname_node = node->subnodes[i];
+			const noom_uint_t varname_len = noomL_tokenlen(parser->code, varname_node->source_offset, parser->version);
+
+			noomC_Local local;
+			local.startpc = func->codesize;
+			local.endpc = 0;
+			local.name = parser->code + varname_node->source_offset;
+			local.namelen = varname_len;
+			local.stackslot = stack_start + i;
+			local.dropped = false;
+			local.constant = false; // 5.5 bros gotta change ts
+			local.close = false;
+
+			if ((result = noomC_addLocal(compiler, local))) return result;
+		}
+
+		const noomP_Node* block = node->subnodes[node->subnodec-1];
+		if ((result = noomC_compile_block(vm, compiler, parser, func, block, false))) return result;
+
+		// basically copied from compile_block. probably more generic than needed here but whateverrr
+		for (noom_uint_t i = var_count; i < compiler->localc; i++) {
+			compiler->locals[i].dropped = true;
+			compiler->locals[i].endpc = func->codesize;
+		}
+
+		if (compiler->curstack > stack_start) {
+			if ((result = noomC_emit_AuD(func, NOOMV_INSTR_POP, 0, compiler->curstack - stack_start - 1))) return result;
+			compiler->curstack = stack_start;
+		}
+
+		if ((result = noomC_emit_AuD(func, NOOMV_INSTR_JMP, 0, (unsigned short)loop_start))) return result;
+		func->code[loop_start].us = (unsigned short)func->codesize; // TODO: use a if needed
+
+		if ((result = noomC_emit_AuD(func, NOOMV_INSTR_POP, 0, 3))) return result;
+		compiler->curstack -= 4;
+		
 		return NOOM_OK;
 	}
 
