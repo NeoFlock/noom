@@ -123,6 +123,14 @@ noomV_DisInfo noomV_disInfo[NOOMV_INSTR_NOP2] = {
         .name = "CNJMP",
         .arg = NOOMV_DIS_uD,
     },
+    [NOOMV_INSTR_NEXT] = {
+        .name = "NEXT",
+        .arg = NOOMV_DIS_uD,
+    },
+    [NOOMV_INSTR_ITER] = {
+        .name = "ITER",
+        .arg = NOOMV_DIS_uD,
+    },
 
     // For bullshit
 

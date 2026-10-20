@@ -157,6 +157,21 @@ typedef enum noomV_Opcode : unsigned char {
 	// pops value, if value is falsy, does the same as JMP.
 	NOOMV_INSTR_CNJMP,
 
+	// For conventional for k, v in pairs(t) do end
+	// Top of the stack must be
+	// <I> <state> <k> <v>
+	// Will invoke I(<state>, <k>)
+	// the stack afterwards will be
+	// <I> <state> <k2> <v2>.
+	// uD is a branch point, if the loop is over, it will branch to it.
+	NOOMV_INSTR_NEXT,
+
+	// For simple for i=start,N,step do end
+	// Top of the stack must be
+	// <i> <N> <step>
+	// It will advanced it by 1 iteration. If it is over, it will branch to where uD is meant to be.
+	NOOMV_INSTR_ITER,
+
 	// For bullshit
 
 	// Take the top value without popping it, push `value[consts[op.uD]]` like GETFIELD would, then swap the top 2 values.
