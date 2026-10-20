@@ -995,6 +995,8 @@ noomP_Node* noomP_parseRawStatement(noomP_Parser* parser) {
 			localNode->source_offset = token.offset;
 			localNode->type = NOOMP_NODE_LOCALDECLARATION;
 
+			bool has_close = false;
+
 			while (1) {
 				if (noomP_peek(parser, &token)) return 0;
 
@@ -1029,6 +1031,14 @@ noomP_Node* noomP_parseRawStatement(noomP_Parser* parser) {
 						if (!noom_memeq(parser->code + token.offset, token.length, "const", 5) && !noom_memeq(parser->code + token.offset, token.length, "close", 5)) {
 							parser->error_state = NOOMP_ERROR_FAKEATTRIBUTE;
 							return 0; // not a real attribute smh my head
+						}
+
+						if (noom_memeq(parser->code + token.offset, token.length, "close", 5)) {
+							if (has_close) {
+								parser->error_state = NOOMP_ERROR_MULTIPLE_TOBECLOSED;
+								return 0;
+							}
+							has_close = true;
 						}
 
 						if (noomP_peek(parser, &token)) return 0;
