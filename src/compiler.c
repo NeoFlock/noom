@@ -1444,7 +1444,12 @@ noom_Exit noomC_add_stuff_to_function(noom_LuaVM* vm, noomC_Compiler* compiler, 
 		unsigned char first_val_slot = compiler->curstack;
 		for (noom_uint_t i = 0; i < value_count; i++) {
 			bool is_last = i == (value_count - 1);
-			noom_uint_t wanted_c = is_last ? (place_count - i) : 1;
+			noom_uint_t wanted_c = 1;
+			if (i >= place_count) { // by now all the slots have a value; but these still need to be evaluated!
+				wanted_c = 0;
+			} else if (is_last) { // last value, so ask for multiple returns or at least some nils
+				wanted_c = place_count - i;
+			}
 			if ((result = noomC_compile_expr(vm, compiler, parser, func, node->subnodes[place_count + i], wanted_c))) {
 				noom_free(assign_places);
 				return result;
