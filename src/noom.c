@@ -165,13 +165,13 @@ PUBLIC_EXECUTION /* !!!!!!!!!!!!! */
 		noomV_Inst inst = f->code[i];
 		noomV_DisInfo dis = noomV_disInfo[inst.op];
 
-		printf("%s %d", dis.name, inst.a);
+		printf("%s %d ", dis.name, inst.a);
 
 		switch (dis.arg) {
 			case NOOMV_DIS_NONE:
 				break;
 			case NOOMV_DIS_BC:
-				printf("%d, %d", inst.b, inst.c);
+				printf("%d %d", inst.b, inst.c);
 				break;
 			case NOOMV_DIS_uD:
 				printf("%d", inst.us);

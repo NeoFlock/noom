@@ -74,6 +74,7 @@ void noomC_compiler_deinit(noomC_Compiler* compiler);
 noom_Exit noomC_emit(noomV_Function* func, noomV_Inst inst);
 #define noomC_emit_ABC(func, _op, _a, _b, _c) noomC_emit((func), (noomV_Inst){.op = (_op), .a = (_a), .b = (_b), .c = (_c)})
 #define noomC_emit_AuD(func, _op, _a, _uD) noomC_emit((func), (noomV_Inst){.op = (_op), .a = (_a), .us = (_uD)})
+#define noomC_emit_AsD(func, _op, _a, _sD) noomC_emit((func), (noomV_Inst){.op = (_op), .a = (_a), .ss = (_sD)})
 noom_BinOp noomC_lex_bin_op(const noomP_Parser* parser, noom_uint_t offset);
 noom_UnaryOp noomC_lex_un_op(const noomP_Parser* parser, noom_uint_t offset);
 

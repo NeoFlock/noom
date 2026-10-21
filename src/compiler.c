@@ -767,15 +767,24 @@ noom_Exit noomC_compile_expr(
 		}
 	}
 
-	if (node->type == NOOMP_NODE_NUMBERLITERAL) { // TODO: use pushint
+	if (node->type == NOOMP_NODE_NUMBERLITERAL) {
 		if (retc == 0) return NOOM_OK;
 	
 		noomV_Value val = noom_tonumber_except_different_name_so_public_fucking_api_works(parser->code + node->source_offset, 0, parser->version);
-		unsigned short const_idx;
-		if ((result = noomC_addconst_val(compiler, val, &const_idx))) return result;
-		if (retc != -1) compiler->curstack++;
-		
-		if ((result = noomC_emit_AuD(func, NOOMV_INSTR_PUSHCONST, 0, const_idx))) return result;
+
+		if (val.tag == NOOMV_VNUM && val.number == ((short)val.number)) { // TODO: support NOOMV_VINT when that is actually used
+			// cooler path
+			if (retc != -1) compiler->curstack++;
+
+			if ((result = noomC_emit_AsD(func, NOOMV_INSTR_PUSHINT, 0, (short)val.number))) return result;
+		} else {
+			unsigned short const_idx;
+			if ((result = noomC_addconst_val(compiler, val, &const_idx))) return result;
+			if (retc != -1) compiler->curstack++;
+			
+			if ((result = noomC_emit_AuD(func, NOOMV_INSTR_PUSHCONST, 0, const_idx))) return result;
+
+		}	
 
 		if (retc != -1) {
 			noom_uint_t nil_c = retc - 1;
@@ -1620,7 +1629,7 @@ noom_Exit noomC_add_stuff_to_function(noom_LuaVM* vm, noomC_Compiler* compiler, 
 
 		if (value_count == 2) {
 			// push a 1
-			if ((result = noomC_emit_AuD(func, NOOMV_INSTR_PUSHINT, 0, (unsigned short)1))) return result;
+			if ((result = noomC_emit_AsD(func, NOOMV_INSTR_PUSHINT, 0, (unsigned short)1))) return result;
 			compiler->curstack++;
 		}
 
@@ -1700,7 +1709,7 @@ noom_Exit noomC_add_stuff_to_function(noom_LuaVM* vm, noomC_Compiler* compiler, 
 			if ((result = noomC_compile_expr(vm, compiler, parser, func, node->subnodes[i], retc))) return result;
 		}
 
-		if ((result = noomC_emit_AuD(func, NOOMV_INSTR_ROTATE, 4, 1))) return result;
+		if ((result = noomC_emit_AsD(func, NOOMV_INSTR_ROTATE, 4, 1))) return result;
 
 		// the to-be-closed the last argument but after the rotation it's back there.
 		if ((result = noomC_emit_AuD(func, NOOMV_INSTR_CLOSE, 0, stack_start))) return result;
