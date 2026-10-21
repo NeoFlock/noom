@@ -1612,7 +1612,6 @@ noom_Exit noomC_add_stuff_to_function(noom_LuaVM* vm, noomC_Compiler* compiler, 
 		const noom_uint_t varname_len = noomL_tokenlen(parser->code, varname_node->source_offset, parser->version);
 		unsigned stack_start = compiler->curstack;
 
-		noom_uint_t var_pos = compiler->curstack;
 		for (noom_uint_t i = 1; i <= value_count; i++) {
 			if ((result = noomC_compile_expr(vm, compiler, parser, func, node->subnodes[i], 1))) return result;
 		}
@@ -1624,17 +1623,16 @@ noom_Exit noomC_add_stuff_to_function(noom_LuaVM* vm, noomC_Compiler* compiler, 
 		}
 
 		noom_uint_t loop_start = func->codesize;
+
 		if ((result = noomC_emit_AuD(func, NOOMV_INSTR_ITER, 0, 0))) return result; // make sure to fill the jump in later
+
+		unsigned var_count = compiler->localc;
+		unsigned loop_stack_start = compiler->curstack;
+		noom_uint_t var_pos = compiler->curstack++; // function above now pushes i, which means we need to increment curstack
 
 		if (compiler->loopDepth >= NOOMC_MAXLOOPDEPTH) return NOOM_EINTERNAL;
 		compiler->loopBreakBase[compiler->loopDepth++] = compiler->breakPatchCount;
 
-		unsigned var_count = compiler->localc;
-		unsigned loop_stack_start = compiler->curstack;
-
-		// copy the value so we can use it for a local
-		if ((result = noomC_emit_AuD(func, NOOMV_INSTR_PUSHVAL, 0, var_pos))) return result;
-		unsigned local_pos = compiler->curstack++;
 
 		// add the local
 		noomC_Local local;
@@ -1642,7 +1640,7 @@ noom_Exit noomC_add_stuff_to_function(noom_LuaVM* vm, noomC_Compiler* compiler, 
 		local.endpc = 0;
 		local.name = parser->code + varname_node->source_offset;
 		local.namelen = varname_len;
-		local.stackslot = local_pos;
+		local.stackslot = var_pos;
 		local.dropped = false;
 		local.constant = false; // if adding 5.5, make this true there
 		local.close = false;
