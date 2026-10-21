@@ -1610,6 +1610,7 @@ noom_Exit noomC_add_stuff_to_function(noom_LuaVM* vm, noomC_Compiler* compiler, 
 
 		const noomP_Node* varname_node = node->subnodes[0];
 		const noom_uint_t varname_len = noomL_tokenlen(parser->code, varname_node->source_offset, parser->version);
+		unsigned stack_start = compiler->curstack;
 
 		noom_uint_t var_pos = compiler->curstack;
 		for (noom_uint_t i = 1; i <= value_count; i++) {
@@ -1625,8 +1626,11 @@ noom_Exit noomC_add_stuff_to_function(noom_LuaVM* vm, noomC_Compiler* compiler, 
 		noom_uint_t loop_start = func->codesize;
 		if ((result = noomC_emit_AuD(func, NOOMV_INSTR_ITER, 0, 0))) return result; // make sure to fill the jump in later
 
+		if (compiler->loopDepth >= NOOMC_MAXLOOPDEPTH) return NOOM_EINTERNAL;
+		compiler->loopBreakBase[compiler->loopDepth++] = compiler->breakPatchCount;
+
 		unsigned var_count = compiler->localc;
-		unsigned stack_start = compiler->curstack;
+		unsigned loop_stack_start = compiler->curstack;
 
 		// copy the value so we can use it for a local
 		if ((result = noomC_emit_AuD(func, NOOMV_INSTR_PUSHVAL, 0, var_pos))) return result;
@@ -1654,20 +1658,23 @@ noom_Exit noomC_add_stuff_to_function(noom_LuaVM* vm, noomC_Compiler* compiler, 
 			compiler->locals[i].endpc = func->codesize;
 		}
 
-		if (compiler->curstack > stack_start) {
-			if ((result = noomC_emit_AuD(func, NOOMV_INSTR_POP, 0, compiler->curstack - stack_start - 1))) return result;
-			compiler->curstack = stack_start;
+		if (compiler->curstack > loop_stack_start) {
+			if ((result = noomC_emit_AuD(func, NOOMV_INSTR_SETSTACK, 0, loop_stack_start))) return result;
+			compiler->curstack = loop_stack_start;
 		}
 
 		if ((result = noomC_emit_AuD(func, NOOMV_INSTR_JMP, 0, (unsigned short)loop_start))) return result;
 		func->code[loop_start].us = (unsigned short)func->codesize; // TODO: use a if needed
 
-		// pop the 3 things from the loop
+		for (noom_uint_t bi = compiler->loopBreakBase[compiler->loopDepth - 1]; bi < compiler->breakPatchCount; bi++) {
+			func->code[compiler->breakPatches[bi]].us = (unsigned short)func->codesize;
+		}
+		compiler->breakPatchCount = compiler->loopBreakBase[--compiler->loopDepth];
 
-		if ((result = noomC_emit_AuD(func, NOOMV_INSTR_POP, 0, 2))) return result;
-		compiler->curstack -= 3;
-
-		// genuinely just did shit; please fact check this @atom @tema
+		// may or may not have the iterator variable left over because of breaks
+		// set the stack to neutralize any possible state we might have been in upon break
+		if ((result = noomC_emit_AuD(func, NOOMV_INSTR_SETSTACK, 0, stack_start))) return result;
+		compiler->curstack = stack_start;
 		
 		return NOOM_OK;
 	}
@@ -1679,7 +1686,7 @@ noom_Exit noomC_add_stuff_to_function(noom_LuaVM* vm, noomC_Compiler* compiler, 
 		noom_uint_t varnamec = 0;
 		while (node->subnodes[varnamec]->type == NOOMP_NODE_VARNAME) varnamec++;
 
-		noom_uint_t closer_slot = compiler->curstack;
+		noom_uint_t stack_start = compiler->curstack;
 
 		// load all the expressions
 		for (noom_uint_t i = varnamec; i < (node->subnodec-1); i++) {
@@ -1696,16 +1703,19 @@ noom_Exit noomC_add_stuff_to_function(noom_LuaVM* vm, noomC_Compiler* compiler, 
 		if ((result = noomC_emit_AuD(func, NOOMV_INSTR_ROTATE, 4, 1))) return result;
 
 		// the to-be-closed the last argument but after the rotation it's back there.
-		if ((result = noomC_emit_AuD(func, NOOMV_INSTR_CLOSE, 0, closer_slot))) return result;
-
-		unsigned var_count = compiler->localc;
-		unsigned stack_start = compiler->curstack;
+		if ((result = noomC_emit_AuD(func, NOOMV_INSTR_CLOSE, 0, stack_start))) return result;
 
 		noom_uint_t loop_start = func->codesize;
 		if ((result = noomC_emit_AuD(func, NOOMV_INSTR_NEXT, 0, 0))) return result;
 
-		if ((result = noomC_emit_AuD(func, NOOMV_INSTR_SETSTACK, 0, stack_start + varnamec))) return result;
-		compiler->curstack = stack_start + varnamec;
+		if (compiler->loopDepth >= NOOMC_MAXLOOPDEPTH) return NOOM_EINTERNAL;
+		compiler->loopBreakBase[compiler->loopDepth++] = compiler->breakPatchCount;
+
+		unsigned var_count = compiler->localc;
+		unsigned loop_stack_start = compiler->curstack;
+
+		if ((result = noomC_emit_AuD(func, NOOMV_INSTR_SETSTACK, 0, loop_stack_start + varnamec))) return result;
+		compiler->curstack = loop_stack_start + varnamec;
 
 		for (noom_uint_t i = 0; i < varnamec; i++) {
 			const noomP_Node* varname_node = node->subnodes[i];
@@ -1716,7 +1726,7 @@ noom_Exit noomC_add_stuff_to_function(noom_LuaVM* vm, noomC_Compiler* compiler, 
 			local.endpc = 0;
 			local.name = parser->code + varname_node->source_offset;
 			local.namelen = varname_len;
-			local.stackslot = stack_start + i;
+			local.stackslot = loop_stack_start + i;
 			local.dropped = false;
 			local.constant = false; // 5.5 bros gotta change ts
 			local.close = false;
@@ -1733,16 +1743,21 @@ noom_Exit noomC_add_stuff_to_function(noom_LuaVM* vm, noomC_Compiler* compiler, 
 			compiler->locals[i].endpc = func->codesize;
 		}
 
-		if (compiler->curstack > stack_start) {
-			if ((result = noomC_emit_AuD(func, NOOMV_INSTR_POP, 0, compiler->curstack - stack_start - 1))) return result;
-			compiler->curstack = stack_start;
+		if (compiler->curstack > loop_stack_start) {
+			if ((result = noomC_emit_AuD(func, NOOMV_INSTR_SETSTACK, 0, loop_stack_start))) return result;
+			compiler->curstack = loop_stack_start;
 		}
 
 		if ((result = noomC_emit_AuD(func, NOOMV_INSTR_JMP, 0, (unsigned short)loop_start))) return result;
 		func->code[loop_start].us = (unsigned short)func->codesize; // TODO: use a if needed
 
-		if ((result = noomC_emit_AuD(func, NOOMV_INSTR_POP, 0, 3))) return result;
-		compiler->curstack -= 4;
+		for (noom_uint_t bi = compiler->loopBreakBase[compiler->loopDepth - 1]; bi < compiler->breakPatchCount; bi++) {
+			func->code[compiler->breakPatches[bi]].us = (unsigned short)func->codesize;
+		}
+		compiler->breakPatchCount = compiler->loopBreakBase[--compiler->loopDepth];
+
+		if ((result = noomC_emit_AuD(func, NOOMV_INSTR_SETSTACK, 0, stack_start))) return result;
+		compiler->curstack = stack_start;
 		
 		return NOOM_OK;
 	}
