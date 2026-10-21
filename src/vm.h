@@ -159,17 +159,18 @@ typedef enum noomV_Opcode : unsigned char {
 
 	// For conventional for k, v in pairs(t) do end
 	// Top of the stack must be
-	// <I> <state> <k> <v>
+	// <I> <state> <k>
 	// Will invoke I(<state>, <k>)
 	// the stack afterwards will be
-	// <I> <state> <k2> <v2>.
-	// uD is a branch point, if the loop is over, it will branch to it.
+	// <I> <state> <k2> <k2> <...values>.
+	// If the loop is over, the stack contents are undefined, and it acts as a JMP. Make it jump to a SETSTACK.
 	NOOMV_INSTR_NEXT,
 
 	// For simple for i=start,N,step do end
 	// Top of the stack must be
 	// <i> <N> <step>
-	// It will advanced it by 1 iteration. If it is over, it will branch to where uD is meant to be.
+	// It will advanced it by 1 iteration. If it is over, it will act as a JMP.
+	// It also pushes the old value of <i> to be used as the i local.
 	NOOMV_INSTR_ITER,
 
 	// For bullshit
