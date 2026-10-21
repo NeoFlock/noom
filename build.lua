@@ -1,5 +1,5 @@
 #!/usr/bin/env lua
-local files = {
+local libFiles = {
 	'src/noom.c',
 	'src/error.c',
 	'src/helper.c',
@@ -8,8 +8,15 @@ local files = {
 	'src/compiler.c',
 	'src/vm.c',
 	'src/gc.c',
-	'src/main.c',
 }
+
+local mainFiles = {
+	'main/main.c',
+}
+
+local files = {}
+for _, f in ipairs(libFiles) do table.insert(files, f) end
+for _, f in ipairs(mainFiles) do table.insert(files, f) end
 
 -- i love build scripts i love build scripts i love build scripts scripts build love i script build love me i love script build i script love build
 local isBlendi = os.getenv("USER") == "blendi"
@@ -21,11 +28,11 @@ local help = [[
 usage: lua build.lua [commands...] [options] -- args...
 
 commands:
-    (none)|build    compile and link noom
+    (none)|build    compile libnoom (.a and .so) and link noom against it
     run     compile, link and run noom
     test    run tests
     files   print source files separated by spaces (for shell use)
-                e.g. clang -O3 $(lua build.lua files) -o noom
+                e.g. clang -Iinclude -O3 $(lua build.lua files) -o noom
     clean   clean the build cache
     help    show this!!! hello :DDDDD!!!!!
 
@@ -33,6 +40,9 @@ options:
     -O<level>    optimisation level passed to clang (e.g. -O2, -O3)
                      defaults to -O0
     -j           parallel compilation (UNIX only!!!!)
+    -static      link noom against build/libnoom.a (default)
+    -shared      link noom against build/libnoom.so at compile time (UNIX only)
+    -dlopen      load build/libnoom.so at runtime, overridable with NOOM_LIB (UNIX only)
     -- args...	 anything after -- is forwarded to noom when running it
 ]]
 
@@ -66,16 +76,32 @@ local function preadall(cmd)
     handle:close()
 	return result
 end
+
 -- might fail on MacOS and other *NIXes, haven't tried
 -- prob can be get functional there with just stat -c shit || ...
 local function getTime(path)
 	if windows then return 0 end
-	return preadall('stat -c %Y "' .. path .. '" 2>/dev/null') or 0
+	return tonumber(preadall('stat -c %Y "' .. path .. '" 2>/dev/null')) or 0
 end
 
 local function needsRebuild(src, obj)
 	if windows then return true end -- TODO?
 	return getTime(src) > getTime(obj)
+end
+
+local function readFile(path)
+	local f = io.open(path, 'rb')
+	if not f then return nil end
+	local data = f:read('*a')
+	f:close()
+	return data
+end
+
+local function writeFile(path, data)
+	local f = io.open(path, 'wb')
+	if not f then return end
+	f:write(data)
+	f:close()
 end
 
 local function dirExists(path)
@@ -114,6 +140,7 @@ end
 local commands = {}
 local optLevel = nil
 local parallel = false
+local linkMode = 'static'
 local forwardedArgs = {}
 
 local shi = { build = true, clean = true, run = true, files = true, help = true, test = true }
@@ -134,6 +161,8 @@ for i = 1, #arg do
 		optLevel = a
 	elseif a == "-j" then
 		parallel = true
+	elseif a == "-static" or a == "-shared" or a == "-dlopen" then
+		linkMode = a:sub(2)
 	else
 		io.stderr:write("mmm no i don't know what is " .. a .. "\n")
 		os.exit(1)
@@ -142,6 +171,11 @@ end
 
 if parallel and windows then
 	parallel = false -- fuck you
+end
+
+if windows and linkMode ~= 'static' then
+	io.stderr:write("only -static is supported on windows\n")
+	os.exit(1)
 end
 
 optLevel = optLevel or "-O0"
@@ -174,31 +208,52 @@ local interpreters = {
 if commands.build then
 	ensureDir("build")
 
-	local coolArgs = { optLevel }
+	local coolArgs = { optLevel, '-Iinclude' }
 
 	-- Why does blendi even need that bro 😭🙏 Do not run noom on your RISC-V shi
 	if not isBlendi then table.insert(coolArgs, '-fsanitize=undefined,address') end
 	local coolerArgs = table.concat(coolArgs, ' ')
 
-	local objects = {}
-	local needsLinking = false
+	local libA = fixPath('build/libnoom.a')
+	local libSo = 'build/libnoom.so'
+	local exe = windows and ".\\noom.exe" or "./noom"
 
 	local toCompile = {}
 
-	for _, fname in ipairs(files) do
-		fname = fixPath(fname)
-		local out = fixPath("build/" .. filename(fname) .. ".o")
-		table.insert(objects, out)
-
-		if needsRebuild(fname, out) then
-			needsLinking = true
-			local cmd = 'clang -g -c -o ' .. out .. ' ' .. fname .. ' ' .. coolerArgs
+	local function compile(src, out, extra)
+		src, out = fixPath(src), fixPath(out)
+		if needsRebuild(src, out) then
+			local cmd = 'clang -g -c -fPIC ' .. (extra or '') .. ' -o ' .. out .. ' ' .. src .. ' ' .. coolerArgs
 			if parallel then
 				table.insert(toCompile, cmd)
 			else
 				runCommand(cmd)
 			end
 		end
+		return out
+	end
+
+	local function outdated(inputs, output)
+		for _, input in ipairs(inputs) do
+			if needsRebuild(input, output) then return true end
+		end
+		return false
+	end
+
+	local libObjects = {}
+	for _, fname in ipairs(libFiles) do
+		table.insert(libObjects, compile(fname, 'build/' .. filename(fixPath(fname)) .. '.o'))
+	end
+
+	local mainExtra = ''
+	local mainObject = 'build/main_' .. linkMode .. '.o'
+	if linkMode == 'dlopen' then
+		local cwd = (preadall('pwd') or ''):gsub('%s+$', '')
+		mainExtra = "-DNOOM_DYNLOAD '-DNOOM_LIB_PATH=\"" .. cwd .. "/" .. libSo .. "\"'"
+	end
+	local mainObjects = {}
+	for _, fname in ipairs(mainFiles) do
+		table.insert(mainObjects, compile(fname, mainObject, mainExtra))
 	end
 
 	if next(toCompile) then
@@ -206,10 +261,32 @@ if commands.build then
 		runCommand(shellScript)
 	end
 
-	local exe = windows and ".\\noom.exe" or "./noom"
+	if outdated(libObjects, libA) then
+		runCommand(windows and ('del /q ' .. libA .. ' 2>nul') or ('rm -f ' .. libA), true)
+		runCommand('ar rcs ' .. libA .. ' ' .. table.concat(libObjects, ' '))
+	end
 
-	if needsLinking then
-		runCommand('clang -g -o ' .. exe .. ' ' .. table.concat(objects, ' ') .. ' ' .. coolerArgs)
+	if not windows and outdated(libObjects, libSo) then
+		runCommand('clang -g -shared -o ' .. libSo .. ' ' .. table.concat(libObjects, ' ') .. ' ' .. coolerArgs)
+	end
+
+	local linkInputs = { table.unpack(mainObjects) }
+	local linkArgs
+	if linkMode == 'static' then
+		table.insert(linkInputs, libA)
+		linkArgs = libA
+	elseif linkMode == 'shared' then
+		table.insert(linkInputs, libSo)
+		linkArgs = "-Lbuild -lnoom -Wl,-rpath,'$ORIGIN/build'"
+	else
+		linkArgs = '-ldl'
+	end
+
+	local modeFile = 'build/link_mode'
+	local flags = linkMode .. ' ' .. coolerArgs
+	if readFile(modeFile) ~= flags or outdated(linkInputs, exe) then
+		runCommand('clang -g -o ' .. exe .. ' ' .. table.concat(mainObjects, ' ') .. ' ' .. linkArgs .. ' ' .. coolerArgs)
+		writeFile(modeFile, flags)
 	end
 
 	if commands.run then
@@ -220,7 +297,7 @@ if commands.build then
 		local final = table.concat(parts, ' ')
 
 		if not windows and os.execute('command -v rlwrap > /dev/null 2>&1') == true then
-			final = 'rlwrap ' .. final
+			final = 'LC_ALL=C rlwrap --no-warnings ' .. final
 		end
 
 		runCommand(final)

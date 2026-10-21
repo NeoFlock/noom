@@ -48,6 +48,7 @@ noom_uint_t noom_format_error(const noomP_Parser* parser, const char* program_na
 	    [NOOMP_ERROR_EXPECTED_COMMA_OR_EQUAL_IN_ASSIGNMENT] = {"expected a comma or equals after assignable in assignment", 1},
 	    [NOOMP_ERROR_EXPRESSION_NOT_STATEMENT] = {"loose expression is not a valid statement", 1},
 	    [NOOMP_ERROR_FAKEATTRIBUTE] = {"invalid attribute", 2},
+	    [NOOMP_ERROR_MULTIPLE_TOBECLOSED] = {"multiple to-be-closed variables in local list\n", 0},
 	    [NOOMP_ERROR_RETURN_NOT_END] = {"'return' must be the last statement in a block\n", 0},
 	    [NOOMP_ERROR_FOR_WRONG_AMOUNT] = {"'for' initializer must have 2 or 3 expressions\n", 0},
 	};

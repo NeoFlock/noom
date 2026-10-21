@@ -1,11 +1,49 @@
-#include <stdio.h> // for now
-#include "helper.h"
-#include "error.h"
-#include "noom.h"
-#include "compiler.h"
-#include "vm.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
-volatile const char wawa[] = "if you are reading this with either the `strings` utility or through a hex viewer please know that you can instead just check out the source code on gitea: https://git.codersquack.nl/NeoFlock/noom";
+#include "noom.h"
+
+#ifdef NOOM_DYNLOAD
+#include <dlfcn.h>
+
+#ifndef NOOM_LIB_PATH
+#define NOOM_LIB_PATH "libnoom.so"
+#endif
+
+#define NOOM_SYMBOLS(X) \
+	X(noom_createVM) \
+	X(noom_destroyVM) \
+	X(PUBLIC_EXECUTION)
+
+static struct {
+	void* handle;
+#define X(name) __typeof__(&name) name;
+	NOOM_SYMBOLS(X)
+#undef X
+} libnoom;
+
+static const char* lets_noom(void) {
+	const char* path = getenv("NOOM_LIB");
+	if (path == 0) path = NOOM_LIB_PATH;
+	libnoom.handle = dlopen(path, RTLD_NOW);
+	if (libnoom.handle == 0) return dlerror();
+#define X(name) { \
+		void* sym = dlsym(libnoom.handle, #name); \
+		if (sym == 0) return dlerror(); \
+		memcpy(&libnoom.name, &sym, sizeof(sym)); \
+	}
+	NOOM_SYMBOLS(X)
+#undef X
+	return 0;
+}
+
+#define noom_createVM libnoom.noom_createVM
+#define noom_destroyVM libnoom.noom_destroyVM
+#define PUBLIC_EXECUTION libnoom.PUBLIC_EXECUTION
+#endif
+
+volatile const char wawa[] = "if you are reading this with either the `strings` utility or through a hex viewer please know that you can instead just check out the source code on forgejo: https://git.codersquack.nl/NeoFlock/noom";
 
 int execute(const char* code, noom_LuaVersion version, const char* program_name, const char* filename) {
 	noom_LuaVM* vm = noom_createVM(version);
@@ -52,12 +90,12 @@ static char* read_file(const char* filename) {
 	const unsigned long filesize = ftell(file);
 	fseek(file, 0, SEEK_SET);
 
-	char* buffer = noom_alloc(filesize + 1);
+	char* buffer = malloc(filesize + 1);
 	if (buffer == 0) return 0;
 
 	if (fread(buffer, 1, filesize, file) != filesize) {
 		fprintf(stderr, "Reached the end of the file\n");
-		noom_free(buffer);
+		free(buffer);
 		return 0;
 	}
 	buffer[filesize] = '\0';
@@ -69,7 +107,7 @@ static char* read_file(const char* filename) {
 static char* read_stdin() {
 	noom_uint_t capacity = 4096;
 	noom_uint_t size = 0;
-	char* buffer = noom_alloc(capacity);
+	char* buffer = malloc(capacity);
 	if (buffer == 0) return 0;
 
 	size_t n;
@@ -77,8 +115,12 @@ static char* read_stdin() {
 		size += n;
 		if (size == capacity) {
 			capacity *= 2;
-			buffer = noom_realloc_free(buffer, capacity);
-			if (buffer == 0) return 0;
+			char* this_buffer_is_a_new_buffer = realloc(buffer, capacity);
+			if (this_buffer_is_a_new_buffer == 0) {
+				free(buffer);
+				return 0;
+			}
+			buffer = this_buffer_is_a_new_buffer;
 		}
 	}
 
@@ -91,7 +133,7 @@ static int read_prompt(char* buf, int buf_size, char* prompt, const int required
 		printf("%s", prompt);
 		fflush(stdout);
 		if (!fgets(buf, buf_size, stdin)) return 1;
-		const size_t len = noom_strlen(buf);
+		const size_t len = strlen(buf);
 		if (len > 0 && buf[len - 1] != '\n') {
 			while (getchar() != '\n' && !feof(stdin));
 		} else if (len > 0) {
@@ -103,6 +145,12 @@ static int read_prompt(char* buf, int buf_size, char* prompt, const int required
 
 int main(int argc, char** argv) {
 	const char* err = 0;
+#ifdef NOOM_DYNLOAD
+	if ((err = lets_noom()) != 0) {
+		fprintf(stderr, "%s: failed to load libnoom: %s\n", argv[0], err);
+		return 1;
+	}
+#endif
 	struct {
 		bool enter_repl;
 		bool use_stdin;
@@ -118,13 +166,13 @@ int main(int argc, char** argv) {
 	}
 
 	for (int i = 1; i < argc; i++) {
-		if (noom_strcmp(argv[i], "-") == 0) {
+		if (strcmp(argv[i], "-") == 0) {
 			params.use_stdin = true;
 			params.do_i_already_know_what_to_do = true;
 			continue;
 		}
 
-		if (noom_strcmp(argv[i], "--") == 0) {
+		if (strcmp(argv[i], "--") == 0) {
 			if (++i >= argc) break;
 			if (params.do_i_already_know_what_to_do) {
 				err = "too many arguments";
@@ -178,10 +226,10 @@ int main(int argc, char** argv) {
 				version_string = argv[i];
 				i++;
 			}
-			if (noom_strcmp(version_string, "51") == 0) params.lua_version = NOOM_VERSION_51;
-			else if (noom_strcmp(version_string, "52") == 0) params.lua_version = NOOM_VERSION_52;
-			else if (noom_strcmp(version_string, "53") == 0) params.lua_version = NOOM_VERSION_53;
-			else if (noom_strcmp(version_string, "54") == 0) params.lua_version = NOOM_VERSION_54;
+			if (strcmp(version_string, "51") == 0) params.lua_version = NOOM_VERSION_51;
+			else if (strcmp(version_string, "52") == 0) params.lua_version = NOOM_VERSION_52;
+			else if (strcmp(version_string, "53") == 0) params.lua_version = NOOM_VERSION_53;
+			else if (strcmp(version_string, "54") == 0) params.lua_version = NOOM_VERSION_54;
 			else {
 				err = "unknown lua version";
 				goto die;
@@ -220,14 +268,14 @@ int main(int argc, char** argv) {
 		if (code[0] == '#' && code[1] == '!')
 			for (offset = 2; code[offset] && code[offset] != '\n'; offset++);
 		const int e = execute(code + offset, params.lua_version, argv[0], params.script_path);
-		noom_free(code);
+		free(code);
 		return e;
 	}
 	if (params.use_stdin) {
 		char* code = read_stdin();
 		if (code == 0) return 1;
 		const int e = execute(code, params.lua_version, argv[0], "stdin");
-		noom_free(code);
+		free(code);
 		return e;
 	}
 	if (params.enter_repl) {
@@ -246,6 +294,8 @@ die:
 	                "  -e stat          execute string 'stat'\n"
 	                "  -v               show version\n"
 	                "  -l [51|52|53|54] select lua version\n",
-					argv[0], err, argv[0]);
+	        argv[0],
+	        err,
+	        argv[0]);
 	return 1;
 }
