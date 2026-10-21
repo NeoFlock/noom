@@ -19,8 +19,21 @@ static void pretty(const char* code, noom_LuaVersion version, const noomP_Node* 
 	write(STDOUT_FILENO, whatever_it_means, noom_strlen(whatever_it_means));
 	if (node->subnodec) {
 		write(STDOUT_FILENO, " with ", 6);
-		char wompmwomp = node->subnodec + '0'; // will work for now
-		write(STDOUT_FILENO, &wompmwomp, 1);
+
+		// fuck it! put an int printer RIGHT HERE!! haha!
+		noom_uint_t nodec = node->subnodec;
+		noom_uint_t pow10 = 1;
+		while (nodec / pow10 >= 10) pow10 *= 10;
+
+		while (nodec) {
+			noom_uint_t digit = nodec / pow10;
+			char c = '0' + digit;
+			write(STDOUT_FILENO, &c, 1);
+
+			nodec %= pow10;
+			pow10 /= 10;
+		}
+		
 		write(STDOUT_FILENO, " entr", 5);
 		if (node->subnodec == 1) write(STDOUT_FILENO, "y", 1); else write(STDOUT_FILENO, "ies", 3);
 		write(STDOUT_FILENO, " {\n", 3);
