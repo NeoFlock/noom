@@ -1505,6 +1505,8 @@ noom_Exit noomC_add_stuff_to_function(noom_LuaVM* vm, noomC_Compiler* compiler, 
 
 		noom_uint_t i = 0;
 		while (i < node->subnodec) {
+			if (i == node->subnodec - 1) break; // must be the else
+		
 			if ((result = noomC_compile_expr(vm, compiler, parser, func, node->subnodes[i], 1)) != NOOM_OK) {
 				noom_free(end_jumps);
 				return result;
