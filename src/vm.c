@@ -766,11 +766,11 @@ noom_Exit noomV_runCodeResumed(noom_LuaVM *vm, noom_Exit status, void *_ctx) {
 			break;
 		case NOOMV_INSTR_PUSHBOOLS:
 			{
-				// for (noom_uint_t i = 0; i <= inst.a; i++) {
-				// 	unsigned char bit = (inst.us & (1 << i)) != 0; // according to vm spec; correct me if i'm wrong
-				// 	e = noom_pushbool(vm, bit);
-				// 	if(e) return e;
-				// }
+				for (noom_uint_t i = 0; i <= inst.a; i++) {
+					unsigned char bit = (inst.us & (1 << i)) != 0; // according to vm spec; correct me if i'm wrong
+					e = noom_pushbool(vm, bit);
+					if(e) return e;
+				}
 			}
 			break;
 		case NOOMV_INSTR_PUSHUPVAL:
@@ -819,6 +819,13 @@ noom_Exit noom_pushint(noom_LuaVM* vm, noom_int_t integer) {
 	noomV_Value v = noomV_nil;
 	v.tag = NOOMV_VINT;
 	v.integer = integer;
+	return noomV_pushRawValue(vm, v);
+}
+
+noom_Exit noom_pushbool(noom_LuaVM* vm, bool boolean) {
+	noomV_Value v = noomV_nil;
+	v.tag = NOOMV_VBOOL;
+	v.boolean = boolean;
 	return noomV_pushRawValue(vm, v);
 }
 
