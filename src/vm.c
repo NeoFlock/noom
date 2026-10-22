@@ -829,6 +829,42 @@ noom_Exit noom_pushbool(noom_LuaVM* vm, bool boolean) {
 	return noomV_pushRawValue(vm, v);
 }
 
+noom_Exit noom_pushcclosure(noom_LuaVM* vm, noom_CFunction* f, noom_uint_t upvalues) {
+	if (upvalues != 0) return NOOM_EINTERNAL;
+
+	noomV_Value v = noomV_nil;
+	v.tag = NOOMV_VCFUNC;
+	v.cfunc = f;
+	return noomV_pushRawValue(vm, v);
+}
+
+noom_Exit noom_pushglobals(noom_LuaVM* vm) {
+	noomV_Value v = noomV_nil;
+	v.tag = NOOMV_VOBJ;
+	v.obj = (noomV_Object*)vm->globals;
+	return noomV_pushRawValue(vm, v);
+}
+
+noom_Exit noom_settable(noom_LuaVM* vm) {
+	noom_Exit result;
+	// noom_Exit noomV_rawsetTable(noom_LuaVM* vm, noomV_Table* t, noomV_Value key, noomV_Value val);
+	noomV_Value value;
+	noomV_Value key;
+	noomV_Value table;
+	if (noom_getstacksize(vm) < 3) return NOOM_EINTERNAL; // fuck you
+	if ((result = noomV_getStackValue(vm, noom_getstacksize(vm)-1, &value))) return result;
+	if ((result = noomV_getStackValue(vm, noom_getstacksize(vm)-2, &key))) return result;
+	if ((result = noomV_getStackValue(vm, noom_getstacksize(vm)-3, &table))) return result;
+
+	if (table.tag != NOOMV_VOBJ) return NOOM_EINTERNAL; // TODO: proper error probably
+	noomV_Object* tobj = table.obj;
+	if (tobj->tag != NOOMV_OTABLE) return NOOM_EINTERNAL; // same here? idk man
+
+	if ((result = noomV_rawsetTable(vm, (noomV_Table*)tobj, key, value))) return result;
+
+	return noom_popn(vm, 3);
+}
+
 noom_Exit noom_callk(noom_LuaVM* vm, noom_uint_t argc, noom_int_t retc, noom_KFunction* f, void* ctx) {
 	noomV_Thread *thrd = vm->currentThread;
 	if(noom_getstacksize(vm) < argc+1) {
