@@ -301,6 +301,20 @@ noom_Exit noom_cast2num(noom_LuaVM* vm, noom_slot_t x);
 // Converts the value at [x] to a string, ignoring __tostring and __name.
 noom_Exit noom_cast2str(noom_LuaVM* vm, noom_slot_t x);
 
+// stdlib
+
+noom_Exit noom_openbase(noom_LuaVM* vm);
+noom_Exit noom_openio(noom_LuaVM* vm);
+noom_Exit noom_openmath(noom_LuaVM* vm);
+noom_Exit noom_opencoroutine(noom_LuaVM* vm);
+noom_Exit noom_openstring(noom_LuaVM* vm);
+noom_Exit noom_opentable(noom_LuaVM* vm);
+noom_Exit noom_openpackage(noom_LuaVM* vm);
+noom_Exit noom_openutf8(noom_LuaVM* vm);
+noom_Exit noom_opendebug(noom_LuaVM* vm);
+// loads all of the above
+noom_Exit noom_openlibs(noom_LuaVM* vm);
+
 // Misc
 
 // Run the garbage collector to clean up memory.

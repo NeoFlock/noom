@@ -849,35 +849,72 @@ noom_Exit noom_callk(noom_LuaVM* vm, noom_uint_t argc, noom_int_t retc, noom_KFu
 	noomV_Value v;
 	noom_Exit e = noomV_getStackValue(vm, -argc - 1, &v);
 	// TODO: C functions and closures
-	noomV_CallFrame cf = {
-		.funcIdx = thrd->stacklen - argc - 1,
-		.returnCount = 0,
-		.isC = false,
-		.errhandler = noomV_nil,
-		.upvals = NULL,
-		.resumeFunc = NULL,
-		.resumeCtx = NULL,
-		.proto = NULL,
-		.pc = 0,
-		.varargc = 0,
-	};
-	// just assume function, burn with fire later
-	noomV_Function *func = (noomV_Function *)v.obj;
-	cf.proto = func;
-	cf.resumeCtx = (void *)(size_t)thrd->calldepth;
-	cf.resumeFunc = noomV_runCodeResumed;
-	e = noomV_pushCallFrame(vm, thrd, cf);
-	if(e) return e;
-	// TODO: fix argument count.
-	if(topCall != NULL) {
-		topCall->resumeFunc = f;
-		topCall->resumeCtx = ctx;
+
+	if (v.tag == NOOMV_VCFUNC) {
+		noomV_CallFrame cf = {
+			.funcIdx = thrd->stacklen - argc - 1,
+			.returnCount = retc,
+			.isC = true,
+			.errhandler = noomV_nil,
+			.upvals = NULL,
+			.resumeFunc = NULL,
+			.resumeCtx = NULL,
+			.proto = NULL,
+			.pc = 0,
+			.varargc = 0,
+		};
+
+		// noom_Exit noom_CFunction(noom_LuaVM* vm);
+		noom_CFunction* cfunc = v.cfunc;
+
+		e = noomV_pushCallFrame(vm, thrd, cf);
+		if(e) return e;
+
+		if(topCall != NULL) {
+			topCall->resumeFunc = f;
+			topCall->resumeCtx = ctx;
+		}
+		e = cf.resumeFunc(vm, e, cf.resumeCtx);
+		if(topCall != NULL) {
+			topCall->resumeFunc = NULL;
+			topCall->resumeCtx = NULL;
+		}
+
+		e = cfunc(vm);
+		// if (e) return e;
+	} else {
+	
+		noomV_CallFrame cf = {
+			.funcIdx = thrd->stacklen - argc - 1,
+			.returnCount = retc,
+			.isC = false,
+			.errhandler = noomV_nil,
+			.upvals = NULL,
+			.resumeFunc = NULL,
+			.resumeCtx = NULL,
+			.proto = NULL,
+			.pc = 0,
+			.varargc = 0,
+		};
+		// just assume function, burn with fire later
+		noomV_Function *func = (noomV_Function *)v.obj;
+		cf.proto = func;
+		cf.resumeCtx = (void *)(size_t)thrd->calldepth;
+		cf.resumeFunc = noomV_runCodeResumed;
+		e = noomV_pushCallFrame(vm, thrd, cf);
+		if(e) return e;
+		// TODO: fix argument count.
+		if(topCall != NULL) {
+			topCall->resumeFunc = f;
+			topCall->resumeCtx = ctx;
+		}
+		e = cf.resumeFunc(vm, e, cf.resumeCtx);
+		if(topCall != NULL) {
+			topCall->resumeFunc = NULL;
+			topCall->resumeCtx = NULL;
+		}
 	}
-	e = cf.resumeFunc(vm, e, cf.resumeCtx);
-	if(topCall != NULL) {
-		topCall->resumeFunc = NULL;
-		topCall->resumeCtx = NULL;
-	}
+
 	// TODO: handle returns.
 	return e;
 }

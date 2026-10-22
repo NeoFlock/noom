@@ -8,6 +8,16 @@ local libFiles = {
 	'src/compiler.c',
 	'src/vm.c',
 	'src/gc.c',
+
+	'src/std/base.c',
+	'src/std/io.c',
+	'src/std/math.c',
+	'src/std/coroutine.c',
+	'src/std/string.c',
+	'src/std/table.c',
+	'src/std/package.c',
+	'src/std/utf8.c',
+	'src/std/debug.c',
 }
 
 local mainFiles = {
