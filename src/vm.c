@@ -865,6 +865,23 @@ noom_Exit noom_settable(noom_LuaVM* vm) {
 	return noom_popn(vm, 3);
 }
 
+noom_Exit noom_tolstring(noom_LuaVM* vm, noom_slot_t x, const char** s, noom_uint_t* len) {
+	noom_Exit result;
+	noomV_Value value;
+	if ((result = noomV_getStackValue(vm, x, &value))) return result;
+
+	if ((value.tag != NOOMV_VOBJ)) return NOOM_EINTERNAL; // TODO: proper errors
+	noomV_Object* obj = value.obj;
+	if ((obj->tag != NOOMV_OSTR)) return NOOM_EINTERNAL;
+
+	noomV_String* string = (noomV_String*)obj;
+
+	*s = string->data;
+	if (len) *len = string->len;
+
+	return NOOM_OK;
+}
+
 noom_Exit noom_callk(noom_LuaVM* vm, noom_uint_t argc, noom_int_t retc, noom_KFunction* f, void* ctx) {
 	noomV_Thread *thrd = vm->currentThread;
 	if(noom_getstacksize(vm) < argc+1) {
