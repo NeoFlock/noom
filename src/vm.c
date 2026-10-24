@@ -3,6 +3,7 @@
 #include "noom.h"
 #include <assert.h>
 #include <stdio.h>
+#include "stb_sprintf.h"
 
 const noomV_Value noomV_nil = {
     .tag = NOOMV_VNIL,
@@ -896,6 +897,119 @@ noom_Exit noom_tolstring(noom_LuaVM* vm, noom_slot_t x, const char** s, noom_uin
 
 	return NOOM_OK;
 }
+
+noom_Exit noom_cast2truthy(noom_LuaVM* vm, noom_slot_t x) {
+	noom_Exit result;
+	noomV_Value value;
+	if ((result = noomV_getStackValue(vm, x, &value))) return result;
+
+	switch (value.tag) {
+		case NOOMV_VBOOL:
+			return NOOM_OK;
+		case NOOMV_VNIL:
+			value.boolean = false;
+			break;
+		default:
+			value.boolean = true;
+	}
+
+	value.tag = NOOMV_VBOOL;
+
+	return noomV_setStackValue(vm, x, value);
+}
+
+#define ALLOC_STR(vm, name, str) do {if (!((name) = (noomV_Object*)noomV_allocStr((vm), (str), noom_strlen((str))))) return NOOM_ENOMEM;} while (0)
+
+noom_Exit noom_cast2num(noom_LuaVM* vm, noom_slot_t x) {
+	noom_Exit result;
+	noomV_Value value;
+	if ((result = noomV_getStackValue(vm, x, &value))) return result;
+
+	switch (value.tag) {
+		case NOOMV_VINT:
+		case NOOMV_VNUM:
+			return NOOM_OK;
+		case NOOMV_VOBJ:
+			if (value.obj->tag == NOOMV_OSTR) {
+				// idk todo
+				// todo wip in progress finish fixme
+				return NOOM_ENOSTACK;
+			}
+		default:
+			noomV_setErrorStr(vm, vm->currentThread, "got random thingie in cast2num i wanted str or num :(");
+			return NOOM_EINTERNAL;
+	}
+}
+
+noom_Exit noom_cast2str(noom_LuaVM* vm, noom_slot_t x) {
+	noom_Exit result;
+	noomV_Value value;
+	if ((result = noomV_getStackValue(vm, x, &value))) return result;
+
+	char buffer[128];
+
+	switch (value.tag) {
+		case NOOMV_VNIL:
+			ALLOC_STR(vm, value.obj, "nil");
+			break;
+		case NOOMV_VBOOL:
+			if (value.boolean)
+				ALLOC_STR(vm, value.obj, "true");
+			else
+				ALLOC_STR(vm, value.obj, "false");
+			break;
+		case NOOMV_VINT:
+			stbsp_snprintf(buffer, sizeof(buffer), "%zd", value.integer);
+			ALLOC_STR(vm, value.obj, buffer);
+			break;
+		case NOOMV_VNUM:
+			stbsp_snprintf(buffer, sizeof(buffer), "%f", value.number);
+			ALLOC_STR(vm, value.obj, buffer);
+			break;
+		case NOOMV_VLUSER:
+			stbsp_snprintf(buffer, sizeof(buffer), "userdata: %p", value.lightuserdata);
+			ALLOC_STR(vm, value.obj, buffer);
+			break;
+		case NOOMV_VCFUNC:
+			stbsp_snprintf(buffer, sizeof(buffer), "function: %p", value.cfunc);
+			ALLOC_STR(vm, value.obj, buffer);
+			break;
+		case NOOMV_VOBJ:
+			switch (value.obj->tag) {
+				case NOOMV_OSTR:
+					return NOOM_OK;
+				case NOOMV_OTABLE:
+					stbsp_snprintf(buffer, sizeof(buffer), "table: %p", value.obj);
+					ALLOC_STR(vm, value.obj, buffer);
+					break;
+				case NOOMV_OFUNC:
+					stbsp_snprintf(buffer, sizeof(buffer), "function: %p", value.obj);
+					ALLOC_STR(vm, value.obj, buffer);
+					break;
+				case NOOMV_OTHREAD:
+					stbsp_snprintf(buffer, sizeof(buffer), "thread: %p", value.obj);
+					ALLOC_STR(vm, value.obj, buffer);
+					break;
+				case NOOMV_OCLOSURE:
+					stbsp_snprintf(buffer, sizeof(buffer), "function: %p", value.obj);
+					ALLOC_STR(vm, value.obj, buffer);
+					break;
+				case NOOMV_OUSERDATA:
+					stbsp_snprintf(buffer, sizeof(buffer), "userdata: %p", value.obj);
+					ALLOC_STR(vm, value.obj, buffer);
+					break;
+				case NOOMV_OPOINTER:
+					noomV_setErrorStr(vm, vm->currentThread, "got pointer when i should not get pointer!");
+					return NOOM_EINTERNAL;
+			}
+			break;
+	}
+
+	value.tag = NOOMV_VOBJ;
+
+	return noomV_setStackValue(vm, x, value);
+}
+
 
 noom_Exit noom_callk(noom_LuaVM* vm, noom_uint_t argc, noom_int_t retc, noom_KFunction* f, void* ctx) {
 	noomV_Thread *thrd = vm->currentThread;
