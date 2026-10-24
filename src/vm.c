@@ -724,6 +724,7 @@ noom_Exit noomV_runCodeResumed(noom_LuaVM *vm, noom_Exit status, void *_ctx) {
 		// NOTE: if we want fully resumable Lua code, we gotta figure out how to make error handlers and hooks resumable in this system!
 		// This will probably required more info in callframes and perhaps a more complicated C API.
 
+		// printf("%s\n", noomV_disInfo[inst.op].name);
 		switch(inst.op) {
 		case NOOMV_INSTR_NOP:
 		case NOOMV_INSTR_NOP2:
@@ -747,7 +748,7 @@ noom_Exit noomV_runCodeResumed(noom_LuaVM *vm, noom_Exit status, void *_ctx) {
 			{
 				if(vm->version != NOOM_VERSION_51) return NOOM_EINTERNAL;
 				noomV_Value g = noomV_rawgetTable(proto->env, proto->consts[inst.us]);
-				thrd->stacklen--;
+				// thrd->stacklen--;
 				e = noomV_pushRawValue(vm, g);
 				if(e) return e;
 			}
@@ -796,8 +797,11 @@ noom_Exit noomV_runCodeResumed(noom_LuaVM *vm, noom_Exit status, void *_ctx) {
 			break;
 		case NOOMV_INSTR_CALL:
 			{
-				// TODO: call whenever noom_callk() is fully implemented
-				return NOOM_EINTERNAL;
+				noomV_Value value;
+				e = noomV_getStackValue(vm, inst.a, &value);
+				if (e) return e;
+				e = noom_callk(vm, noom_getstacksize(vm) - inst.a - 1, ((noom_int_t)inst.us) - 1, vm->currentThread != vm->mainThread ? noomV_runCodeResumed : NULL, _ctx);
+				if (e) return e;
 			}
 			break;
 		case NOOMV_INSTR_RET:
@@ -900,12 +904,13 @@ noom_Exit noom_callk(noom_LuaVM* vm, noom_uint_t argc, noom_int_t retc, noom_KFu
 		return NOOM_ERUNTIME;
 	}
 	// TODO: check for __call
-	if(noom_typeof(vm, -argc - 1) != NOOM_LUA_TFUNCTION) {
+	if(noom_typeof(vm, -((noom_int_t)argc) - 1) != NOOM_LUA_TFUNCTION) {
 		printf("check\n");
 		noomV_setErrorStr(vm, thrd, "attempt to call non-function value");
 		return NOOM_ERUNTIME;
 	}
 	if(thrd == vm->mainThread && f != NULL) {
+		printf("aaugh!\n");
 		noomV_setErrorStr(vm, thrd, "main thread cannot be resumed");
 		return NOOM_ERUNTIME;
 	}
@@ -938,16 +943,10 @@ noom_Exit noom_callk(noom_LuaVM* vm, noom_uint_t argc, noom_int_t retc, noom_KFu
 			topCall->resumeFunc = f;
 			topCall->resumeCtx = ctx;
 		}
-		e = cf.resumeFunc(vm, e, cf.resumeCtx);
-		if(topCall != NULL) {
-			topCall->resumeFunc = NULL;
-			topCall->resumeCtx = NULL;
-		}
 
 		e = cfunc(vm);
 		// if (e) return e;
 	} else {
-	
 		noomV_CallFrame cf = {
 			.funcIdx = thrd->stacklen - argc - 1,
 			.returnCount = retc,
@@ -963,8 +962,8 @@ noom_Exit noom_callk(noom_LuaVM* vm, noom_uint_t argc, noom_int_t retc, noom_KFu
 		// just assume function, burn with fire later
 		noomV_Function *func = (noomV_Function *)v.obj;
 		cf.proto = func;
-		cf.resumeCtx = (void *)(size_t)thrd->calldepth;
-		cf.resumeFunc = noomV_runCodeResumed;
+		// cf.resumeCtx = (void *)(size_t)thrd->calldepth;
+		// cf.resumeFunc = noomV_runCodeResumed;
 		e = noomV_pushCallFrame(vm, thrd, cf);
 		if(e) return e;
 		// TODO: fix argument count.
@@ -972,14 +971,13 @@ noom_Exit noom_callk(noom_LuaVM* vm, noom_uint_t argc, noom_int_t retc, noom_KFu
 			topCall->resumeFunc = f;
 			topCall->resumeCtx = ctx;
 		}
-		e = cf.resumeFunc(vm, e, cf.resumeCtx);
-		if(topCall != NULL) {
-			topCall->resumeFunc = NULL;
-			topCall->resumeCtx = NULL;
-		}
+		e = noomV_runCodeResumed(vm, NOOM_OK, (void *)(size_t)thrd->calldepth);
 	}
 
 	// TODO: handle returns.
+
+	thrd->calldepth--;
+	
 	return e;
 }
 
