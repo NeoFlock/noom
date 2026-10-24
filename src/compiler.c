@@ -772,7 +772,7 @@ noom_Exit noomC_compile_expr(
 	
 		noomV_Value val = noom_tonumber_except_different_name_so_public_fucking_api_works(parser->code + node->source_offset, 0, parser->version);
 
-		if (val.tag == NOOMV_VNUM && val.number == ((short)val.number)) { // TODO: support NOOMV_VINT when that is actually used
+		if (val.tag == NOOMV_VNUM && val.number <= NOOM_USHORT_MAX) { // TODO: support NOOMV_VINT when that is actually used
 			// cooler path
 			if (retc != -1) compiler->curstack++;
 

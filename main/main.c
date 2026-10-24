@@ -287,7 +287,10 @@ int main(int argc, char** argv) {
 		for (;;) {
 			char code[4096];
 			if (read_prompt(code, sizeof(code), "> ", 1)) return 0;
-			execute(code, params.lua_version, 0, "(noom input)");
+			// Ok for now
+			if (strcmp(code, "exit") == 0) return 0;
+			else if (strcmp(code, "clear") == 0) fputs("\e[3J\e[2J\e[H", stdout);
+			else execute(code, params.lua_version, 0, "(noom input)");
 		}
 	}
 die:
