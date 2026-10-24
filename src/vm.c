@@ -829,11 +829,15 @@ noom_Exit noom_pushbool(noom_LuaVM* vm, bool boolean) {
 	return noomV_pushRawValue(vm, v);
 }
 
+noom_Exit noom_pushstring(noom_LuaVM* vm, const char* s) {
+	return noom_pushlstring(vm, s, noom_strlen(s));
+}
+
 noom_Exit noom_pushlstring(noom_LuaVM* vm, const char* s, noom_uint_t len) {
 	noomV_Value v = noomV_nil;
 	v.tag = NOOMV_VOBJ;
 	v.obj = (noomV_Object*)noomV_allocStr(vm, s, len);
-	return noomV_pushRawValue(vm, v);	
+	return noomV_pushRawValue(vm, v);
 }
 
 noom_Exit noom_pushcclosure(noom_LuaVM* vm, noom_CFunction* f, noom_uint_t upvalues) {

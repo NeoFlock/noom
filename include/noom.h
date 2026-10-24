@@ -165,7 +165,7 @@ typedef noom_int_t noom_slot_t;
 noom_Exit noom_pushint(noom_LuaVM* vm, noom_int_t integer);
 noom_Exit noom_pushnumber(noom_LuaVM* vm, noom_float_t number);
 noom_Exit noom_pushbool(noom_LuaVM* vm, bool boolean);
-#define noom_pushstring(vm, s) noom_pushlstring((vm), (s), noom_strlen((s)))
+noom_Exit noom_pushstring(noom_LuaVM* vm, const char* s);
 noom_Exit noom_pushlstring(noom_LuaVM* vm, const char* s, noom_uint_t len);
 noom_Exit noom_createtable(noom_LuaVM* vm, noom_uint_t prealloc);
 // Push a C closure using the top [upvalues] stackslots as upvalues
