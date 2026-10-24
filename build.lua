@@ -8,6 +8,7 @@ local libFiles = {
 	'src/compiler.c',
 	'src/vm.c',
 	'src/gc.c',
+	'src/stb.c',
 
 	'src/std/base.c',
 	'src/std/io.c',

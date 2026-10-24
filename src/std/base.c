@@ -10,7 +10,7 @@ noom_Exit noom_base_print(noom_LuaVM* vm) {
 	const char nl = '\n';	
 
 	for (noom_uint_t i = 0; i < stack_size; i++) {
-		// if ((result = noom_cast2str(vm, i))) return result;
+		if ((result = noom_cast2str(vm, i))) return result;
 		const char* s;
 		noom_uint_t len;
 
