@@ -641,6 +641,7 @@ noomP_Node* noomP_parseRawExpression(noomP_Parser* parser) {
 		}
 	}
 
+	parser->error_state = NOOMP_ERROR_UNKNOWN_EXPRESSION;
 	return 0;
 }
 

@@ -51,6 +51,7 @@ noom_uint_t noom_format_error(const noomP_Parser* parser, const char* program_na
 	    [NOOMP_ERROR_MULTIPLE_TOBECLOSED] = {"multiple to-be-closed variables in local list\n", 0},
 	    [NOOMP_ERROR_RETURN_NOT_END] = {"'return' must be the last statement in a block\n", 0},
 	    [NOOMP_ERROR_FOR_WRONG_AMOUNT] = {"'for' initializer must have 2 or 3 expressions\n", 0},
+	    [NOOMP_ERROR_UNKNOWN_EXPRESSION] = {"expected expression, found unknown token ", 2}
 	};
 
 	static const struct noom_error lexer_errors[] = {

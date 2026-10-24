@@ -127,6 +127,8 @@ typedef enum noomP_Error {
 	NOOMP_ERROR_RETURN_NOT_END,
 	NOOMP_ERROR_FOR_WRONG_AMOUNT,
 
+	NOOMP_ERROR_UNKNOWN_EXPRESSION,
+
 	NOOMP_ERROR_LEXER = 1 << 31, // bitwise or's with the lexer error number
 } noomP_Error;
 
