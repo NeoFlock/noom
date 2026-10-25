@@ -754,6 +754,18 @@ noom_Exit noomV_runCodeResumed(noom_LuaVM *vm, noom_Exit status, void *_ctx) {
 				if(e) return e;
 			}
 			break;
+		case NOOMV_INSTR_SETGLOBAL:
+			{
+				if(vm->version != NOOM_VERSION_51) return NOOM_EINTERNAL;
+				noomV_Value value;
+				e = noomV_getStackValue(vm, noom_getstacksize(vm)-1, &value);
+				if (e) return e;
+				e = noomV_rawsetTable(vm, proto->env, proto->consts[inst.us], value);
+				if (e) return e;
+				e = noom_pop(vm);
+				if (e) return e;
+			}
+			break;
 		case NOOMV_INSTR_PUSHINT:
 			{
 				e = noom_pushint(vm, inst.ss);
@@ -809,6 +821,12 @@ noom_Exit noomV_runCodeResumed(noom_LuaVM *vm, noom_Exit status, void *_ctx) {
 			{
 				// handled by surrounding noom_callk()
 				return noom_return(vm, noom_getstacksize(vm) - inst.us);
+			}
+			break;
+		case NOOMV_INSTR_POP:
+			{
+				e = noom_popn(vm, inst.us+1);
+				if (e) return e;
 			}
 			break;
 		default:
