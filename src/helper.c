@@ -57,6 +57,8 @@ noomV_Value noom_tonumber_except_different_name_so_public_fucking_api_works(cons
 	const char* const start = s;
 	#define NOOM_FAIL() do { if (endptr) *endptr = start; return (noomV_Value){.tag = NOOMV_VNIL}; } while (0)
 
+	while (*s == ' ' || (*s >= '\t' && *s <= '\r')) s++;
+
 	const bool negative = *s == '-';
 	if (*s == '-' || *s == '+') s++;
 
