@@ -977,7 +977,6 @@ noom_Exit noom_cast2str(noom_LuaVM* vm, noom_slot_t x) {
 	return noomV_setStackValue(vm, x, value);
 }
 
-
 noom_Exit noom_callk(noom_LuaVM* vm, noom_uint_t argc, noom_int_t retc, noom_KFunction* f, void* ctx) {
 	noomV_Thread *thrd = vm->currentThread;
 	if(noom_getstacksize(vm) < argc+1) {
@@ -1050,10 +1049,10 @@ noom_Exit noom_callk(noom_LuaVM* vm, noom_uint_t argc, noom_int_t retc, noom_KFu
 		e = noomV_runCodeResumed(vm, NOOM_OK, (void *)(size_t)thrd->calldepth);
 	}
 
-	// TODO: handle returns.
-
+	// mf yielded :anger:
+	if(e == NOOM_YIELD) return NOOM_YIELD;
 	thrd->calldepth--;
-	
+
 	return e;
 }
 

@@ -185,11 +185,11 @@ PUBLIC_EXECUTION /* !!!!!!!!!!!!! */
 #endif
 	noomV_pushRawValue(vm, peak);
 	noom_Exit err = noom_call(vm, 0, 0);
-	if (err != NOOM_OK) {
-		const char *msg = err == NOOM_ERR ? noom_getstrerror(vm) : "YIELD";
-		fputs("Exit: ", stderr);
-		fputs(msg, stderr);
-		fputs("\n", stderr);
+	if(err == NOOM_YIELD) {
+		fprintf(stderr, "Program yielded\n");
+	}
+	if (err == NOOM_ERR) {
+		fprintf(stderr, "Error: %s\n", noom_getstrerror(vm));
 		return 1;
 	}
 	return 0;
