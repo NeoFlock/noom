@@ -1,8 +1,6 @@
 #include "noom.h"
 #include "vm.h"
 
-#define NOOM_USHORT_MAX 0xffff
-
 noomV_Value noom_tonumber_except_different_name_so_public_fucking_api_works(const char* s, const char** endptr, noom_LuaVersion luauauauaua);
 
 int noom_startswith(const char* str, const char* compare);

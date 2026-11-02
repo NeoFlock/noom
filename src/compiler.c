@@ -3,6 +3,7 @@
 #include "compiler.h"
 #include "helper.h"
 #include "vm.h"
+#include <limits.h>
 
 // FUCK THIS STUPID COMPILER
 // IT DESERVES...
@@ -64,21 +65,22 @@ typedef struct noomC_AssignPlace {
 } noomC_AssignPlace;
 
 static noom_Exit noomC_addLocal(noomC_Compiler* c, noomC_Local local) {
-	if (c->localc == NOOMC_MAXLOCAL) return NOOM_EINTERNAL;
+	if (c->localc == NOOMC_MAXLOCAL) return noom_errorf(c->vm, "too many locals, maximum of %d", NOOMC_MAXLOCAL);
 	c->locals[c->localc++] = local;
 	return NOOM_OK;
 }
 
 static noom_Exit noomC_addUpval(noomC_Compiler* c, noomC_Upval upval) {
-	if (c->upvalc == NOOMC_MAXUPVAL) return NOOM_EINTERNAL;
+	if (c->upvalc == NOOMC_MAXUPVAL) return noom_errorf(c->vm, "too many upvalues, maximum of %d", NOOMC_MAXUPVAL);
 	c->upvals[c->upvalc++] = upval;
 	return NOOM_OK;
 }
 
-static noom_Exit noomC_addconst(noomV_Function* func, noomV_Value val) {
-	if (func->constsize == NOOM_USHORT_MAX) return NOOM_EINTERNAL;
+static noom_Exit noomC_addconst(noomC_Compiler *c, noomV_Value val) {
+	noomV_Function *func = c->target;
+	if (func->constsize == USHRT_MAX) return noom_errorf(c->vm, "too many constants, maximum of %d", USHRT_MAX);
 	noomV_Value* newConsts = noom_realloc(func->consts, sizeof(noomV_Value) * (func->constsize + 1));
-	if (newConsts == 0) return NOOM_ENOMEM;
+	if (newConsts == NULL) return noom_erroroom(c->vm);
 	func->consts = newConsts;
 	func->consts[func->constsize++] = val;
 	return NOOM_OK;
@@ -118,10 +120,10 @@ static noom_Exit noomC_addconst_str(noomC_Compiler* c, noom_LuaVM* vm, const cha
 		}
 	}
 	s = noomV_allocStr(vm, str, len);
-	if (s == 0) return NOOM_ENOMEM;
+	if (s == NULL) return noom_erroroom(vm);
 found:
 	*outIdx = c->target->constsize;
-	return noomC_addconst(c->target, (noomV_Value){.tag = NOOMV_VOBJ, .autoclose = 0, .isptr = 0, .obj = (noomV_Object*)s});
+	return noomC_addconst(c, (noomV_Value){.tag = NOOMV_VOBJ, .autoclose = 0, .isptr = 0, .obj = (noomV_Object*)s});
 }
 
 static noom_Exit noomC_addconst_val(noomC_Compiler* c, noomV_Value val, unsigned short* outIdx) {
@@ -133,7 +135,7 @@ static noom_Exit noomC_addconst_val(noomC_Compiler* c, noomV_Value val, unsigned
 		}
 	}
 	*outIdx = f->constsize;
-	return noomC_addconst(f, val);
+	return noomC_addconst(c, val);
 }
 
 static noom_Exit noomC_stealUpval(noomC_Compiler* c, const char* name, noom_uint_t namelen, noomC_LocalInfo* local) {
@@ -219,11 +221,11 @@ static noom_Exit noomC_identifyLocalAndSet(noomC_Compiler* compiler, noom_LuaVM*
 	if (e) return e;
 	if (info.type == NOOMC_LOCAL) {
 		compiler->curstack--;
-		return noomC_emit_AuD(compiler->target, NOOMV_INSTR_SETVAL, 0, info.idx);
+		return noomC_emit_AuD(compiler, NOOMV_INSTR_SETVAL, 0, info.idx);
 	}
 	if (info.type == NOOMC_UPVAL) {
 		compiler->curstack--;
-		return noomC_emit_AuD(compiler->target, NOOMV_INSTR_SETUPVAL, 0, info.idx);
+		return noomC_emit_AuD(compiler, NOOMV_INSTR_SETUPVAL, 0, info.idx);
 	}
 	unsigned short fieldIdx;
 	e = noomC_addconst_str(compiler, vm, name, namelen, &fieldIdx);
@@ -233,21 +235,22 @@ static noom_Exit noomC_identifyLocalAndSet(noomC_Compiler* compiler, noom_LuaVM*
 			noomC_LocalInfo _ENV;
 			e = noomC_identifyLocal(compiler, "_ENV", 4, &_ENV);
 			if (e) return e;
-			if (_ENV.type == NOOMC_GLOBAL) return NOOM_EINTERNAL;
+			if (_ENV.type == NOOMC_GLOBAL) return noom_errorf(vm, "_ENV is undefined");
 			if (_ENV.type == NOOMC_UPVAL) {
 				compiler->curstack--;
-				return noomC_emit_AuD(compiler->target, NOOMV_INSTR_SETGLOBAL, 0, fieldIdx);
+				return noomC_emit_AuD(compiler, NOOMV_INSTR_SETGLOBAL, 0, fieldIdx);
 			}
 			compiler->curstack--;
-			return noomC_emit_AuD(compiler->target, NOOMV_INSTR_SETFIELD, (unsigned char)_ENV.idx, (unsigned short)fieldIdx);
+			return noomC_emit_AuD(compiler, NOOMV_INSTR_SETFIELD, (unsigned char)_ENV.idx, (unsigned short)fieldIdx);
 		}
 		compiler->curstack--;
-		return noomC_emit_AuD(compiler->target, NOOMV_INSTR_SETGLOBAL, 0, fieldIdx);
+		return noomC_emit_AuD(compiler, NOOMV_INSTR_SETGLOBAL, 0, fieldIdx);
 	}
-	return NOOM_EINTERNAL;
+	return noom_errorf(vm, "unable to process variable assingment");
 }
 
 void noomC_compiler_init(noomC_Compiler* compiler) {
+	compiler->vm = NULL;
 	compiler->parent = NULL;
 	compiler->target = NULL;
 
@@ -269,9 +272,10 @@ void noomC_compiler_deinit(noomC_Compiler* compiler) {
 	noom_free(compiler->stringTmpBuf);
 }
 
-noom_Exit noomC_emit(noomV_Function* func, noomV_Inst inst) {
+noom_Exit noomC_emit(noomC_Compiler *c, noomV_Inst inst) {
+	noomV_Function *func = c->target;
 	noomV_Inst* newCode = noom_realloc(func->code, sizeof(noomV_Inst) * (func->codesize + 1));
-	if (newCode == 0) return NOOM_ENOMEM;
+	if (newCode == NULL) return noom_erroroom(c->vm);
 	func->code = newCode;
 	func->code[func->codesize++] = inst;
 	return NOOM_OK;
@@ -462,7 +466,7 @@ noom_Exit noomC_compile_proto(
 	noom_Exit result;
 
 	noomV_Function* proto = noomV_allocFunc(vm, parent_func->chunkname);
-	if (proto == 0) return NOOM_ENOMEM;
+	if (proto == NULL) return noom_erroroom(vm);
 
 	noomC_Compiler child;
 	noomC_compiler_init(&child);
@@ -519,7 +523,7 @@ noom_Exit noomC_compile_proto(
 	if ((result = noomC_compile_block(vm, &child, parser, proto, block_node, true)) != NOOM_OK) return result;
 
 	noomV_Function** newProtos = noom_realloc(parent_func->protos, sizeof(noomV_Function*) * (parent_func->protosize + 1));
-	if (newProtos == 0) return NOOM_ENOMEM;
+	if (newProtos == NULL) return noom_erroroom(vm);
 	parent_func->protos = newProtos;
 	parent_func->protos[parent_func->protosize++] = proto;
 
@@ -586,7 +590,7 @@ noom_Exit noomC_emit_assign_location(
 		return NOOM_OK;
 	}
 
-	return NOOM_EINTERNAL;
+	return noom_errorf(vm, "unable to process assignment");
 }
 
 // does NOT clean up the values/assignment locations for you. YOU have to do that.
@@ -602,33 +606,33 @@ noom_Exit noomC_emit_assignment(noom_LuaVM* vm,
 	// TODO: optimize by removing worthless PUSHVALs lol
 	switch (assign_place.type) {
 		case NOOMC_VARIABLE:
-			if ((result = noomC_emit_AuD(func, NOOMV_INSTR_PUSHVAL, 0, value_slot))) return result; // copy value
+			if ((result = noomC_emit_AuD(compiler, NOOMV_INSTR_PUSHVAL, 0, value_slot))) return result; // copy value
 			compiler->curstack++;
 			return noomC_identifyLocalAndSet(compiler, vm, assign_place.varname, assign_place.name_len); // should eat the copy for us
 		case NOOMC_FIELD:
-			if ((result = noomC_emit_AuD(func, NOOMV_INSTR_PUSHVAL, 0, assign_place.table_slot))) return result; // copy table
+			if ((result = noomC_emit_AuD(compiler, NOOMV_INSTR_PUSHVAL, 0, assign_place.table_slot))) return result; // copy table
 			compiler->curstack++;
-			if ((result = noomC_emit_AuD(func, NOOMV_INSTR_PUSHVAL, 0, value_slot))) return result; // copy value
+			if ((result = noomC_emit_AuD(compiler, NOOMV_INSTR_PUSHVAL, 0, value_slot))) return result; // copy value
 			compiler->curstack++;
 
-			if ((result = noomC_emit_AuD(func, NOOMV_INSTR_SETFIELD, 0, assign_place.field_idx))) return result;
+			if ((result = noomC_emit_AuD(compiler, NOOMV_INSTR_SETFIELD, 0, assign_place.field_idx))) return result;
 			compiler->curstack -= 2;
 			
 			return NOOM_OK;
 		case NOOMC_INDEX:
-			if ((result = noomC_emit_AuD(func, NOOMV_INSTR_PUSHVAL, 0, assign_place.table_slot))) return result; // copy table
+			if ((result = noomC_emit_AuD(compiler, NOOMV_INSTR_PUSHVAL, 0, assign_place.table_slot))) return result; // copy table
 			compiler->curstack++;
-			if ((result = noomC_emit_AuD(func, NOOMV_INSTR_PUSHVAL, 0, assign_place.index_slot))) return result; // copy value
+			if ((result = noomC_emit_AuD(compiler, NOOMV_INSTR_PUSHVAL, 0, assign_place.index_slot))) return result; // copy value
 			compiler->curstack++;
-			if ((result = noomC_emit_AuD(func, NOOMV_INSTR_PUSHVAL, 0, value_slot))) return result; // copy value
+			if ((result = noomC_emit_AuD(compiler, NOOMV_INSTR_PUSHVAL, 0, value_slot))) return result; // copy value
 			compiler->curstack++;
 
-			if ((result = noomC_emit_ABC(func, NOOMV_INSTR_SETTABLE, 0, 0, 0))) return result;
+			if ((result = noomC_emit_ABC(compiler, NOOMV_INSTR_SETTABLE, 0, 0, 0))) return result;
 			compiler->curstack -= 3;
 			return NOOM_OK;
 	}
 
-	return NOOM_EINTERNAL;
+	return noom_errorf(vm, "invalid assingment destination");
  }
 
 // assumes value is at TOP OF STACK!!!!! (idk why it takes a value_slot either but i'm too lazy to change it)
@@ -660,16 +664,16 @@ noom_Exit noomC_emit_assign_to(
 		unsigned short constidx;
 		if ((result = noomC_addconst_str(compiler, vm, parser->code + target->subnodes[1]->source_offset, length, &constidx))) return result;
 
-		if ((result = noomC_emit_AuD(func, NOOMV_INSTR_PUSHVAL, 0, value_slot))) return result;
+		if ((result = noomC_emit_AuD(compiler, NOOMV_INSTR_PUSHVAL, 0, value_slot))) return result;
 		compiler->curstack++;
 
 		// <value, table, value> TODO: maybe rotate instead?
-		if ((result = noomC_emit_AuD(func, NOOMV_INSTR_SETFIELD, 0, constidx))) return result;
+		if ((result = noomC_emit_AuD(compiler, NOOMV_INSTR_SETFIELD, 0, constidx))) return result;
 		compiler->curstack -= 2;
 
 		// <value>
 
-		if ((result = noomC_emit_AuD(func, NOOMV_INSTR_POP, 0, 0))) return result;
+		if ((result = noomC_emit_AuD(compiler, NOOMV_INSTR_POP, 0, 0))) return result;
 		compiler->curstack--;
 
 		// <>
@@ -689,16 +693,16 @@ noom_Exit noomC_emit_assign_to(
 
 		// <value, table, index>
 
-		if ((result = noomC_emit_AuD(func, NOOMV_INSTR_PUSHVAL, 0, value_slot))) return result;
+		if ((result = noomC_emit_AuD(compiler, NOOMV_INSTR_PUSHVAL, 0, value_slot))) return result;
 		compiler->curstack++;
 
 		// <value, table, index, value> TODO: maybe rotate instead here too?
-		if ((result = noomC_emit_ABC(func, NOOMV_INSTR_SETTABLE, 0, 0, 0))) return result;
+		if ((result = noomC_emit_ABC(compiler, NOOMV_INSTR_SETTABLE, 0, 0, 0))) return result;
 		compiler->curstack -= 3;
 
 		// <value>
 
-		if ((result = noomC_emit_AuD(func, NOOMV_INSTR_POP, 0, 0))) return result;
+		if ((result = noomC_emit_AuD(compiler, NOOMV_INSTR_POP, 0, 0))) return result;
 		compiler->curstack--;
 
 		// <>
@@ -706,7 +710,7 @@ noom_Exit noomC_emit_assign_to(
 		return NOOM_OK;
 	}
 
-	return NOOM_EINTERNAL;
+	return noom_errorf(vm, "invalid assignment destination");
 }
 
 // does NOT increment curstack!!!!!!
@@ -717,7 +721,7 @@ noom_Exit noomC_emit_nils(noom_LuaVM* vm, noomC_Compiler* compiler, const noomP_
 		func->code[func->codesize - 1].us += nil_c; // TODO: check if passing the unsigned short limit
 		return NOOM_OK;
 	}
-	return noomC_emit_AuD(func, NOOMV_INSTR_PUSHNIL, 0, nil_c - 1);
+	return noomC_emit_AuD(compiler, NOOMV_INSTR_PUSHNIL, 0, nil_c - 1);
 }
 
 noom_Exit noomC_compile_expr(
@@ -755,7 +759,7 @@ noom_Exit noomC_compile_expr(
 			if (val) last->us |= (unsigned short)(1 << last->a);
 			return NOOM_OK;
 		}
-		if ((result = noomC_emit_AuD(func, NOOMV_INSTR_PUSHBOOLS, 0, val ? 1 : 0))) return result;
+		if ((result = noomC_emit_AuD(compiler, NOOMV_INSTR_PUSHBOOLS, 0, val ? 1 : 0))) return result;
 
 		if (retc != -1) {
 			noom_uint_t nil_c = retc - 1;
@@ -772,17 +776,17 @@ noom_Exit noomC_compile_expr(
 	
 		noomV_Value val = noom_tonumber_except_different_name_so_public_fucking_api_works(parser->code + node->source_offset, 0, parser->version);
 
-		if (val.tag == NOOMV_VNUM && val.number <= NOOM_USHORT_MAX) { // TODO: support NOOMV_VINT when that is actually used
+		if (val.tag == NOOMV_VNUM && val.number <= USHRT_MAX) { // TODO: support NOOMV_VINT when that is actually used
 			// cooler path
 			if (retc != -1) compiler->curstack++;
 
-			if ((result = noomC_emit_AsD(func, NOOMV_INSTR_PUSHINT, 0, (short)val.number))) return result;
+			if ((result = noomC_emit_AsD(compiler, NOOMV_INSTR_PUSHINT, 0, (short)val.number))) return result;
 		} else {
 			unsigned short const_idx;
 			if ((result = noomC_addconst_val(compiler, val, &const_idx))) return result;
 			if (retc != -1) compiler->curstack++;
 			
-			if ((result = noomC_emit_AuD(func, NOOMV_INSTR_PUSHCONST, 0, const_idx))) return result;
+			if ((result = noomC_emit_AuD(compiler, NOOMV_INSTR_PUSHCONST, 0, const_idx))) return result;
 
 		}	
 
@@ -802,11 +806,11 @@ noom_Exit noomC_compile_expr(
 		unsigned short const_idx;
 		noom_uint_t len;
 		const char* sptr = noomC_decode_string_token(compiler, parser->code + node->source_offset, noomL_tokenlen(parser->code, node->source_offset, parser->version), parser->version, &len);
-		if (sptr == 0) return NOOM_ENOMEM;
+		if (sptr == 0) return noom_erroroom(vm);
 		if ((result = noomC_addconst_str(compiler, vm, sptr, len, &const_idx)) != NOOM_OK) return result;
 		if (retc != -1) compiler->curstack++;
 		
-		if ((result = noomC_emit_AuD(func, NOOMV_INSTR_PUSHCONST, 0, const_idx))) return result;
+		if ((result = noomC_emit_AuD(compiler, NOOMV_INSTR_PUSHCONST, 0, const_idx))) return result;
 
 		if (retc != -1) {
 			noom_uint_t nil_c = retc - 1;
@@ -820,7 +824,7 @@ noom_Exit noomC_compile_expr(
 
 	if (node->type == NOOMP_NODE_VARARGLITERAL) {
 		if (retc == 0) return NOOM_OK;
-		if ((result = noomC_emit_ABC(func, NOOMV_INSTR_PUSHARGS, retc < 0 ? 0 : (unsigned char)retc, 0, 0))) return result;
+		if ((result = noomC_emit_ABC(compiler, NOOMV_INSTR_PUSHARGS, retc < 0 ? 0 : (unsigned char)retc, 0, 0))) return result;
 		if (retc > 0) compiler->curstack += (unsigned)retc;
 		return NOOM_OK;
 	}
@@ -829,7 +833,7 @@ noom_Exit noomC_compile_expr(
 		if ((result = noomC_compile_expr(vm, compiler, parser, func, node->subnodes[0], 1))) return result;
 
 		if (retc == 0) {
-			return noomC_emit_AuD(func, NOOMV_INSTR_POP, 0, 0); // 0 means 1 pop
+			return noomC_emit_AuD(compiler, NOOMV_INSTR_POP, 0, 0); // 0 means 1 pop
 			// we still want it evaluated, but we don't want the result.
 		} else if (retc == -1) {
 			compiler->curstack--; // previous compile added one to it, but for -1 we want to leave this unchanged (i think)
@@ -843,7 +847,7 @@ noom_Exit noomC_compile_expr(
 	}
 
 	if (node->type == NOOMP_NODE_TABLELITERAL) {
-		if ((result = noomC_emit_AuD(func, NOOMV_INSTR_CREATETABLE, 0, node->subnodec))) return result;
+		if ((result = noomC_emit_AuD(compiler, NOOMV_INSTR_CREATETABLE, 0, node->subnodec))) return result;
 		const unsigned table_slot = compiler->curstack;
 
 		noom_uint_t array_idx = 1; // 1 BASED LUA ARRAY INDEXATION!!!!!!!!! DAMN!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -863,18 +867,18 @@ noom_Exit noomC_compile_expr(
 					if ((result = noomC_addconst_str(compiler, vm, parser->code + key_node->source_offset, length, &constidx))) return result;
 					if ((result = noomC_compile_expr(vm, compiler, parser, func, val_node, 1))) return result;
 					compiler->curstack--;
-					if ((result = noomC_emit_AuD(func, NOOMV_INSTR_SETFIELD, table_slot, constidx))) return result;
+					if ((result = noomC_emit_AuD(compiler, NOOMV_INSTR_SETFIELD, table_slot, constidx))) return result;
 				} else {
 					if ((result = noomC_compile_expr(vm, compiler, parser, func, key_node, 1))) return result;
 					if ((result = noomC_compile_expr(vm, compiler, parser, func, val_node, 1))) return result;
 					compiler->curstack -= 2;
-					if ((result = noomC_emit_ABC(func, NOOMV_INSTR_SETTABLE, table_slot, 0, 0))) return result;
+					if ((result = noomC_emit_ABC(compiler, NOOMV_INSTR_SETTABLE, table_slot, 0, 0))) return result;
 				}
 			} else {
 				const bool is_last = i == node->subnodec - 1;
 				if ((result = noomC_compile_expr(vm, compiler, parser, func, entry, is_last ? -1 : 1))) return result;
 				if (is_last) {
-					if ((result = noomC_emit_AuD(func, NOOMV_INSTR_SETLIST, table_slot, (unsigned short)array_idx))) return result;
+					if ((result = noomC_emit_AuD(compiler, NOOMV_INSTR_SETLIST, table_slot, (unsigned short)array_idx))) return result;
 					compiler->curstack = table_slot;
 				} else {
 					array_idx++;
@@ -896,10 +900,10 @@ noom_Exit noomC_compile_expr(
 
 	if (node->type == NOOMP_NODE_UNARYOPERATOR) {
 		if ((result = noomC_compile_expr(vm, compiler, parser, func, node->subnodes[0], 1))) return result;
-		if ((result = noomC_emit_ABC(func, NOOMV_INSTR_OP, 0, noomC_lex_un_op(parser, node->source_offset), 0))) return result;
+		if ((result = noomC_emit_ABC(compiler, NOOMV_INSTR_OP, 0, noomC_lex_un_op(parser, node->source_offset), 0))) return result;
 
 		if (retc == 0) {
-			return noomC_emit_AuD(func, NOOMV_INSTR_POP, 0, 0); // 0 means 1 pop
+			return noomC_emit_AuD(compiler, NOOMV_INSTR_POP, 0, 0); // 0 means 1 pop
 			// we still want it evaluated, but we don't want the result.
 		} else if (retc == -1) {
 			compiler->curstack--; // previous stuff added one to it, but for -1 we want to leave this unchanged (i think)
@@ -913,7 +917,7 @@ noom_Exit noomC_compile_expr(
 	}
 
 	if (node->type == NOOMP_NODE_BINARYOPERATOR) {
-		if (node->subnodec != 2) return NOOM_EINTERNAL;
+		if (node->subnodec != 2) return noom_errorf(vm, "malformed AST");
 		const char* op = parser->code + node->source_offset;
 		if (noom_startswith(op, "..")) {
 			// concat is special
@@ -925,7 +929,7 @@ noom_Exit noomC_compile_expr(
 			// concat is right-associate, like ^, meaning 1 .. 2 .. 3 is 1 .. (2 .. 3).
 			// VM will handle the concat order within the array for us
 			while (1) {
-				if (amount > NOOM_USHORT_MAX) return NOOM_EINTERNAL;
+				if (amount > USHRT_MAX) return noom_errorf(vm, "concatenation overflow");
 				amount++;
 				if (noom_startswith(parser->code + n->source_offset, "..")) {
 					if ((result = noomC_compile_expr(vm, compiler, parser, func, n->subnodes[0], 1))) return result;
@@ -937,10 +941,10 @@ noom_Exit noomC_compile_expr(
 			}
 			compiler->curstack -= (unsigned)amount;
 			compiler->curstack++;
-			if ((result = noomC_emit_AuD(func, NOOMV_INSTR_CONCAT, 0, (unsigned short)(amount - 1)))) return result;
+			if ((result = noomC_emit_AuD(compiler, NOOMV_INSTR_CONCAT, 0, (unsigned short)(amount - 1)))) return result;
 
 			if (retc == 0) {
-				return noomC_emit_AuD(func, NOOMV_INSTR_POP, 0, 0); // 0 means 1 pop
+				return noomC_emit_AuD(compiler, NOOMV_INSTR_POP, 0, 0); // 0 means 1 pop
 				// we still want it evaluated, but we don't want the result.
 			} else if (retc == -1) {
 				compiler->curstack--; // previous stuff added one to it, but for -1 we want to leave this unchanged (i think)
@@ -960,15 +964,15 @@ noom_Exit noomC_compile_expr(
 			if ((result = noomC_compile_expr(vm, compiler, parser, func, node->subnodes[0], 1))) return result;
 			const unsigned char lslot = (unsigned char)(compiler->curstack - 1);
 
-			if ((result = noomC_emit_AuD(func, NOOMV_INSTR_PUSHVAL, 0, lslot))) return result;
+			if ((result = noomC_emit_AuD(compiler, NOOMV_INSTR_PUSHVAL, 0, lslot))) return result;
 			compiler->curstack++;
 
 			noom_uint_t what_are_we_doing_bro = func->codesize;
-			if ((result = noomC_emit_AuD(func, opc, 0, 0))) return result;
+			if ((result = noomC_emit_AuD(compiler, opc, 0, 0))) return result;
 			compiler->curstack--;
 
 			if ((result = noomC_compile_expr(vm, compiler, parser, func, node->subnodes[1], 1))) return result;
-			if ((result = noomC_emit_AuD(func, NOOMV_INSTR_SETVAL, 0, lslot))) return result;
+			if ((result = noomC_emit_AuD(compiler, NOOMV_INSTR_SETVAL, 0, lslot))) return result;
 			compiler->curstack--;
 
 			func->code[what_are_we_doing_bro].us = (unsigned short)func->codesize;
@@ -976,7 +980,7 @@ noom_Exit noomC_compile_expr(
 
 			// see, i have no clue how this code works so i'm just going to ASSUME that this will just work
 			if (retc == 0) {
-				return noomC_emit_AuD(func, NOOMV_INSTR_POP, 0, 0); // 0 means 1 pop
+				return noomC_emit_AuD(compiler, NOOMV_INSTR_POP, 0, 0); // 0 means 1 pop
 				// we still want it evaluated, but we don't want the result.
 			} else if (retc == -1) {
 				compiler->curstack--; // previous stuff added one to it, but for -1 we want to leave this unchanged (i think)
@@ -993,10 +997,10 @@ noom_Exit noomC_compile_expr(
 		if ((result = noomC_compile_expr(vm, compiler, parser, func, node->subnodes[1], 1))) return result;
 		// this consumes 2 operands and pushes 1 value, thus having a net stack effect of removing 1 item
 		compiler->curstack--;
-		if ((result = noomC_emit_ABC(func, NOOMV_INSTR_OP, 1, noomC_lex_bin_op(parser, node->source_offset), 0))) return result;
+		if ((result = noomC_emit_ABC(compiler, NOOMV_INSTR_OP, 1, noomC_lex_bin_op(parser, node->source_offset), 0))) return result;
 
 		if (retc == 0) {
-			return noomC_emit_AuD(func, NOOMV_INSTR_POP, 0, 0); // 0 means 1 pop
+			return noomC_emit_AuD(compiler, NOOMV_INSTR_POP, 0, 0); // 0 means 1 pop
 			// we still want it evaluated, but we don't want the result.
 		} else if (retc == -1) {
 			compiler->curstack--; // previous stuff added one to it, but for -1 we want to leave this unchanged (i think)
@@ -1014,10 +1018,10 @@ noom_Exit noomC_compile_expr(
 		unsigned short constidx;
 		// dumbass oneliner
 		if ((result = noomC_addconst_str(compiler, vm, parser->code + node->subnodes[1]->source_offset, noomL_tokenlen(parser->code, node->subnodes[1]->source_offset, parser->version), &constidx))) return result;
-		if ((result = noomC_emit_AuD(func, NOOMV_INSTR_GETFIELD, 0, constidx))) return result;
+		if ((result = noomC_emit_AuD(compiler, NOOMV_INSTR_GETFIELD, 0, constidx))) return result;
 
 		if (retc == 0) {
-			return noomC_emit_AuD(func, NOOMV_INSTR_POP, 0, 0); // 0 means 1 pop
+			return noomC_emit_AuD(compiler, NOOMV_INSTR_POP, 0, 0); // 0 means 1 pop
 			// we still want it evaluated, but we don't want the result.
 		} else if (retc == -1) {
 			compiler->curstack--; // previous stuff added one to it, but for -1 we want to leave this unchanged (i think)
@@ -1034,10 +1038,10 @@ noom_Exit noomC_compile_expr(
 		if ((result = noomC_compile_expr(vm, compiler, parser, func, node->subnodes[0], 1))) return result;
 		if ((result = noomC_compile_expr(vm, compiler, parser, func, node->subnodes[1], 1))) return result;
 		compiler->curstack--;
-		if ((result = noomC_emit_ABC(func, NOOMV_INSTR_GETTABLE, 0, 0, 0))) return result;
+		if ((result = noomC_emit_ABC(compiler, NOOMV_INSTR_GETTABLE, 0, 0, 0))) return result;
 
 		if (retc == 0) {
-			return noomC_emit_AuD(func, NOOMV_INSTR_POP, 0, 0); // 0 means 1 pop
+			return noomC_emit_AuD(compiler, NOOMV_INSTR_POP, 0, 0); // 0 means 1 pop
 			// we still want it evaluated, but we don't want the result.
 		} else if (retc == -1) {
 			compiler->curstack--; // previous stuff added one to it, but for -1 we want to leave this unchanged (i think)
@@ -1069,7 +1073,7 @@ noom_Exit noomC_compile_expr(
 			unsigned short constidx;
 			if ((result = noomC_addconst_str(compiler, vm, fieldname, fieldlen, &constidx))) return result;
 			compiler->curstack++; // self is pushed alongside the method
-			if ((result = noomC_emit_AuD(func, NOOMV_INSTR_GETMETHOD, funcIdx, constidx))) return result;
+			if ((result = noomC_emit_AuD(compiler, NOOMV_INSTR_GETMETHOD, funcIdx, constidx))) return result;
 		}
 
 		// push arguments
@@ -1086,7 +1090,7 @@ noom_Exit noomC_compile_expr(
 			}
 		}
 
-		if ((result = noomC_emit_AuD(func, NOOMV_INSTR_CALL, funcIdx, (unsigned short)(retc < 0 ? 0 : retc + 1)))) return result;
+		if ((result = noomC_emit_AuD(compiler, NOOMV_INSTR_CALL, funcIdx, (unsigned short)(retc < 0 ? 0 : retc + 1)))) return result;
 
 		if (retc >= 0) {
 			compiler->curstack = returnToGlory + (unsigned)retc;
@@ -1106,38 +1110,38 @@ noom_Exit noomC_compile_expr(
 
 		switch (info.type) {
 			case NOOMC_LOCAL:
-				if ((result = noomC_emit_AuD(func, NOOMV_INSTR_PUSHVAL, 0, info.idx))) return result;
+				if ((result = noomC_emit_AuD(compiler, NOOMV_INSTR_PUSHVAL, 0, info.idx))) return result;
 				break;
 			case NOOMC_UPVAL:
-				if ((result = noomC_emit_AuD(func, NOOMV_INSTR_PUSHUPVAL, 0, info.idx))) return result;
+				if ((result = noomC_emit_AuD(compiler, NOOMV_INSTR_PUSHUPVAL, 0, info.idx))) return result;
 				break;
 			case NOOMC_GLOBAL: {
 				unsigned short constidx;
 				if((result = noomC_addconst_str(compiler, vm, varname, namelen, &constidx))) return result;
 				if(parser->version == NOOM_VERSION_51) {
-					if ((result = noomC_emit_AuD(func, NOOMV_INSTR_PUSHGLOBAL, 0, constidx))) return result;
+					if ((result = noomC_emit_AuD(compiler, NOOMV_INSTR_PUSHGLOBAL, 0, constidx))) return result;
 					break;
 				}
 				noomC_LocalInfo _ENV;
 				if((result = noomC_identifyLocal(compiler, "_ENV", 4, &_ENV))) return result;
 				// not meant to be possible
-				if(_ENV.type == NOOMC_GLOBAL) return NOOM_EINTERNAL;
+				if(_ENV.type == NOOMC_GLOBAL) return noom_errorf(vm, "_ENV is undefined");
 				// most likely branch in human history
 				if(_ENV.type == NOOMC_UPVAL) {
-					if((result = noomC_emit_AuD(func, NOOMV_INSTR_PUSHUPVAL, _ENV.idx, constidx))) return result;
+					if((result = noomC_emit_AuD(compiler, NOOMV_INSTR_PUSHUPVAL, _ENV.idx, constidx))) return result;
 				} else {
 					// bitchass
-					if((result = noomC_emit_AuD(func, NOOMV_INSTR_PUSHVAL, 0, _ENV.idx))) return result;
+					if((result = noomC_emit_AuD(compiler, NOOMV_INSTR_PUSHVAL, 0, _ENV.idx))) return result;
 				}
-				if ((result = noomC_emit_AuD(func, NOOMV_INSTR_GETFIELD, 0, constidx))) return result;
+				if ((result = noomC_emit_AuD(compiler, NOOMV_INSTR_GETFIELD, 0, constidx))) return result;
 				break;
 			default:
-				return NOOM_EINTERNAL;
+				return noom_errorf(vm, "unable to process variable fetch");
 			}
 		}
 
 		if (retc == 0) {
-			return noomC_emit_AuD(func, NOOMV_INSTR_POP, 0, 0); // 0 means 1 pop
+			return noomC_emit_AuD(compiler, NOOMV_INSTR_POP, 0, 0); // 0 means 1 pop
 			// we still want it evaluated, but we don't want the result.
 		} else if (retc == -1) {
 			compiler->curstack--; // previous stuff added one to it, but for -1 we want to leave this unchanged (i think)
@@ -1159,10 +1163,10 @@ noom_Exit noomC_compile_expr(
 
 		const unsigned short proto_idx = (unsigned short)(func->protosize - 1);
 		compiler->curstack++;
-		if ((result = noomC_emit_AuD(func, NOOMV_INSTR_PUSHCLOSURE, 0, proto_idx))) return result;
+		if ((result = noomC_emit_AuD(compiler, NOOMV_INSTR_PUSHCLOSURE, 0, proto_idx))) return result;
 
 		if (retc == 0) {
-			return noomC_emit_AuD(func, NOOMV_INSTR_POP, 0, 0); // 0 means 1 pop
+			return noomC_emit_AuD(compiler, NOOMV_INSTR_POP, 0, 0); // 0 means 1 pop
 			// we still want it evaluated, but we don't want the result. TODO: check if that's actually true for this one. idk.
 		} else if (retc == -1) {
 			compiler->curstack--; // previous stuff added one to it, but for -1 we want to leave this unchanged (i think)
@@ -1175,7 +1179,7 @@ noom_Exit noomC_compile_expr(
 		}
 	}
 
-	return NOOM_EINTERNAL;
+	return noom_errorf(vm, "unknown expression");
 }
 
 noom_Exit noomC_compile_block(noom_LuaVM* vm, noomC_Compiler* compiler, const noomP_Parser* parser, noomV_Function* func, const noomP_Node* node, bool is_toplevel) {
@@ -1187,10 +1191,10 @@ noom_Exit noomC_compile_block(noom_LuaVM* vm, noomC_Compiler* compiler, const no
 		noom_Exit r = noomC_add_stuff_to_function(vm, compiler, parser, func, node->subnodes[i]);
 		if (r != NOOM_OK) return r;
 	}
-	if (compiler->pendingGotoc > 0) return NOOM_EGOTONOLABEL;
+	if (compiler->pendingGotoc > 0) return noom_errorf(vm, "missing goto labels");
 
 	if (is_toplevel)
-		if ((result = noomC_emit_AuD(func, NOOMV_INSTR_RET, 0, compiler->curstack))) return result;
+		if ((result = noomC_emit_AuD(compiler, NOOMV_INSTR_RET, 0, compiler->curstack))) return result;
 	// else
 	// 	return NOOM_OK;
 
@@ -1200,7 +1204,7 @@ noom_Exit noomC_compile_block(noom_LuaVM* vm, noomC_Compiler* compiler, const no
 	}
 
 	if (compiler->curstack > stack_start) {
-		if ((result = noomC_emit_AuD(func, NOOMV_INSTR_POP, 0, compiler->curstack - stack_start - 1))) return result;
+		if ((result = noomC_emit_AuD(compiler, NOOMV_INSTR_POP, 0, compiler->curstack - stack_start - 1))) return result;
 		compiler->curstack = stack_start;
 	}
 	
@@ -1249,13 +1253,13 @@ noom_Exit noomC_add_stuff_to_function(noom_LuaVM* vm, noomC_Compiler* compiler, 
 				const char* ap = parser->code + offset;
 				noom_uint_t al = alength;
 				if (noom_memeq(ap, al, "close", 5)) {
-					if (local.close) return NOOM_EINTERNAL;
+					if (local.close) return noom_errorf(vm, "duplicate <close> on a variable");
 					local.close = true;
 				} else if (noom_memeq(ap, al, "const", 5)) {
-					if (local.constant) return NOOM_EINTERNAL;
+					if (local.constant) return noom_errorf(vm, "duplicate <const> on a variable");
 					local.constant = true;
 				} else {
-					return NOOM_EINTERNAL;
+					return noom_errorf(vm, "invalid variable annotation");
 				}
 			}
 
@@ -1267,14 +1271,14 @@ noom_Exit noomC_add_stuff_to_function(noom_LuaVM* vm, noomC_Compiler* compiler, 
 
 	// local function name(...) ... end
 	if (node->type == NOOMP_NODE_LOCALFUNCTIONDECLARATION) {
-		if (node->subnodec != 3) return NOOM_EINTERNAL;
+		if (node->subnodec != 3) return noom_errorf(vm, "malformed AST");
 		// Fuck you
 		const noomP_Node* varname_node = node->subnodes[0];
 		const noomP_Node* params_node = node->subnodes[1];
 		const noomP_Node* block_node = node->subnodes[2];
-		if (varname_node->type != NOOMP_NODE_VARNAME) return NOOM_EINTERNAL;
-		if (params_node->type != NOOMP_NODE_FUNCTIONPARAMETERS) return NOOM_EINTERNAL;
-		if (block_node->type != NOOMP_NODE_BLOCK) return NOOM_EINTERNAL;
+		if (varname_node->type != NOOMP_NODE_VARNAME) return noom_errorf(vm, "malformed function name");
+		if (params_node->type != NOOMP_NODE_FUNCTIONPARAMETERS) return noom_errorf(vm, "malformed parameters");
+		if (block_node->type != NOOMP_NODE_BLOCK) return noom_errorf(vm, "malformed codeblock");
 
 		noom_uint_t length = noomL_tokenlen(parser->code, varname_node->source_offset, parser->version);
 		unsigned int self_slot = compiler->curstack++;
@@ -1283,7 +1287,7 @@ noom_Exit noomC_add_stuff_to_function(noom_LuaVM* vm, noomC_Compiler* compiler, 
 		if ((result = noomC_compile_proto(vm, compiler, parser, func, params_node, block_node, 0, &proto))) return result;
 
 		unsigned short proto_idx = (unsigned short)(func->protosize - 1);
-		if ((result = noomC_emit_AuD(func, NOOMV_INSTR_PUSHCLOSURE, (unsigned char)self_slot, proto_idx))) return result;
+		if ((result = noomC_emit_AuD(compiler, NOOMV_INSTR_PUSHCLOSURE, (unsigned char)self_slot, proto_idx))) return result;
 
 		noomC_Local local;
 		local.startpc = proto->codesize;
@@ -1301,7 +1305,7 @@ noom_Exit noomC_add_stuff_to_function(noom_LuaVM* vm, noomC_Compiler* compiler, 
 	// function shit.mp3.opus:method(...) ... end
 	if (node->type == NOOMP_NODE_FUNCTIONDECLARATION) {
 		// [FUNCTION_NAME[FIELDNAME..., METHODNAME?], FUNCTIONPARAMETERS[VARNAME...], BLOCK
-		if (node->subnodec != 3) return NOOM_EINTERNAL;
+		if (node->subnodec != 3) return noom_errorf(vm, "malformed AST");
 		const noomP_Node* fname_node = node->subnodes[0];
 		const noomP_Node* params_node = node->subnodes[1];
 		const noomP_Node* block_node = node->subnodes[2];
@@ -1318,10 +1322,10 @@ noom_Exit noomC_add_stuff_to_function(noom_LuaVM* vm, noomC_Compiler* compiler, 
 		unsigned short proto_idx = (unsigned short)(func->protosize - 1);
 		compiler->curstack++;
 		// const unsigned char closure_slot = (unsigned char)(compiler->curstack - 1);
-		if ((result = noomC_emit_AuD(func, NOOMV_INSTR_PUSHCLOSURE, 0, proto_idx))) return result;
+		if ((result = noomC_emit_AuD(compiler, NOOMV_INSTR_PUSHCLOSURE, 0, proto_idx))) return result;
 
 		// now assign it uhhh
-		if (fname_node->subnodec == 0) return NOOM_EINTERNAL;
+		if (fname_node->subnodec == 0) return noom_errorf(vm, "malformed function name");
 
 		noom_uint_t chain_len = fname_node->subnodec;
 
@@ -1337,7 +1341,7 @@ noom_Exit noomC_add_stuff_to_function(noom_LuaVM* vm, noomC_Compiler* compiler, 
 
 			const noomP_Node* root = fname_node->subnodes[0];
 
-			if (root->type != NOOMP_NODE_FIELDNAME) return NOOM_EINTERNAL; // just in case
+			if (root->type != NOOMP_NODE_FIELDNAME) return noom_errorf(vm, "malformed function name"); // just in case
 
 			const char* root_name = parser->code + root->source_offset;
 			noom_uint_t root_name_len = noomL_tokenlen(parser->code, root->source_offset, parser->version);
@@ -1353,12 +1357,12 @@ noom_Exit noomC_add_stuff_to_function(noom_LuaVM* vm, noomC_Compiler* compiler, 
 			// can someone else turn it into a function? i'm kinda ultimate lazy rn frfr ngl
 			switch (info.type) {
 				case NOOMC_LOCAL:
-					if ((result = noomC_emit_AuD(func, NOOMV_INSTR_PUSHVAL, 0, info.idx))) {
+					if ((result = noomC_emit_AuD(compiler, NOOMV_INSTR_PUSHVAL, 0, info.idx))) {
 						return result;
 					}
 					break;
 				case NOOMC_UPVAL:
-					if ((result = noomC_emit_AuD(func, NOOMV_INSTR_PUSHUPVAL, 0, info.idx))) {
+					if ((result = noomC_emit_AuD(compiler, NOOMV_INSTR_PUSHUPVAL, 0, info.idx))) {
 						return result;
 					}
 					break;
@@ -1366,21 +1370,21 @@ noom_Exit noomC_add_stuff_to_function(noom_LuaVM* vm, noomC_Compiler* compiler, 
 					unsigned short constidx;
 					if((result = noomC_addconst_str(compiler, vm, root_name, root_name_len, &constidx))) return result;
 					if(parser->version == NOOM_VERSION_51) {
-						if ((result = noomC_emit_AuD(func, NOOMV_INSTR_PUSHGLOBAL, 0, constidx))) return result;
+						if ((result = noomC_emit_AuD(compiler, NOOMV_INSTR_PUSHGLOBAL, 0, constidx))) return result;
 						break; // we done here
 					}
 					noomC_LocalInfo _ENV;
 					if((result = noomC_identifyLocal(compiler, "_ENV", 4, &_ENV))) return result;
 					// not meant to be possible
-					if(_ENV.type == NOOMC_GLOBAL) return NOOM_EINTERNAL;
+					if(_ENV.type == NOOMC_GLOBAL) return noom_errorf(vm, "_ENV is undefined");
 					// most likely branch in human history
 					if(_ENV.type == NOOMC_UPVAL) {
-						if((result = noomC_emit_AuD(func, NOOMV_INSTR_PUSHUPVAL, _ENV.idx, constidx))) return result;
+						if((result = noomC_emit_AuD(compiler, NOOMV_INSTR_PUSHUPVAL, _ENV.idx, constidx))) return result;
 					} else {
 						// bitchass
-						if((result = noomC_emit_AuD(func, NOOMV_INSTR_PUSHVAL, 0, _ENV.idx))) return result;
+						if((result = noomC_emit_AuD(compiler, NOOMV_INSTR_PUSHVAL, 0, _ENV.idx))) return result;
 					}
-					if ((result = noomC_emit_AuD(func, NOOMV_INSTR_GETFIELD, 0, constidx))) return result;
+					if ((result = noomC_emit_AuD(compiler, NOOMV_INSTR_GETFIELD, 0, constidx))) return result;
 					break;
 				}
 			}
@@ -1389,7 +1393,7 @@ noom_Exit noomC_add_stuff_to_function(noom_LuaVM* vm, noomC_Compiler* compiler, 
 			for (noom_uint_t i = 1; i < (fname_node->subnodec-1); i++) {
 				const noomP_Node* field = fname_node->subnodes[i];
 
-				if (field->type != NOOMP_NODE_FIELDNAME) return NOOM_EINTERNAL; // must be this; only last one can be method
+				if (field->type != NOOMP_NODE_FIELDNAME) return noom_errorf(vm, "malformed function name"); // must be this; only last one can be method
 
 				noom_uint_t field_len = noomL_tokenlen(parser->code, field->source_offset, parser->version);
 
@@ -1397,7 +1401,7 @@ noom_Exit noomC_add_stuff_to_function(noom_LuaVM* vm, noomC_Compiler* compiler, 
 				const char* field_name = parser->code + field->source_offset;
 				if ((result = noomC_addconst_str(compiler, vm, field_name, field_len, &fieldidx))) return result;
 
-				if ((result = noomC_emit_AuD(func, NOOMV_INSTR_GETFIELD, 0, fieldidx))) return result;
+				if ((result = noomC_emit_AuD(compiler, NOOMV_INSTR_GETFIELD, 0, fieldidx))) return result;
 			}
 			// we should now just have the final table in the stack (if i did it right; which honestly; no clue.
 
@@ -1410,7 +1414,7 @@ noom_Exit noomC_add_stuff_to_function(noom_LuaVM* vm, noomC_Compiler* compiler, 
 			unsigned short fieldidx;
 			if ((result = noomC_addconst_str(compiler, vm, final_name, fieldlen, &fieldidx))) return result;
 
-			if ((result = noomC_emit_AuD(func, NOOMV_INSTR_SETFIELD, 0, fieldidx))) return result;
+			if ((result = noomC_emit_AuD(compiler, NOOMV_INSTR_SETFIELD, 0, fieldidx))) return result;
 
 			// fall through to the curstack--
 		}
@@ -1428,7 +1432,7 @@ noom_Exit noomC_add_stuff_to_function(noom_LuaVM* vm, noomC_Compiler* compiler, 
 			if ((result = noomC_compile_expr(vm, compiler, parser, func, node->subnodes[i], is_last ? -1 : 1))) return result;
 		}
 
-		return noomC_emit_AuD(func, NOOMV_INSTR_RET, 0, base_slot);
+		return noomC_emit_AuD(compiler, NOOMV_INSTR_RET, 0, base_slot);
 	}
 
 	// a, b.c, d[e] = expr1, expr2, ...
@@ -1440,7 +1444,7 @@ noom_Exit noomC_add_stuff_to_function(noom_LuaVM* vm, noomC_Compiler* compiler, 
 		// evil blendi goose evil fixed this
 
 		noomC_AssignPlace* assign_places = noom_alloc(sizeof(noomC_AssignPlace) * place_count);
-		if (assign_places == 0) return NOOM_ENOMEM;
+		if (assign_places == NULL) return noom_erroroom(vm);
 
 		noom_uint_t pop_count = place_count;
 
@@ -1496,7 +1500,7 @@ noom_Exit noomC_add_stuff_to_function(noom_LuaVM* vm, noomC_Compiler* compiler, 
 		// now to pop it all away
 		// TODO: maybe add a way to emit multiple pops if needed.
 		if (pop_count > 0) {
-			if ((result = noomC_emit_AuD(func, NOOMV_INSTR_POP, 0, pop_count - 1))) return result;
+			if ((result = noomC_emit_AuD(compiler, NOOMV_INSTR_POP, 0, pop_count - 1))) return result;
 			compiler->curstack -= pop_count;
 		}
 
@@ -1509,7 +1513,7 @@ noom_Exit noomC_add_stuff_to_function(noom_LuaVM* vm, noomC_Compiler* compiler, 
 		// [cond, block, cond, block, ..., block (else, no condition)]
 
 		noom_uint_t* end_jumps = noom_alloc(sizeof(noom_uint_t) * (node->subnodec / 2 + 1));
-		if (end_jumps == 0) return NOOM_ENOMEM;
+		if (end_jumps == 0) return noom_erroroom(vm);
 		noom_uint_t end_jump_count = 0;
 
 		noom_uint_t i = 0;
@@ -1523,7 +1527,7 @@ noom_Exit noomC_add_stuff_to_function(noom_LuaVM* vm, noomC_Compiler* compiler, 
 			compiler->curstack--;
 
 			noom_uint_t cond_jmp = func->codesize;
-			if ((result = noomC_emit_AuD(func, NOOMV_INSTR_CNJMP, 0, 0)) != NOOM_OK) {
+			if ((result = noomC_emit_AuD(compiler, NOOMV_INSTR_CNJMP, 0, 0)) != NOOM_OK) {
 				noom_free(end_jumps);
 				return result;
 			}
@@ -1536,7 +1540,7 @@ noom_Exit noomC_add_stuff_to_function(noom_LuaVM* vm, noomC_Compiler* compiler, 
 			// if there's more, jump over the remaining branches.
 			if (i + 2 < node->subnodec) {
 				end_jumps[end_jump_count++] = func->codesize;
-				if ((result = noomC_emit_AuD(func, NOOMV_INSTR_JMP, 0, 0)) != NOOM_OK) {
+				if ((result = noomC_emit_AuD(compiler, NOOMV_INSTR_JMP, 0, 0)) != NOOM_OK) {
 					noom_free(end_jumps);
 					return result;
 				}
@@ -1566,7 +1570,7 @@ noom_Exit noomC_add_stuff_to_function(noom_LuaVM* vm, noomC_Compiler* compiler, 
 	// while cond do block end
 	if (node->type == NOOMP_NODE_WHILELOOP) {
 		// [condition, block]
-		if (node->subnodec != 2) return NOOM_EINTERNAL;
+		if (node->subnodec != 2) return noom_errorf(vm, "malformed AST");
 
 		noom_uint_t loop_start = func->codesize;
 
@@ -1574,13 +1578,13 @@ noom_Exit noomC_add_stuff_to_function(noom_LuaVM* vm, noomC_Compiler* compiler, 
 		compiler->curstack--;
 
 		noom_uint_t exit_jmp = func->codesize;
-		if ((result = noomC_emit_AuD(func, NOOMV_INSTR_CNJMP, 0, 0))) return result;
+		if ((result = noomC_emit_AuD(compiler, NOOMV_INSTR_CNJMP, 0, 0))) return result;
 
-		if (compiler->loopDepth >= NOOMC_MAXLOOPDEPTH) return NOOM_EINTERNAL;
+		if (compiler->loopDepth >= NOOMC_MAXLOOPDEPTH) return noom_errorf(vm, "loops too nested, max of %d", NOOMC_MAXLOOPDEPTH);
 		compiler->loopBreakBase[compiler->loopDepth++] = compiler->breakPatchCount;
 
 		if ((result = noomC_compile_block(vm, compiler, parser, func, node->subnodes[1], false))) return result;
-		if ((result = noomC_emit_AuD(func, NOOMV_INSTR_JMP, 0, (unsigned short)loop_start))) return result;
+		if ((result = noomC_emit_AuD(compiler, NOOMV_INSTR_JMP, 0, (unsigned short)loop_start))) return result;
 		func->code[exit_jmp].us = (unsigned short)func->codesize;
 
 		for (noom_uint_t bi = compiler->loopBreakBase[compiler->loopDepth - 1]; bi < compiler->breakPatchCount; bi++) {
@@ -1594,17 +1598,17 @@ noom_Exit noomC_add_stuff_to_function(noom_LuaVM* vm, noomC_Compiler* compiler, 
 	// repeat block until cond
 	if (node->type == NOOMP_NODE_REPEAT) {
 		// [block, cond]
-		if (node->subnodec != 2) return NOOM_EINTERNAL;
+		if (node->subnodec != 2) return noom_errorf(vm, "malformed AST");
 
 		noom_uint_t loop_start = func->codesize;
 
-		if (compiler->loopDepth >= NOOMC_MAXLOOPDEPTH) return NOOM_EINTERNAL;
+		if (compiler->loopDepth >= NOOMC_MAXLOOPDEPTH) return noom_errorf(vm, "loops too nested, max of %d", NOOMC_MAXLOOPDEPTH);
 		compiler->loopBreakBase[compiler->loopDepth++] = compiler->breakPatchCount;
 
 		if ((result = noomC_compile_block(vm, compiler, parser, func, node->subnodes[0], false))) return result;
 		if ((result = noomC_compile_expr(vm, compiler, parser, func, node->subnodes[1], 1))) return result;
 		compiler->curstack--;
-		if ((result = noomC_emit_AuD(func, NOOMV_INSTR_CNJMP, 0, (unsigned short)loop_start))) return result;
+		if ((result = noomC_emit_AuD(compiler, NOOMV_INSTR_CNJMP, 0, (unsigned short)loop_start))) return result;
 
 		for (noom_uint_t bi = compiler->loopBreakBase[compiler->loopDepth - 1]; bi < compiler->breakPatchCount; bi++) {
 			func->code[compiler->breakPatches[bi]].us = (unsigned short)func->codesize;
@@ -1629,19 +1633,19 @@ noom_Exit noomC_add_stuff_to_function(noom_LuaVM* vm, noomC_Compiler* compiler, 
 
 		if (value_count == 2) {
 			// push a 1
-			if ((result = noomC_emit_AsD(func, NOOMV_INSTR_PUSHINT, 0, (unsigned short)1))) return result;
+			if ((result = noomC_emit_AsD(compiler, NOOMV_INSTR_PUSHINT, 0, (unsigned short)1))) return result;
 			compiler->curstack++;
 		}
 
 		noom_uint_t loop_start = func->codesize;
 
-		if ((result = noomC_emit_AuD(func, NOOMV_INSTR_ITER, 0, 0))) return result; // make sure to fill the jump in later
+		if ((result = noomC_emit_AuD(compiler, NOOMV_INSTR_ITER, 0, 0))) return result; // make sure to fill the jump in later
 
 		unsigned var_count = compiler->localc;
 		unsigned loop_stack_start = compiler->curstack;
 		noom_uint_t var_pos = compiler->curstack++; // function above now pushes i, which means we need to increment curstack
 
-		if (compiler->loopDepth >= NOOMC_MAXLOOPDEPTH) return NOOM_EINTERNAL;
+		if (compiler->loopDepth >= NOOMC_MAXLOOPDEPTH) return noom_errorf(vm, "loops too nested, max of %d", NOOMC_MAXLOOPDEPTH);
 		compiler->loopBreakBase[compiler->loopDepth++] = compiler->breakPatchCount;
 
 
@@ -1668,11 +1672,11 @@ noom_Exit noomC_add_stuff_to_function(noom_LuaVM* vm, noomC_Compiler* compiler, 
 		}
 
 		if (compiler->curstack > loop_stack_start) {
-			if ((result = noomC_emit_AuD(func, NOOMV_INSTR_SETSTACK, 0, loop_stack_start))) return result;
+			if ((result = noomC_emit_AuD(compiler, NOOMV_INSTR_SETSTACK, 0, loop_stack_start))) return result;
 			compiler->curstack = loop_stack_start;
 		}
 
-		if ((result = noomC_emit_AuD(func, NOOMV_INSTR_JMP, 0, (unsigned short)loop_start))) return result;
+		if ((result = noomC_emit_AuD(compiler, NOOMV_INSTR_JMP, 0, (unsigned short)loop_start))) return result;
 		func->code[loop_start].us = (unsigned short)func->codesize; // TODO: use a if needed
 
 		for (noom_uint_t bi = compiler->loopBreakBase[compiler->loopDepth - 1]; bi < compiler->breakPatchCount; bi++) {
@@ -1682,7 +1686,7 @@ noom_Exit noomC_add_stuff_to_function(noom_LuaVM* vm, noomC_Compiler* compiler, 
 
 		// may or may not have the iterator variable left over because of breaks
 		// set the stack to neutralize any possible state we might have been in upon break
-		if ((result = noomC_emit_AuD(func, NOOMV_INSTR_SETSTACK, 0, stack_start))) return result;
+		if ((result = noomC_emit_AuD(compiler, NOOMV_INSTR_SETSTACK, 0, stack_start))) return result;
 		compiler->curstack = stack_start;
 		
 		return NOOM_OK;
@@ -1709,21 +1713,21 @@ noom_Exit noomC_add_stuff_to_function(noom_LuaVM* vm, noomC_Compiler* compiler, 
 			if ((result = noomC_compile_expr(vm, compiler, parser, func, node->subnodes[i], retc))) return result;
 		}
 
-		if ((result = noomC_emit_AsD(func, NOOMV_INSTR_ROTATE, 4, 1))) return result;
+		if ((result = noomC_emit_AsD(compiler, NOOMV_INSTR_ROTATE, 4, 1))) return result;
 
 		// the to-be-closed the last argument but after the rotation it's back there.
-		if ((result = noomC_emit_AuD(func, NOOMV_INSTR_CLOSE, 0, stack_start))) return result;
+		if ((result = noomC_emit_AuD(compiler, NOOMV_INSTR_CLOSE, 0, stack_start))) return result;
 
 		noom_uint_t loop_start = func->codesize;
-		if ((result = noomC_emit_AuD(func, NOOMV_INSTR_NEXT, 0, 0))) return result;
+		if ((result = noomC_emit_AuD(compiler, NOOMV_INSTR_NEXT, 0, 0))) return result;
 
-		if (compiler->loopDepth >= NOOMC_MAXLOOPDEPTH) return NOOM_EINTERNAL;
+		if (compiler->loopDepth >= NOOMC_MAXLOOPDEPTH) return noom_errorf(vm, "loops too nested, max of %d", NOOMC_MAXLOOPDEPTH);
 		compiler->loopBreakBase[compiler->loopDepth++] = compiler->breakPatchCount;
 
 		unsigned var_count = compiler->localc;
 		unsigned loop_stack_start = compiler->curstack;
 
-		if ((result = noomC_emit_AuD(func, NOOMV_INSTR_SETSTACK, 0, loop_stack_start + varnamec))) return result;
+		if ((result = noomC_emit_AuD(compiler, NOOMV_INSTR_SETSTACK, 0, loop_stack_start + varnamec))) return result;
 		compiler->curstack = loop_stack_start + varnamec;
 
 		for (noom_uint_t i = 0; i < varnamec; i++) {
@@ -1753,11 +1757,11 @@ noom_Exit noomC_add_stuff_to_function(noom_LuaVM* vm, noomC_Compiler* compiler, 
 		}
 
 		if (compiler->curstack > loop_stack_start) {
-			if ((result = noomC_emit_AuD(func, NOOMV_INSTR_SETSTACK, 0, loop_stack_start))) return result;
+			if ((result = noomC_emit_AuD(compiler, NOOMV_INSTR_SETSTACK, 0, loop_stack_start))) return result;
 			compiler->curstack = loop_stack_start;
 		}
 
-		if ((result = noomC_emit_AuD(func, NOOMV_INSTR_JMP, 0, (unsigned short)loop_start))) return result;
+		if ((result = noomC_emit_AuD(compiler, NOOMV_INSTR_JMP, 0, (unsigned short)loop_start))) return result;
 		func->code[loop_start].us = (unsigned short)func->codesize; // TODO: use a if needed
 
 		for (noom_uint_t bi = compiler->loopBreakBase[compiler->loopDepth - 1]; bi < compiler->breakPatchCount; bi++) {
@@ -1765,7 +1769,7 @@ noom_Exit noomC_add_stuff_to_function(noom_LuaVM* vm, noomC_Compiler* compiler, 
 		}
 		compiler->breakPatchCount = compiler->loopBreakBase[--compiler->loopDepth];
 
-		if ((result = noomC_emit_AuD(func, NOOMV_INSTR_SETSTACK, 0, stack_start))) return result;
+		if ((result = noomC_emit_AuD(compiler, NOOMV_INSTR_SETSTACK, 0, stack_start))) return result;
 		compiler->curstack = stack_start;
 		
 		return NOOM_OK;
@@ -1773,10 +1777,10 @@ noom_Exit noomC_add_stuff_to_function(noom_LuaVM* vm, noomC_Compiler* compiler, 
 
 	// break
 	if (node->type == NOOMP_NODE_BREAK) {
-		if (compiler->loopDepth == 0) return NOOM_EINTERNAL; 
-		if (compiler->breakPatchCount >= NOOMC_MAXBREAKS) return NOOM_EINTERNAL;
+		if (compiler->loopDepth == 0) return noom_errorf(vm, "break found outside of loop"); 
+		if (compiler->breakPatchCount >= NOOMC_MAXBREAKS) return noom_errorf(vm, "too many breaks, max of %d", NOOMC_MAXBREAKS);
 		noom_uint_t pc = func->codesize;
-		if ((result = noomC_emit_AuD(func, NOOMV_INSTR_JMP, 0, 0))) return result;
+		if ((result = noomC_emit_AuD(compiler, NOOMV_INSTR_JMP, 0, 0))) return result;
 		compiler->breakPatches[compiler->breakPatchCount++] = (unsigned int)pc;
 		return NOOM_OK;
 	}
@@ -1788,13 +1792,13 @@ noom_Exit noomC_add_stuff_to_function(noom_LuaVM* vm, noomC_Compiler* compiler, 
 
 		for (noom_uint_t i = 0; i < compiler->labelc; i++) {
 			if (noom_memeq(compiler->labels[i].name, compiler->labels[i].namelen, name, namelen)) {
-				return noomC_emit_AuD(func, NOOMV_INSTR_JMP, 0, (unsigned short)compiler->labels[i].pc);
+				return noomC_emit_AuD(compiler, NOOMV_INSTR_JMP, 0, (unsigned short)compiler->labels[i].pc);
 			}
 		}
 
-		if (compiler->pendingGotoc >= NOOMC_MAXGOTOS) return NOOM_EINTERNAL;
+		if (compiler->pendingGotoc >= NOOMC_MAXGOTOS) return noom_errorf(vm, ">%d gotos considered harmful", NOOMC_MAXGOTOS);
 		noom_uint_t pc = func->codesize;
-		if ((result = noomC_emit_AuD(func, NOOMV_INSTR_JMP, 0, 0))) return result;
+		if ((result = noomC_emit_AuD(compiler, NOOMV_INSTR_JMP, 0, 0))) return result;
 		compiler->pendingGotos[compiler->pendingGotoc++] = (noomC_PendingGoto){ .name=name, .namelen = namelen, .patchpc = (unsigned int)pc };
 		return NOOM_OK;
 	}
@@ -1804,7 +1808,7 @@ noom_Exit noomC_add_stuff_to_function(noom_LuaVM* vm, noomC_Compiler* compiler, 
 		const char* name = parser->code + node->subnodes[0]->source_offset;
 		noom_uint_t namelen = noomL_tokenlen(name, 0, parser->version);
 		
-		if (compiler->labelc >= NOOMC_MAXLABELS) return NOOM_EINTERNAL;
+		if (compiler->labelc >= NOOMC_MAXLABELS) return noom_errorf(vm, "too many labels, max of %d", NOOMC_MAXLABELS);
 		noom_uint_t pc = func->codesize;
 		compiler->labels[compiler->labelc++] = (noomC_Label){ .name = name, .namelen = namelen, pc = (unsigned int)pc };
 
@@ -1836,20 +1840,21 @@ noom_Exit noomC_add_stuff_to_function(noom_LuaVM* vm, noomC_Compiler* compiler, 
 		return noomC_compile_expr(vm, compiler, parser, func, node, 0);
 	}
 
-	return NOOM_EINTERNAL;
+	return noom_errorf(vm, "unknown statement");
 }
 
 noom_Exit noomC_compile(noom_LuaVM* vm, const noomP_Parser* parser, const noomP_Node* node, noomV_String* chunkname, noomV_Table* env, noomV_Value* outFunc) {
-	if (node->type != NOOMP_NODE_PROGRAM) return NOOM_EINTERNAL;
+	if (node->type != NOOMP_NODE_PROGRAM) return noom_errorf(vm, "invalid AST");
 
 	noomV_Function* program = noomV_allocFunc(vm, chunkname);
-	if (program == 0) return NOOM_ENOMEM;
+	if (program == 0) return noom_erroroom(vm);
 
 	outFunc->tag = NOOMV_VOBJ;
 	outFunc->obj = &program->obj;
 
 	noomC_Compiler compiler;
 	noomC_compiler_init(&compiler);
+	compiler.vm = vm;
 	compiler.target = program;
 
 	if (parser->version == NOOM_VERSION_51) {

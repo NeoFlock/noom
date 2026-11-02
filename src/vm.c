@@ -350,8 +350,7 @@ noomV_Value noomV_rawgetiTable(noomV_Table* t, noom_int_t idx) {
 // that's standard practice and we're not computer scientists
 noom_Exit noomV_rawsetTable(noom_LuaVM* vm, noomV_Table* t, noomV_Value key, noomV_Value val) {
 	if (!noomV_isLegalKey(key)) {
-		noomV_setErrorStr(vm, vm->currentThread, "illegal key");
-		return NOOM_ERUNTIME;
+		return noom_errorf(vm, "illegal key");
 	}
 	noom_uint_t target = t->entries * 80 / 100;
 	if (t->used > target) {
@@ -391,7 +390,7 @@ noom_Exit noomV_rawsetTable(noom_LuaVM* vm, noomV_Table* t, noomV_Value key, noo
 		idx %= t->entries;
 		count++;
 	}
-	if(freshTomb == 0) return NOOM_ENOMEM;
+	if(freshTomb == 0) return noom_erroroom(vm);
 	freshTomb[0] = key;
 	freshTomb[t->entries] = val;
 	return NOOM_OK;
@@ -429,47 +428,6 @@ noomV_Thread* noomV_allocCoroutine(noom_LuaVM* vm) {
 	return thrd;
 }
 
-void noomV_setErrorStr(noom_LuaVM* vm, noomV_Thread* coro, const char* str) {
-	noomV_String* s = noomV_allocStr(vm, str, noom_strlen(str));
-	if (s == 0) {
-		coro->errObj = vm->oomVal;
-		return;
-	}
-	coro->errObj.tag = NOOMV_VOBJ;
-	coro->errObj.obj = &s->obj;
-}
-
-noom_Exit noomV_setErrorFromExit(noom_LuaVM* vm, noomV_Thread* coro, noom_Exit exit) {
-	switch (exit) {
-		case NOOM_OK:
-			coro->errObj = noomV_nil;
-			break;
-		case NOOM_EINTERNAL:
-			noomV_setErrorStr(vm, coro, "unrecoverable internal error");
-			break;
-		case NOOM_ENOMEM:
-			coro->errObj = vm->oomVal;
-			break;
-		case NOOM_ERUNTIME:
-			break;
-		case NOOM_ENOSTACK:
-			noomV_setErrorStr(vm, coro, "stack overflow");
-			break;
-		case NOOM_EIO:
-			noomV_setErrorStr(vm, coro, "I/O error");
-			break;
-		case NOOM_ELIMIT:
-			noomV_setErrorStr(vm, coro, "buffer overflow");
-			break;
-		case NOOM_EGOTONOLABEL:
-			noomV_setErrorStr(vm, coro, "goto without a label");
-			break;
-		case NOOM_EERROR:
-			break;
-	}
-	return exit;
-}
-
 void noomV_freeObj(noom_LuaVM* vm, noomV_Object* obj) {
 	if (obj->tag == NOOMV_OFUNC) {
 		noomV_Function* f = (noomV_Function*)obj;
@@ -493,13 +451,12 @@ void noomV_freeObj(noom_LuaVM* vm, noomV_Object* obj) {
 
 noom_Exit noomV_pushCallFrame(noom_LuaVM* vm, noomV_Thread* coro, noomV_CallFrame cf) {
 	if (coro->calldepth >= NOOM_MAXCALL) {
-		noomV_setErrorStr(vm, coro, "stack overflow");
-		return NOOM_ENOSTACK;
+		return noom_errorf(vm, "stack overflow");
 	}
 	if (coro->calldepth >= coro->callcap) {
 		noom_uint_t newCap = coro->callcap * 2;
 		noomV_CallFrame* newCalls = noom_realloc(coro->calls, sizeof(noomV_CallFrame) * newCap);
-		if (newCalls == 0) return NOOM_ENOMEM;
+		if (newCalls == 0) return noom_erroroom(vm);
 		coro->calls = newCalls;
 		coro->callcap = newCap;
 	}
@@ -514,16 +471,15 @@ noomV_CallFrame* noomV_topCallFrame(noomV_Thread* coro) {
 
 noom_Exit noomV_setThreadStackSize(noom_LuaVM* vm, noomV_Thread* coro, noom_int_t stack) {
 	if (stack < 0) {
-		noomV_setErrorStr(vm, coro, "stack underflow");
-		return NOOM_ERUNTIME;
+		return noom_errorf(vm, "stack underflow");
 	}
-	if (stack > NOOM_MAXSTACK) return NOOM_ELIMIT;
+	if (stack > NOOM_MAXSTACK) return noom_errorf(vm, "stack overflow");
 	if (stack > coro->stackcap) {
 		noom_uint_t newCap = coro->stackcap;
 		while (newCap < stack) newCap *= 2;
 
 		noomV_Value* newStack = noom_realloc(coro->stack, sizeof(noomV_Value) * newCap);
-		if (newStack == 0) return NOOM_ENOMEM;
+		if (newStack == 0) return noom_erroroom(vm);
 		coro->stack = newStack;
 		coro->stackcap = newCap;
 	}
@@ -605,8 +561,7 @@ void noom_destroyVM(noom_LuaVM* vm) {
 noom_Exit noomV_pushRawValue(noom_LuaVM *vm, noomV_Value val) {
 	noomV_Thread *coro = vm->currentThread;
 	if (coro->stacklen >= NOOM_MAXSTACK) {
-		noomV_setErrorStr(vm, coro, "stack overflow");
-		return NOOM_ENOSTACK;
+		return noom_errorf(vm, "stack overflow");
 	}
 	noom_Exit e = noom_pushnil(vm);
 	if(e) return e;
@@ -627,12 +582,10 @@ noom_Exit noomV_getStackValue(noom_LuaVM *vm, noom_slot_t slot, noomV_Value *out
 	size_t stacksize = noom_getstacksize(vm);
 	if(slot < 0) slot += stacksize;
 	if(slot < 0) {
-		noomV_setErrorStr(vm, curThread, "stack underflow");
-		return NOOM_ERUNTIME;
+		return noom_errorf(vm, "stack underflow");
 	}
 	if(slot >= stacksize) {
-		noomV_setErrorStr(vm, curThread, "stack overflow");
-		return NOOM_ENOSTACK;
+		return noom_errorf(vm, "stack overflow");
 	}
 	if(curThread->calldepth == 0) {
 		*outVal = curThread->stack[slot];
@@ -651,12 +604,10 @@ noom_Exit noomV_setStackValue(noom_LuaVM *vm, noom_slot_t slot, noomV_Value val)
 	size_t stacksize = noom_getstacksize(vm);
 	if(slot < 0) slot += stacksize;
 	if(slot < 0) {
-		noomV_setErrorStr(vm, curThread, "stack underflow");
-		return NOOM_ERUNTIME;
+		return noom_errorf(vm, "stack underflow");
 	}
 	if(slot >= stacksize) {
-		noomV_setErrorStr(vm, curThread, "stack overflow");
-		return NOOM_ENOSTACK;
+		return noom_errorf(vm, "stack overflow");
 	}
 
 	noom_uint_t idx;
@@ -688,8 +639,7 @@ noom_int_t noom_getstacksize(noom_LuaVM* vm) {
 noom_Exit noom_setstacksize(noom_LuaVM* vm, noom_int_t amount) {
 	noomV_Thread *cur = vm->currentThread;
 	if(amount < 0) {
-		noomV_setErrorStr(vm, cur, "stack underflow");
-		return NOOM_ERUNTIME;
+		return noom_errorf(vm, "stack overflow");
 	}
 	if(cur->calldepth == 0) return noomV_setThreadStackSize(vm, cur, amount);
 	noomV_CallFrame *cf = noomV_topCallFrame(cur);
@@ -711,7 +661,7 @@ noom_Exit noomV_runCodeResumed(noom_LuaVM *vm, noom_Exit status, void *_ctx) {
 		
 		noomV_CallFrame *cf = noomV_topCallFrame(thrd);
 		// some mf ran this on C code, idiot!
-		if(cf->isC) return NOOM_EINTERNAL;
+		if(cf->isC) return noom_errorf(vm, "attempt to interpret C code");
 
 		// TODO: use jmp table for performance!!!
 		unsigned int varargc = cf->varargc;
@@ -747,7 +697,7 @@ noom_Exit noomV_runCodeResumed(noom_LuaVM *vm, noom_Exit status, void *_ctx) {
 			break;
 		case NOOMV_INSTR_PUSHGLOBAL:
 			{
-				if(vm->version != NOOM_VERSION_51) return NOOM_EINTERNAL;
+				if(vm->version != NOOM_VERSION_51) return noom_errorf(vm, "invalid bytecode");
 				noomV_Value g = noomV_rawgetTable(proto->env, proto->consts[inst.us]);
 				// thrd->stacklen--;
 				e = noomV_pushRawValue(vm, g);
@@ -756,7 +706,7 @@ noom_Exit noomV_runCodeResumed(noom_LuaVM *vm, noom_Exit status, void *_ctx) {
 			break;
 		case NOOMV_INSTR_SETGLOBAL:
 			{
-				if(vm->version != NOOM_VERSION_51) return NOOM_EINTERNAL;
+				if(vm->version != NOOM_VERSION_51) return noom_errorf(vm, "invalid bytecode");
 				noomV_Value value;
 				e = noomV_getStackValue(vm, noom_getstacksize(vm)-1, &value);
 				if (e) return e;
@@ -795,17 +745,17 @@ noom_Exit noomV_runCodeResumed(noom_LuaVM *vm, noom_Exit status, void *_ctx) {
 			break;
 		case NOOMV_INSTR_PUSHARGS:
 			{
-				return NOOM_EINTERNAL;
+				return noom_errorf(vm, "pushargs is unimplemented");
 			}
 			break;
 		case NOOMV_INSTR_CREATETABLE:
 			{
-				return NOOM_EINTERNAL;
+				return noom_errorf(vm, "createtable is unimplemented");
 			}
 			break;
 		case NOOMV_INSTR_PUSHCLOSURE:
 			{
-				return NOOM_EINTERNAL;
+				return noom_errorf(vm, "pushclosure is unimplemented");
 			}
 			break;
 		case NOOMV_INSTR_CALL:
@@ -831,7 +781,7 @@ noom_Exit noomV_runCodeResumed(noom_LuaVM *vm, noom_Exit status, void *_ctx) {
 			break;
 		default:
 			{
-				return NOOM_EINTERNAL;
+				return noom_errorf(vm, "invalid bytecode");
 			}
 			break;
 		}
@@ -864,7 +814,7 @@ noom_Exit noom_pushlstring(noom_LuaVM* vm, const char* s, noom_uint_t len) {
 }
 
 noom_Exit noom_pushcclosure(noom_LuaVM* vm, noom_CFunction* f, noom_uint_t upvalues) {
-	if (upvalues != 0) return NOOM_EINTERNAL;
+	if (upvalues != 0) return noom_errorf(vm, "pushing closures is unimplemented");
 
 	noomV_Value v = noomV_nil;
 	v.tag = NOOMV_VCFUNC;
@@ -885,14 +835,15 @@ noom_Exit noom_settable(noom_LuaVM* vm) {
 	noomV_Value value;
 	noomV_Value key;
 	noomV_Value table;
-	if (noom_getstacksize(vm) < 3) return NOOM_EINTERNAL; // fuck you
+	if (noom_getstacksize(vm) < 3) return noom_errorf(vm, "stack underflow"); // fuck you
 	if ((result = noomV_getStackValue(vm, noom_getstacksize(vm)-1, &value))) return result;
 	if ((result = noomV_getStackValue(vm, noom_getstacksize(vm)-2, &key))) return result;
 	if ((result = noomV_getStackValue(vm, noom_getstacksize(vm)-3, &table))) return result;
 
-	if (table.tag != NOOMV_VOBJ) return NOOM_EINTERNAL; // TODO: proper error probably
+	// TODO: use the formatting capabilities to error out with the type obtained!
+	if (table.tag != NOOMV_VOBJ) return noom_errorf(vm, "invalid table assignment on non-table value");
 	noomV_Object* tobj = table.obj;
-	if (tobj->tag != NOOMV_OTABLE) return NOOM_EINTERNAL; // same here? idk man
+	if (tobj->tag != NOOMV_OTABLE) return noom_errorf(vm, "invalid table assignment on non-table value"); // same here? idk man
 
 	if ((result = noomV_rawsetTable(vm, (noomV_Table*)tobj, key, value))) return result;
 
@@ -904,9 +855,10 @@ noom_Exit noom_tolstring(noom_LuaVM* vm, noom_slot_t x, const char** s, noom_uin
 	noomV_Value value;
 	if ((result = noomV_getStackValue(vm, x, &value))) return result;
 
-	if ((value.tag != NOOMV_VOBJ)) return NOOM_EINTERNAL; // TODO: proper errors
+	// TODO: use the formatting capabilities to error out with the type obtained!
+	if ((value.tag != NOOMV_VOBJ)) return noom_errorf(vm, "expected string value"); // TODO: proper errors
 	noomV_Object* obj = value.obj;
-	if ((obj->tag != NOOMV_OSTR)) return NOOM_EINTERNAL;
+	if ((obj->tag != NOOMV_OSTR)) return noom_errorf(vm, "expected string value");
 
 	noomV_String* string = (noomV_String*)obj;
 
@@ -936,7 +888,7 @@ noom_Exit noom_cast2truthy(noom_LuaVM* vm, noom_slot_t x) {
 	return noomV_setStackValue(vm, x, value);
 }
 
-#define ALLOC_STR(vm, name, str) do {if (!((name) = (noomV_Object*)noomV_allocStr((vm), (str), noom_strlen((str))))) return NOOM_ENOMEM;} while (0)
+#define ALLOC_STR(vm, name, str) do {if (!((name) = (noomV_Object*)noomV_allocStr((vm), (str), noom_strlen((str))))) return noom_erroroom((vm));} while (0)
 
 noom_Exit noom_cast2num(noom_LuaVM* vm, noom_slot_t x) {
 	noom_Exit result;
@@ -949,13 +901,11 @@ noom_Exit noom_cast2num(noom_LuaVM* vm, noom_slot_t x) {
 			return NOOM_OK;
 		case NOOMV_VOBJ:
 			if (value.obj->tag == NOOMV_OSTR) {
-				// idk todo
-				// todo wip in progress finish fixme
-				return NOOM_ENOSTACK;
+				// TODO: implement this
+				return noom_errorf(vm, "string to number conversion is unimplemented");
 			}
 		default:
-			noomV_setErrorStr(vm, vm->currentThread, "got random thingie in cast2num i wanted str or num :(");
-			return NOOM_EINTERNAL;
+			return noom_errorf(vm, "attempted to cast invalid value to number");
 	}
 }
 
@@ -1017,8 +967,7 @@ noom_Exit noom_cast2str(noom_LuaVM* vm, noom_slot_t x) {
 					ALLOC_STR(vm, value.obj, buffer);
 					break;
 				case NOOMV_OPOINTER:
-					noomV_setErrorStr(vm, vm->currentThread, "got pointer when i should not get pointer!");
-					return NOOM_EINTERNAL;
+					return noom_errorf(vm, "somehow got an internal pointer, the VM should be terminated");
 			}
 			break;
 	}
@@ -1032,19 +981,14 @@ noom_Exit noom_cast2str(noom_LuaVM* vm, noom_slot_t x) {
 noom_Exit noom_callk(noom_LuaVM* vm, noom_uint_t argc, noom_int_t retc, noom_KFunction* f, void* ctx) {
 	noomV_Thread *thrd = vm->currentThread;
 	if(noom_getstacksize(vm) < argc+1) {
-		noomV_setErrorStr(vm, thrd, "stack underflow");
-		return NOOM_ERUNTIME;
+		return noom_errorf(vm, "stack underflow");
 	}
 	// TODO: check for __call
 	if(noom_typeof(vm, -((noom_int_t)argc) - 1) != NOOM_LUA_TFUNCTION) {
-		printf("check\n");
-		noomV_setErrorStr(vm, thrd, "attempt to call non-function value");
-		return NOOM_ERUNTIME;
+		return noom_errorf(vm, "attempt to call non-function value");
 	}
 	if(thrd == vm->mainThread && f != NULL) {
-		printf("aaugh!\n");
-		noomV_setErrorStr(vm, thrd, "main thread cannot be resumed");
-		return NOOM_ERUNTIME;
+		return noom_errorf(vm, "main thread cannot be resumed");
 	}
 	noomV_CallFrame *topCall = noomV_topCallFrame(thrd);
 	noomV_Value v;
@@ -1164,4 +1108,58 @@ noom_LuaType noom_typeof(noom_LuaVM* vm, noom_slot_t x) {
 			}
 		}
 	}
+}
+
+// raise the top value as an error
+noom_Exit noom_error(noom_LuaVM *vm) {
+	noomV_Value v;
+	noom_Exit e;
+	if((e = noomV_getStackValue(vm, -1, &v))) return e;
+	// TODO: use better val
+	if(v.tag == NOOMV_VNIL) v = vm->oomVal;
+	vm->currentThread->errObj = v;
+	noom_pop(vm);
+	return NOOM_ERR;
+}
+
+noom_Exit noom_errorstr(noom_LuaVM *vm, const char *s) {
+	return noom_errorlstr(vm, s, noom_strlen(s));
+}
+
+noom_Exit noom_errorlstr(noom_LuaVM *vm, const char *s, size_t len) {
+	noomV_Value val = noomV_nil;
+	val.tag = NOOMV_VOBJ;
+	val.obj = (noomV_Object *)noomV_allocStr(vm, s, len);
+	if(val.obj == NULL) {
+		val = vm->oomVal;
+	}
+	vm->currentThread->errObj = val;
+	return NOOM_ERR;
+}
+
+noom_Exit noom_errorf(noom_LuaVM *vm, const char *fmt, ...) {
+	va_list args;
+	va_start(args, fmt);
+	// TODO: use a growing allocation!
+	char buffer[4096];
+	int len = stbsp_vsnprintf(buffer, sizeof(buffer), fmt, args);
+	va_end(args);
+	return noom_errorlstr(vm, buffer, len);
+}
+
+noom_Exit noom_erroroom(noom_LuaVM *vm) {
+	vm->currentThread->errObj = vm->oomVal;
+	return NOOM_ERR;
+}
+
+// if there is an error object, and it is a string, it will return a pointer to its contents.
+// Otherwise, returns NULL.
+// Only use this for debugging, does not do a string cast.
+const char *noom_getstrerror(noom_LuaVM *vm) {
+	noomV_Value curErr = vm->currentThread->errObj;
+	if(curErr.tag == NOOMV_VOBJ && curErr.obj->tag == NOOMV_OSTR) {
+		noomV_String *s = (noomV_String *)curErr.obj;
+		return s->data;
+	}
+	return NULL;
 }

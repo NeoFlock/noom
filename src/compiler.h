@@ -46,6 +46,7 @@ typedef struct noomC_PendingGoto {
 } noomC_PendingGoto;
 
 typedef struct noomC_Compiler {
+	noom_LuaVM *vm;
 	// steal constants from this
 	struct noomC_Compiler* parent;
 	noomV_Function* target;
@@ -71,7 +72,7 @@ typedef struct noomC_Compiler {
 void noomC_compiler_init(noomC_Compiler* compiler);
 void noomC_compiler_deinit(noomC_Compiler* compiler);
 
-noom_Exit noomC_emit(noomV_Function* func, noomV_Inst inst);
+noom_Exit noomC_emit(noomC_Compiler *c, noomV_Inst inst);
 #define noomC_emit_ABC(func, _op, _a, _b, _c) noomC_emit((func), (noomV_Inst){.op = (_op), .a = (_a), .b = (_b), .c = (_c)})
 #define noomC_emit_AuD(func, _op, _a, _uD) noomC_emit((func), (noomV_Inst){.op = (_op), .a = (_a), .us = (_uD)})
 #define noomC_emit_AsD(func, _op, _a, _sD) noomC_emit((func), (noomV_Inst){.op = (_op), .a = (_a), .ss = (_sD)})

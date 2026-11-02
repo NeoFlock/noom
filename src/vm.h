@@ -391,12 +391,6 @@ noom_uint_t noomV_rawlenTable(noomV_Table* t);
 
 noomV_Thread* noomV_allocCoroutine(noom_LuaVM* vm);
 
-void noomV_setErrorStr(noom_LuaVM* vm, noomV_Thread* coro, const char* str);
-// if exit is ERUNTIME or EERROR, does nothing as it assumes the error is already set!
-// It will clear any errors on NOOM_OK!!!
-// Returns the exit for convenience
-noom_Exit noomV_setErrorFromExit(noom_LuaVM* vm, noomV_Thread* coro, noom_Exit exit);
-
 void noomV_freeObj(noom_LuaVM* vm, noomV_Object* obj);
 
 noom_Exit noomV_pushCallFrame(noom_LuaVM* vm, noomV_Thread* coro, noomV_CallFrame cf);

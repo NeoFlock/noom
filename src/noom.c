@@ -186,10 +186,11 @@ PUBLIC_EXECUTION /* !!!!!!!!!!!!! */
 	noomV_pushRawValue(vm, peak);
 	noom_Exit err = noom_call(vm, 0, 0);
 	if (err != NOOM_OK) {
-		char not_cool[9] = "error: 0\n";
-		not_cool[7] += err; // that will work for now
-		write(STDERR_FILENO, not_cool, 9);
-		return err;
+		const char *msg = err == NOOM_ERR ? noom_getstrerror(vm) : "YIELD";
+		fputs("Exit: ", stderr);
+		fputs(msg, stderr);
+		fputs("\n", stderr);
+		return 1;
 	}
-	return err;
+	return 0;
 }

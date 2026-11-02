@@ -61,22 +61,8 @@ typedef enum noom_LuaType {
 
 typedef enum noom_Exit {
 	NOOM_OK = 0,
-	// unknown internal error
-	NOOM_EINTERNAL,
-	// out of memory
-	NOOM_ENOMEM,
-	// runtime error
-	NOOM_ERUNTIME,
-	// stack overflow
-	NOOM_ENOSTACK,
-	// I/O error
-	NOOM_EIO,
-	// buffer overflow
-	NOOM_ELIMIT,
-	// goto without label
-	NOOM_EGOTONOLABEL,
-	// error in error handler
-	NOOM_EERROR,
+	NOOM_ERR = 1,
+	NOOM_YIELD = 2,
 } noom_Exit;
 
 typedef enum noom_UnaryOp {
@@ -241,6 +227,18 @@ noom_Exit noom_pusherrhandler(noom_LuaVM* vm);
 // nil is a perfectly fine error handler, it just does not get called.
 // In the case of an error, noom_callk() will also call this error handler.
 noom_Exit noom_seterrhandler(noom_LuaVM* vm);
+
+// raise the top value as an error (and pop it)
+noom_Exit noom_error(noom_LuaVM *vm);
+noom_Exit noom_errorstr(noom_LuaVM *vm, const char *s);
+noom_Exit noom_errorlstr(noom_LuaVM *vm, const char *s, size_t len);
+noom_Exit noom_errorf(noom_LuaVM *vm, const char *fmt, ...);
+// raise out of memory error
+noom_Exit noom_erroroom(noom_LuaVM *vm);
+// if there is an error object, and it is a string, it will return a pointer to its contents.
+// Otherwise, returns NULL.
+// Only use this for debugging, does not do a string cast.
+const char *noom_getstrerror(noom_LuaVM *vm);
 
 // Like a noom_call, except instead of calling, it resumes coroutines.
 // This cannot yield but allows yields.
