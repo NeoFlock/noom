@@ -232,8 +232,8 @@ void noom_safe_strcpy(char* buffer, noom_uint_t* pos, noom_uint_t buffer_size, c
 	}
 }
 
-char* noom_strndup(const char* s, const noom_uint_t len) {
-	char* whar = noom_alloc(len + 1);
+char* noom_strndup(noom_Alloc alloc, const char* s, const noom_uint_t len) {
+	char* whar = noom_alloc(alloc, len + 1);
 	if (whar == 0) return 0;
 	noom_memcpy(whar, s, len);
 	whar[len] = '\0';
@@ -255,24 +255,23 @@ void noom_memcpy(void* dst, const void* src, noom_uint_t n) {
 	}
 }
 
-#include <stdlib.h> // TODO: remove
-
-void* noom_alloc(noom_uint_t size) {
-	return malloc(size);
+void* noom_alloc(noom_Alloc alloc, noom_uint_t size) {
+	return alloc.alloc(alloc.ctx, NULL, size, 0);
+}
+void* noom_alloc_aligned(noom_Alloc alloc, noom_uint_t size, noom_uint_t align) {
+	return alloc.alloc(alloc.ctx, NULL, size, align);
+}
+void noom_free(noom_Alloc alloc, void* ptr) {
+	alloc.alloc(alloc.ctx, ptr, 0, 0);
+}
+void* noom_realloc(noom_Alloc alloc, void* ptr, noom_uint_t size) {
+	return alloc.alloc(alloc.ctx, ptr, size, 0);
 }
 
-void noom_free(void* ptr) {
-	free(ptr);
-}
-
-void* noom_realloc(void* ptr, noom_uint_t size) {
-	return realloc(ptr, size);
-}
-
-void* noom_realloc_free(void* ptr, noom_uint_t size) {
-	void* newptr = noom_realloc(ptr, size);
+void* noom_realloc_free(noom_Alloc alloc, void* ptr, noom_uint_t size) {
+	void* newptr = noom_realloc(alloc, ptr, size);
 	if (newptr == 0) {
-		noom_free(ptr);
+		noom_free(alloc, ptr);
 		return 0;
 	}
 	return newptr;

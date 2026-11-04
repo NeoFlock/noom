@@ -361,6 +361,7 @@ struct noom_LuaVM {
 	noomV_Table* registry;
 	noomV_Thread* mainThread;
 	noomV_Thread* currentThread;
+	noom_Alloc alloc;
 	noom_LuaVersion version;
 	noom_uint_t objCount;
 	noom_uint_t gcTarget;

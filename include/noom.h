@@ -134,11 +134,46 @@ typedef enum noom_CoroutineStatus {
 
 typedef struct noom_LuaVM noom_LuaVM;
 
+typedef struct noom_Alloc {
+	void* (* alloc)(void* ctx, void* ptr, noom_uint_t size, noom_uint_t align);
+	void* ctx;
+} noom_Alloc;
+
 typedef noom_Exit noom_CFunction(noom_LuaVM* vm);
 typedef noom_Exit noom_KFunction(noom_LuaVM* vm, noom_Exit status, void* ctx);
 
-noom_LuaVM* noom_createVM(noom_LuaVersion version);
+noom_LuaVM* noom_createVM(noom_Alloc alloc, noom_LuaVersion version);
 void noom_destroyVM(noom_LuaVM* vm);
+
+#ifdef NOOM_USE_LIBC
+#include <stdlib.h>
+void* defaultAlloc(void* ctx, void* ptr, noom_uint_t size, noom_uint_t align) {
+	if (ptr) {
+		if (size) {
+			// realloc
+			return realloc(ptr, size);
+		} else {
+			// free
+			free(ptr);
+		}
+	} else {
+		if (!size) return NULL;
+		if (align) {
+			return aligned_alloc(align, size);
+		} else {
+			return malloc(size);
+		}
+	}
+	return NULL;
+}
+
+noom_Alloc noom_defaultAlloc() {
+	noom_Alloc alloc;
+	alloc.ctx = NULL;
+	alloc.alloc = defaultAlloc;
+	return alloc;
+}
+#endif
 
 // type of a stack slot.
 // If negative, its relative to the top where -1 is the top.

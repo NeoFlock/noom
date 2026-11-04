@@ -79,7 +79,7 @@ static noom_Exit noomC_addUpval(noomC_Compiler* c, noomC_Upval upval) {
 static noom_Exit noomC_addconst(noomC_Compiler *c, noomV_Value val) {
 	noomV_Function *func = c->target;
 	if (func->constsize == USHRT_MAX) return noom_errorf(c->vm, "too many constants, maximum of %d", USHRT_MAX);
-	noomV_Value* newConsts = noom_realloc(func->consts, sizeof(noomV_Value) * (func->constsize + 1));
+	noomV_Value* newConsts = noom_realloc(c->vm->alloc, func->consts, sizeof(noomV_Value) * (func->constsize + 1));
 	if (newConsts == NULL) return noom_erroroom(c->vm);
 	func->consts = newConsts;
 	func->consts[func->constsize++] = val;
@@ -269,12 +269,12 @@ void noomC_compiler_init(noomC_Compiler* compiler) {
 }
 
 void noomC_compiler_deinit(noomC_Compiler* compiler) {
-	noom_free(compiler->stringTmpBuf);
+	noom_free(compiler->vm->alloc, compiler->stringTmpBuf);
 }
 
 noom_Exit noomC_emit(noomC_Compiler *c, noomV_Inst inst) {
 	noomV_Function *func = c->target;
-	noomV_Inst* newCode = noom_realloc(func->code, sizeof(noomV_Inst) * (func->codesize + 1));
+	noomV_Inst* newCode = noom_realloc(c->vm->alloc, func->code, sizeof(noomV_Inst) * (func->codesize + 1));
 	if (newCode == NULL) return noom_erroroom(c->vm);
 	func->code = newCode;
 	func->code[func->codesize++] = inst;
@@ -342,7 +342,7 @@ static const char* noomC_decode_string_token(noomC_Compiler* c, const char* s, n
 		noom_uint_t nooming_my_uint_t = tokenlen - (level + 2) * 2;
 		
 		if (c->maxStringLen < nooming_my_uint_t) {
-			char *s2 = noom_realloc_free(c->stringTmpBuf, nooming_my_uint_t);
+			char *s2 = noom_realloc_free(c->vm->alloc, c->stringTmpBuf, nooming_my_uint_t);
 			if (s2 == NULL) return NULL;
 			c->stringTmpBuf = s2;
 			c->maxStringLen = nooming_my_uint_t;
@@ -354,7 +354,7 @@ static const char* noomC_decode_string_token(noomC_Compiler* c, const char* s, n
 	
 	// token is bigger than contents, so if we can't even fit token, we def can't fit contents
 	if (c->maxStringLen < tokenlen) {
-		char* s = noom_realloc(c->stringTmpBuf, tokenlen);
+		char* s = noom_realloc(c->vm->alloc, c->stringTmpBuf, tokenlen);
 		if (s == NULL) return NULL;
 		c->stringTmpBuf = s;
 		c->maxStringLen = tokenlen;
@@ -522,7 +522,7 @@ noom_Exit noomC_compile_proto(
 
 	if ((result = noomC_compile_block(vm, &child, parser, proto, block_node, true)) != NOOM_OK) return result;
 
-	noomV_Function** newProtos = noom_realloc(parent_func->protos, sizeof(noomV_Function*) * (parent_func->protosize + 1));
+	noomV_Function** newProtos = noom_realloc(vm->alloc, parent_func->protos, sizeof(noomV_Function*) * (parent_func->protosize + 1));
 	if (newProtos == NULL) return noom_erroroom(vm);
 	parent_func->protos = newProtos;
 	parent_func->protos[parent_func->protosize++] = proto;
@@ -1443,7 +1443,7 @@ noom_Exit noomC_add_stuff_to_function(noom_LuaVM* vm, noomC_Compiler* compiler, 
 		
 		// evil blendi goose evil fixed this
 
-		noomC_AssignPlace* assign_places = noom_alloc(sizeof(noomC_AssignPlace) * place_count);
+		noomC_AssignPlace* assign_places = noom_alloc(vm->alloc, sizeof(noomC_AssignPlace) * place_count);
 		if (assign_places == NULL) return noom_erroroom(vm);
 
 		noom_uint_t pop_count = place_count;
@@ -1452,7 +1452,7 @@ noom_Exit noomC_add_stuff_to_function(noom_LuaVM* vm, noomC_Compiler* compiler, 
 			noomP_Node* target_full = node->subnodes[i];
 			noomP_Node* target = target_full->subnodes[0]; // should be fine?
 			if ((result = noomC_emit_assign_location(vm, compiler, parser, func, target, &assign_places[i]))) {
-				noom_free(assign_places);
+				noom_free(vm->alloc, assign_places);
 				return result;
 			}
 
@@ -1479,7 +1479,7 @@ noom_Exit noomC_add_stuff_to_function(noom_LuaVM* vm, noomC_Compiler* compiler, 
 				wanted_c = place_count - i;
 			}
 			if ((result = noomC_compile_expr(vm, compiler, parser, func, node->subnodes[place_count + i], wanted_c))) {
-				noom_free(assign_places);
+				noom_free(vm->alloc, assign_places);
 				return result;
 			}
 		}
@@ -1491,11 +1491,11 @@ noom_Exit noomC_add_stuff_to_function(noom_LuaVM* vm, noomC_Compiler* compiler, 
 			unsigned char val_slot = first_val_slot + i;
 
 			if ((result = noomC_emit_assignment(vm, compiler, parser, func, assign_places[i], val_slot))) {
-				noom_free(assign_places);
+				noom_free(vm->alloc, assign_places);
 				return result;
 			}
 		}
-		noom_free(assign_places); // almost forgot!
+		noom_free(vm->alloc, assign_places); // almost forgot!
 
 		// now to pop it all away
 		// TODO: maybe add a way to emit multiple pops if needed.
@@ -1512,7 +1512,7 @@ noom_Exit noomC_add_stuff_to_function(noom_LuaVM* vm, noomC_Compiler* compiler, 
 	if (node->type == NOOMP_NODE_IFSTATEMENT) {
 		// [cond, block, cond, block, ..., block (else, no condition)]
 
-		noom_uint_t* end_jumps = noom_alloc(sizeof(noom_uint_t) * (node->subnodec / 2 + 1));
+		noom_uint_t* end_jumps = noom_alloc(vm->alloc, sizeof(noom_uint_t) * (node->subnodec / 2 + 1));
 		if (end_jumps == 0) return noom_erroroom(vm);
 		noom_uint_t end_jump_count = 0;
 
@@ -1521,19 +1521,19 @@ noom_Exit noomC_add_stuff_to_function(noom_LuaVM* vm, noomC_Compiler* compiler, 
 			if (i == node->subnodec - 1) break; // must be the else
 		
 			if ((result = noomC_compile_expr(vm, compiler, parser, func, node->subnodes[i], 1)) != NOOM_OK) {
-				noom_free(end_jumps);
+				noom_free(vm->alloc, end_jumps);
 				return result;
 			}
 			compiler->curstack--;
 
 			noom_uint_t cond_jmp = func->codesize;
 			if ((result = noomC_emit_AuD(compiler, NOOMV_INSTR_CNJMP, 0, 0)) != NOOM_OK) {
-				noom_free(end_jumps);
+				noom_free(vm->alloc, end_jumps);
 				return result;
 			}
 
 			if ((result = noomC_compile_block(vm, compiler, parser, func, node->subnodes[i + 1], false)) != NOOM_OK) {
-				noom_free(end_jumps);
+				noom_free(vm->alloc, end_jumps);
 				return result;
 			}
 
@@ -1541,7 +1541,7 @@ noom_Exit noomC_add_stuff_to_function(noom_LuaVM* vm, noomC_Compiler* compiler, 
 			if (i + 2 < node->subnodec) {
 				end_jumps[end_jump_count++] = func->codesize;
 				if ((result = noomC_emit_AuD(compiler, NOOMV_INSTR_JMP, 0, 0)) != NOOM_OK) {
-					noom_free(end_jumps);
+					noom_free(vm->alloc, end_jumps);
 					return result;
 				}
 			}
@@ -1554,7 +1554,7 @@ noom_Exit noomC_add_stuff_to_function(noom_LuaVM* vm, noomC_Compiler* compiler, 
 		// else
 		if (i < node->subnodec) {
 			if ((result = noomC_compile_block(vm, compiler, parser, func, node->subnodes[i], false)) != NOOM_OK) {
-				noom_free(end_jumps);
+				noom_free(vm->alloc, end_jumps);
 				return result;
 			}
 		}
@@ -1563,7 +1563,7 @@ noom_Exit noomC_add_stuff_to_function(noom_LuaVM* vm, noomC_Compiler* compiler, 
 			func->code[end_jumps[j]].us = (unsigned short)func->codesize;
 		}
 
-		noom_free(end_jumps);
+		noom_free(vm->alloc, end_jumps);
 		return NOOM_OK;
 	}
 

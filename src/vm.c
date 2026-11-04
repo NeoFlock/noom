@@ -167,7 +167,7 @@ noomV_DisInfo noomV_disInfo[NOOMV_INSTR_NOP2] = {
 };
 
 noomV_Object* noomV_allocObj(noom_LuaVM* vm, noomV_ObjTag tag, noom_uint_t size) {
-	noomV_Object* o = noom_alloc(size);
+	noomV_Object* o = noom_alloc(vm->alloc, size);
 	if (o == 0) return o;
 
 	o->tag = tag;
@@ -223,7 +223,7 @@ noomV_Table* noomV_allocTable(noom_LuaVM* vm, noom_uint_t arraylen, noom_uint_t 
 	// bit of space between fields in case of hash collisions to not blast them into O(N) hell
 	noom_uint_t cap = fields * 4 + arraylen;
 	t->entries = 0;
-	t->entrydata = noom_alloc(sizeof(noomV_Value) * 2 * cap);
+	t->entrydata = noom_alloc(vm->alloc, sizeof(noomV_Value) * 2 * cap);
 	// dw about freeing t, its in the VM heap so it'll get GC'd out
 	if (t->entrydata == 0) return 0;
 	t->entries = cap;
@@ -420,9 +420,9 @@ noomV_Thread* noomV_allocCoroutine(noom_LuaVM* vm) {
 	thrd->errObj = noomV_nil;
 	thrd->yielded = -1;
 
-	thrd->calls = noom_alloc(sizeof(noomV_CallFrame) * thrd->callcap);
+	thrd->calls = noom_alloc(vm->alloc, sizeof(noomV_CallFrame) * thrd->callcap);
 	if (thrd->calls == 0) return 0;
-	thrd->stack = noom_alloc(sizeof(noomV_Value) * thrd->stackcap);
+	thrd->stack = noom_alloc(vm->alloc, sizeof(noomV_Value) * thrd->stackcap);
 	if (thrd->stack == 0) return 0;
 
 	return thrd;
@@ -431,21 +431,21 @@ noomV_Thread* noomV_allocCoroutine(noom_LuaVM* vm) {
 void noomV_freeObj(noom_LuaVM* vm, noomV_Object* obj) {
 	if (obj->tag == NOOMV_OFUNC) {
 		noomV_Function* f = (noomV_Function*)obj;
-		noom_free(f->consts);
-		noom_free(f->upvals);
-		noom_free(f->locals);
-		noom_free(f->code);
+		noom_free(vm->alloc, f->consts);
+		noom_free(vm->alloc, f->upvals);
+		noom_free(vm->alloc, f->locals);
+		noom_free(vm->alloc, f->code);
 	}
 	if (obj->tag == NOOMV_OTABLE) {
 		noomV_Table* t = (noomV_Table*)obj;
-		noom_free(t->entrydata);
+		noom_free(vm->alloc, t->entrydata);
 	}
 	if (obj->tag == NOOMV_OTHREAD) {
 		noomV_Thread* thrd = (noomV_Thread*)obj;
-		noom_free(thrd->stack);
-		noom_free(thrd->calls);
+		noom_free(vm->alloc, thrd->stack);
+		noom_free(vm->alloc, thrd->calls);
 	}
-	noom_free(obj);
+	noom_free(vm->alloc, obj);
 	vm->objCount--;
 }
 
@@ -455,7 +455,7 @@ noom_Exit noomV_pushCallFrame(noom_LuaVM* vm, noomV_Thread* coro, noomV_CallFram
 	}
 	if (coro->calldepth >= coro->callcap) {
 		noom_uint_t newCap = coro->callcap * 2;
-		noomV_CallFrame* newCalls = noom_realloc(coro->calls, sizeof(noomV_CallFrame) * newCap);
+		noomV_CallFrame* newCalls = noom_realloc(vm->alloc, coro->calls, sizeof(noomV_CallFrame) * newCap);
 		if (newCalls == 0) return noom_erroroom(vm);
 		coro->calls = newCalls;
 		coro->callcap = newCap;
@@ -478,7 +478,7 @@ noom_Exit noomV_setThreadStackSize(noom_LuaVM* vm, noomV_Thread* coro, noom_int_
 		noom_uint_t newCap = coro->stackcap;
 		while (newCap < stack) newCap *= 2;
 
-		noomV_Value* newStack = noom_realloc(coro->stack, sizeof(noomV_Value) * newCap);
+		noomV_Value* newStack = noom_realloc(vm->alloc, coro->stack, sizeof(noomV_Value) * newCap);
 		if (newStack == 0) return noom_erroroom(vm);
 		coro->stack = newStack;
 		coro->stackcap = newCap;
@@ -498,10 +498,11 @@ noom_Exit noomV_setThreadStackSize(noom_LuaVM* vm, noomV_Thread* coro, noom_int_
 	return NOOM_OK;
 }
 
-noom_LuaVM* noom_createVM(noom_LuaVersion version) {
-	noom_LuaVM* vm = noom_alloc(sizeof(*vm));
+noom_LuaVM* noom_createVM(noom_Alloc alloc, noom_LuaVersion version) {
+	noom_LuaVM* vm = noom_alloc(alloc, sizeof(*vm));
 	if (vm == 0) return 0;
 	// initialize the universe to NULL, handles partial OOMs nicely
+	vm->alloc = alloc;
 	vm->heap = 0;
 	vm->graySet = 0;
 	vm->oomVal.tag = NOOMV_VOBJ;
@@ -555,7 +556,7 @@ void noom_destroyVM(noom_LuaVM* vm) {
 		iter = iter->next;
 		noomV_freeObj(vm, cur);
 	}
-	noom_free(vm);
+	noom_free(vm->alloc, vm);
 }
 
 noom_Exit noomV_pushRawValue(noom_LuaVM *vm, noomV_Value val) {
