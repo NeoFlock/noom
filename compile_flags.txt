@@ -1,1 +1,2 @@
 -Iinclude
+-DNOOM_USE_LIBC

@@ -301,3 +301,34 @@ void* noom_realloc_free_aligned(noom_Alloc alloc, void* ptr, noom_uint_t size, n
 	}
 	return newptr;
 }
+
+#ifdef NOOM_USE_LIBC
+#include <stdlib.h>
+static void* defaultAlloc(void* ctx, void* ptr, noom_uint_t old_size, noom_uint_t size, noom_uint_t align) {
+	if (ptr && !old_size) return NULL;
+	if (ptr) {
+		if (size) {
+			// realloc
+			return realloc(ptr, size);
+		} else {
+			// free
+			free(ptr);
+		}
+	} else {
+		if (!size) return NULL;
+		if (align) {
+			return aligned_alloc(align, size);
+		} else {
+			return malloc(size);
+		}
+	}
+	return NULL;
+}
+
+noom_Alloc noom_defaultAlloc() {
+	noom_Alloc alloc;
+	alloc.ctx = NULL;
+	alloc.alloc = defaultAlloc;
+	return alloc;
+}
+#endif

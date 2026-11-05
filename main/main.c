@@ -2,7 +2,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define NOOM_USE_LIBC
 #include "noom.h"
 
 #ifdef NOOM_DYNLOAD

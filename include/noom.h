@@ -155,34 +155,7 @@ noom_LuaVM* noom_createVM(noom_Alloc alloc, noom_LuaVersion version);
 void noom_destroyVM(noom_LuaVM* vm);
 
 #ifdef NOOM_USE_LIBC
-#include <stdlib.h>
-void* defaultAlloc(void* ctx, void* ptr, noom_uint_t old_size, noom_uint_t size, noom_uint_t align) {
-	if (ptr && !old_size) return NULL;
-	if (ptr) {
-		if (size) {
-			// realloc
-			return realloc(ptr, size);
-		} else {
-			// free
-			free(ptr);
-		}
-	} else {
-		if (!size) return NULL;
-		if (align) {
-			return aligned_alloc(align, size);
-		} else {
-			return malloc(size);
-		}
-	}
-	return NULL;
-}
-
-noom_Alloc noom_defaultAlloc() {
-	noom_Alloc alloc;
-	alloc.ctx = NULL;
-	alloc.alloc = defaultAlloc;
-	return alloc;
-}
+noom_Alloc noom_defaultAlloc();
 #endif
 
 // type of a stack slot.
