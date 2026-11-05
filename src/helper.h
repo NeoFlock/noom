@@ -10,9 +10,3 @@ int noom_strcmp(const char* a, const char* b);
 void noom_safe_strcpy(char* buffer, noom_uint_t* pos, noom_uint_t buffer_size, const char* src);
 char* noom_strndup(noom_Alloc alloc, const char* s, noom_uint_t len);
 void noom_memcpy(void* dst, const void* src, noom_uint_t n);
-
-void* noom_alloc(noom_Alloc alloc, noom_uint_t size);
-void* noom_alloc_aligned(noom_Alloc alloc, noom_uint_t size, noom_uint_t align);
-void noom_free(noom_Alloc alloc, void* ptr);
-void* noom_realloc(noom_Alloc alloc, void* ptr, noom_uint_t size);
-void* noom_realloc_free(noom_Alloc alloc, void* ptr, noom_uint_t size);

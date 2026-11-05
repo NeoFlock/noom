@@ -127,18 +127,18 @@ void noomP_skip(noomP_Parser* parser, noomL_Token* token) { // expects you to al
 }
 
 noomP_Node* noomP_allocNode(noomP_Parser* parser) {
-	noomP_Node* node = noom_alloc(parser->alloc, sizeof(noomP_Node));
+	noomP_Node* node = noom_alloc(parser->alloc, sizeof(noomP_Node), 1);
 	if (node == 0) {
 		parser->error_state = NOOMP_ERROR_OOM;
 		return 0;
 	}
 
 	node->subnodec = 0;
-	node->subnodes = noom_alloc(parser->alloc, sizeof(noomP_Node*) * 2);
+	node->subnodes = noom_alloc(parser->alloc, sizeof(noomP_Node*), 2);
 	node->subnode_cap = 2;
 	if (node->subnodes == 0) {
 		parser->error_state = NOOMP_ERROR_OOM;
-		noom_free(parser->alloc, node);
+		noom_free(parser->alloc, node, sizeof(noomP_Node), 1);
 		return 0;
 	}
 
@@ -150,7 +150,7 @@ noomP_Node* noomP_allocNode(noomP_Parser* parser) {
 
 int noomP_addSubnode(noomP_Parser* parser, noomP_Node* node, noomP_Node* subnode) {
 	if (node->subnodec == node->subnode_cap) {
-		noomP_Node** new = noom_realloc(parser->alloc, node->subnodes, sizeof(noomP_Node*) * node->subnode_cap * 2);
+		noomP_Node** new = noom_realloc(parser->alloc, node->subnodes, sizeof(noomP_Node*), node->subnode_cap, node->subnode_cap * 2);
 
 		if (new == 0) {
 			parser->error_state = NOOMP_ERROR_OOM; // well fuck
@@ -1830,8 +1830,8 @@ void noomP_freeNode(noom_Alloc alloc, noomP_Node* node) {
 	while (node) {
 		noomP_Node* next = node->previous_node;
 		// subnodes could be null if we OOM'd during a realloc of it
-		if (node->subnodes) noom_free(alloc, node->subnodes);
-		noom_free(alloc, node);
+		if (node->subnodes) noom_free(alloc, node->subnodes, sizeof(noomP_Node*), node->subnode_cap);
+		noom_free(alloc, node, sizeof(noomP_Node), 1);
 		node = next;
 	}
 }

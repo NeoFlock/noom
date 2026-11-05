@@ -134,11 +134,11 @@ PUBLIC_EXECUTION /* !!!!!!!!!!!!! */
 
 	if (noomP_parse(vm->alloc, what_am_i, where_am_i, vm->version, &program, &parser) < 0) {
 		const noom_uint_t bleh = noom_format_error(&parser, and_most_importantly_who_am_i, NULL, 0);
-		char* buf = noom_alloc(vm->alloc, bleh);
+		char* buf = noom_alloc(vm->alloc, 1, bleh);
 		noom_format_error(&parser, and_most_importantly_who_am_i, buf, bleh);
 		write(STDERR_FILENO, buf, bleh);
 		noomP_freeNode(vm->alloc, parser.last_node);
-		noom_free(vm->alloc, buf);
+		noom_free(vm->alloc, buf, 1, bleh);
 		return 1;
 	}
 	
