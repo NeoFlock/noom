@@ -2,6 +2,10 @@
 #include "lexer.h"
 #include "noom.h"
 
+#ifndef NOOM_NO_LIBC
+#include <stdlib.h>
+#endif
+
 static bool noom_parse_exponent(const char** sp, int* out) {
 	const char* s = *sp;
 	const bool neg = *s == '-';
@@ -302,33 +306,33 @@ void* noom_realloc_free_aligned(noom_Alloc alloc, void* ptr, noom_uint_t size, n
 	return newptr;
 }
 
-#ifdef NOOM_USE_LIBC
-#include <stdlib.h>
-static void* defaultAlloc(void* ctx, void* ptr, noom_uint_t old_size, noom_uint_t size, noom_uint_t align) {
-	if (ptr && !old_size) return NULL;
-	if (ptr) {
-		if (size) {
-			// realloc
-			return realloc(ptr, size);
-		} else {
-			// free
-			free(ptr);
-		}
-	} else {
-		if (!size) return NULL;
-		if (align) {
-			return aligned_alloc(align, size);
-		} else {
-			return malloc(size);
-		}
-	}
+static void *defaultAlloc(void* ctx, void* ptr, noom_uint_t oldSize, noom_uint_t size, noom_uint_t align) {
+#ifdef NOOM_NO_LIBC
 	return NULL;
+#else
+	if(ptr) {
+		if(size) return realloc(ptr, size);
+		free(ptr);
+		return NULL;
+	}
+	if(!size) return NULL;
+	if(align) {
+		return aligned_alloc(align, size);	
+	}
+	return malloc(size);
+#endif
 }
 
-noom_Alloc noom_defaultAlloc() {
-	noom_Alloc alloc;
-	alloc.ctx = NULL;
-	alloc.alloc = defaultAlloc;
-	return alloc;
+noom_Alloc noom_defaultAlloc(void) {
+	return (noom_Alloc) {
+		.ctx = NULL,
+		.alloc = defaultAlloc,
+	};
 }
-#endif
+
+noom_Context noom_defaultContext(void) {
+	return (noom_Context) {
+		.version = NOOM_VERSION_54,
+		.allocator = noom_defaultAlloc(),
+	};
+}

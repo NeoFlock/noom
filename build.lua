@@ -54,7 +54,7 @@ options:
     -static      link noom against build/libnoom.a (default)
     -shared      link noom against build/libnoom.so at compile time (UNIX only)
     -dlopen      load build/libnoom.so at runtime, overridable with NOOM_LIB (UNIX only)
-    -nolibc      compile noom without the NOOM_USE_LIBC macro defined
+    -nolibc      compile noom with the NOOM_NO_LIBC macro defined
     -- args...	 anything after -- is forwarded to noom when running it
 ]]
 
@@ -227,7 +227,7 @@ if commands.build then
 
 	-- Why does blendi even need that bro 😭🙏 Do not run noom on your RISC-V shi
 	if not isBlendi then table.insert(coolArgs, '-fsanitize=undefined,address') end
-	if uselibc then table.insert(coolArgs, '-DNOOM_USE_LIBC') end
+	if not uselibc then table.insert(coolArgs, '-DNOOM_NO_LIBC') end
 	local coolerArgs = table.concat(coolArgs, ' ')
 
 	local libA = fixPath('build/libnoom.a')

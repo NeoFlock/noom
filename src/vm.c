@@ -167,7 +167,7 @@ noomV_DisInfo noomV_disInfo[NOOMV_INSTR_NOP2] = {
 };
 
 noomV_Object* noomV_allocObj(noom_LuaVM* vm, noomV_ObjTag tag, noom_uint_t size) {
-	noomV_Object* o = noom_alloc(vm->alloc, size, 1);
+	noomV_Object* o = noom_alloc(vm->ctx.allocator, size, 1);
 	if (o == 0) return o;
 
 	o->tag = tag;
@@ -223,7 +223,7 @@ noomV_Table* noomV_allocTable(noom_LuaVM* vm, noom_uint_t arraylen, noom_uint_t 
 	// bit of space between fields in case of hash collisions to not blast them into O(N) hell
 	noom_uint_t cap = fields * 4 + arraylen;
 	t->entries = 0;
-	t->entrydata = noom_alloc(vm->alloc, sizeof(noomV_Value), 2 * cap);
+	t->entrydata = noom_alloc(vm->ctx.allocator, sizeof(noomV_Value), 2 * cap);
 	// dw about freeing t, its in the VM heap so it'll get GC'd out
 	if (t->entrydata == 0) return 0;
 	t->entries = cap;
@@ -420,9 +420,9 @@ noomV_Thread* noomV_allocCoroutine(noom_LuaVM* vm) {
 	thrd->errObj = noomV_nil;
 	thrd->yielded = -1;
 
-	thrd->calls = noom_alloc(vm->alloc, sizeof(noomV_CallFrame), thrd->callcap);
+	thrd->calls = noom_alloc(vm->ctx.allocator, sizeof(noomV_CallFrame), thrd->callcap);
 	if (thrd->calls == 0) return 0;
-	thrd->stack = noom_alloc(vm->alloc, sizeof(noomV_Value), thrd->stackcap);
+	thrd->stack = noom_alloc(vm->ctx.allocator, sizeof(noomV_Value), thrd->stackcap);
 	if (thrd->stack == 0) return 0;
 
 	return thrd;
@@ -431,19 +431,19 @@ noomV_Thread* noomV_allocCoroutine(noom_LuaVM* vm) {
 void noomV_freeObj(noom_LuaVM* vm, noomV_Object* obj) {
 	if (obj->tag == NOOMV_OFUNC) {
 		noomV_Function* f = (noomV_Function*)obj;
-		noom_free(vm->alloc, f->consts, sizeof(noomV_Value), f->constsize);
-		noom_free(vm->alloc, f->upvals, sizeof(noomV_UpvalDesc), f->upvalsize);
-		noom_free(vm->alloc, f->locals, sizeof(noomV_LocalDesc), f->localsize);
-		noom_free(vm->alloc, f->code, sizeof(noomV_Inst), f->codesize);
+		noom_free(vm->ctx.allocator, f->consts, sizeof(noomV_Value), f->constsize);
+		noom_free(vm->ctx.allocator, f->upvals, sizeof(noomV_UpvalDesc), f->upvalsize);
+		noom_free(vm->ctx.allocator, f->locals, sizeof(noomV_LocalDesc), f->localsize);
+		noom_free(vm->ctx.allocator, f->code, sizeof(noomV_Inst), f->codesize);
 	}
 	if (obj->tag == NOOMV_OTABLE) {
 		noomV_Table* t = (noomV_Table*)obj;
-		noom_free(vm->alloc, t->entrydata, sizeof(noomV_Value), 2 * t->entries);
+		noom_free(vm->ctx.allocator, t->entrydata, sizeof(noomV_Value), 2 * t->entries);
 	}
 	if (obj->tag == NOOMV_OTHREAD) {
 		noomV_Thread* thrd = (noomV_Thread*)obj;
-		noom_free(vm->alloc, thrd->stack, sizeof(noomV_Value), thrd->stackcap);
-		noom_free(vm->alloc, thrd->calls, sizeof(noomV_CallFrame), thrd->callcap);
+		noom_free(vm->ctx.allocator, thrd->stack, sizeof(noomV_Value), thrd->stackcap);
+		noom_free(vm->ctx.allocator, thrd->calls, sizeof(noomV_CallFrame), thrd->callcap);
 	}
 	noom_uint_t size;
 	switch (obj->tag) {
@@ -471,7 +471,7 @@ void noomV_freeObj(noom_LuaVM* vm, noomV_Object* obj) {
 			size = sizeof(noomV_Thread);
 			break;
 	}
-	noom_free(vm->alloc, obj, size, 1);
+	noom_free(vm->ctx.allocator, obj, size, 1);
 	vm->objCount--;
 }
 
@@ -481,7 +481,7 @@ noom_Exit noomV_pushCallFrame(noom_LuaVM* vm, noomV_Thread* coro, noomV_CallFram
 	}
 	if (coro->calldepth >= coro->callcap) {
 		noom_uint_t newCap = coro->callcap * 2;
-		noomV_CallFrame* newCalls = noom_realloc(vm->alloc, coro->calls, sizeof(noomV_CallFrame), coro->callcap, newCap);
+		noomV_CallFrame* newCalls = noom_realloc(vm->ctx.allocator, coro->calls, sizeof(noomV_CallFrame), coro->callcap, newCap);
 		if (newCalls == 0) return noom_erroroom(vm);
 		coro->calls = newCalls;
 		coro->callcap = newCap;
@@ -504,7 +504,7 @@ noom_Exit noomV_setThreadStackSize(noom_LuaVM* vm, noomV_Thread* coro, noom_int_
 		noom_uint_t newCap = coro->stackcap;
 		while (newCap < stack) newCap *= 2;
 
-		noomV_Value* newStack = noom_realloc(vm->alloc, coro->stack, sizeof(noomV_Value), coro->stackcap, newCap);
+		noomV_Value* newStack = noom_realloc(vm->ctx.allocator, coro->stack, sizeof(noomV_Value), coro->stackcap, newCap);
 		if (newStack == 0) return noom_erroroom(vm);
 		coro->stack = newStack;
 		coro->stackcap = newCap;
@@ -524,11 +524,11 @@ noom_Exit noomV_setThreadStackSize(noom_LuaVM* vm, noomV_Thread* coro, noom_int_
 	return NOOM_OK;
 }
 
-noom_LuaVM* noom_createVM(noom_Alloc alloc, noom_LuaVersion version) {
-	noom_LuaVM* vm = noom_alloc(alloc, sizeof(noom_LuaVM), 1);
+noom_LuaVM* noom_createVM(noom_Context ctx) {
+	noom_LuaVM* vm = noom_alloc(ctx.allocator, sizeof(noom_LuaVM), 1);
 	if (vm == 0) return 0;
 	// initialize the universe to NULL, handles partial OOMs nicely
-	vm->alloc = alloc;
+	vm->ctx = ctx;
 	vm->heap = 0;
 	vm->graySet = 0;
 	vm->oomVal.tag = NOOMV_VOBJ;
@@ -537,7 +537,6 @@ noom_LuaVM* noom_createVM(noom_Alloc alloc, noom_LuaVersion version) {
 	vm->registry = 0;
 	vm->mainThread = 0;
 	vm->currentThread = 0;
-	vm->version = version;
 	vm->objCount = 0;
 	vm->gcTarget = 100;
 	vm->gcRatio = 2;
@@ -582,7 +581,7 @@ void noom_destroyVM(noom_LuaVM* vm) {
 		iter = iter->next;
 		noomV_freeObj(vm, cur);
 	}
-	noom_free(vm->alloc, vm, sizeof(noom_LuaVM), 1);
+	noom_free(vm->ctx.allocator, vm, sizeof(noom_LuaVM), 1);
 }
 
 noom_Exit noomV_pushRawValue(noom_LuaVM *vm, noomV_Value val) {
@@ -724,7 +723,7 @@ noom_Exit noomV_runCodeResumed(noom_LuaVM *vm, noom_Exit status, void *_ctx) {
 			break;
 		case NOOMV_INSTR_PUSHGLOBAL:
 			{
-				if(vm->version != NOOM_VERSION_51) return noom_errorf(vm, "invalid bytecode");
+				if(vm->ctx.version != NOOM_VERSION_51) return noom_errorf(vm, "invalid bytecode");
 				noomV_Value g = noomV_rawgetTable(proto->env, proto->consts[inst.us]);
 				// thrd->stacklen--;
 				e = noomV_pushRawValue(vm, g);
@@ -733,7 +732,7 @@ noom_Exit noomV_runCodeResumed(noom_LuaVM *vm, noom_Exit status, void *_ctx) {
 			break;
 		case NOOMV_INSTR_SETGLOBAL:
 			{
-				if(vm->version != NOOM_VERSION_51) return noom_errorf(vm, "invalid bytecode");
+				if(vm->ctx.version != NOOM_VERSION_51) return noom_errorf(vm, "invalid bytecode");
 				noomV_Value value;
 				e = noomV_getStackValue(vm, noom_getstacksize(vm)-1, &value);
 				if (e) return e;
@@ -928,7 +927,7 @@ noom_Exit noom_cast2num(noom_LuaVM* vm, noom_slot_t x) {
 			return NOOM_OK;
 		case NOOMV_VOBJ:
 			if (value.obj->tag == NOOMV_OSTR) {
-				noomV_Value casted = noom_tonumber_except_different_name_so_public_fucking_api_works(((noomV_String*)value.obj->tag)->data, NULL, vm->version);
+				noomV_Value casted = noom_tonumber_except_different_name_so_public_fucking_api_works(((noomV_String*)value.obj->tag)->data, NULL, vm->ctx.version);
 				if (noomV_isNil(casted))
 					return noom_errorf(vm, "failed to parse string to number while casting");
 				noomV_setStackValue(vm, x, casted);

@@ -151,12 +151,20 @@ void* noom_realloc_free_aligned(noom_Alloc alloc, void* ptr, noom_uint_t size, n
 typedef noom_Exit noom_CFunction(noom_LuaVM* vm);
 typedef noom_Exit noom_KFunction(noom_LuaVM* vm, noom_Exit status, void* ctx);
 
-noom_LuaVM* noom_createVM(noom_Alloc alloc, noom_LuaVersion version);
-void noom_destroyVM(noom_LuaVM* vm);
+typedef struct noom_Context {
+	noom_LuaVersion version;
+	noom_Alloc allocator;
+} noom_Context;
 
-#ifdef NOOM_USE_LIBC
-noom_Alloc noom_defaultAlloc();
-#endif
+// if NOOM_NO_LIBC is defined when the library is compiled, the
+// allocator returned will do nothing, and instead it will always OOM.
+// It is best to use your own allocator or one composed from the
+// provided ones if you are in an embedded system.
+noom_Alloc noom_defaultAlloc(void);
+noom_Context noom_defaultContext(void);
+
+noom_LuaVM* noom_createVM(noom_Context ctx);
+void noom_destroyVM(noom_LuaVM* vm);
 
 // type of a stack slot.
 // If negative, its relative to the top where -1 is the top.

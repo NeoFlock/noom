@@ -97,7 +97,7 @@ PUBLIC_EXECUTION /* !!!!!!!!!!!!! */
 	while (1) {
 		noomL_Token token;
 
-		noomL_ErrorType err = noomL_lex(what_am_i, pos, &token, vm->version);
+		noomL_ErrorType err = noomL_lex(what_am_i, pos, &token, vm->ctx.version);
 		if (err) break;
 
 		if (token.type == NOOML_TOKEN_KEYWORD) {
@@ -132,24 +132,24 @@ PUBLIC_EXECUTION /* !!!!!!!!!!!!! */
 	puts("\x1b[0m");
 #endif
 
-	if (noomP_parse(vm->alloc, what_am_i, where_am_i, vm->version, &program, &parser) < 0) {
+	if (noomP_parse(vm->ctx.allocator, what_am_i, where_am_i, vm->ctx.version, &program, &parser) < 0) {
 		const noom_uint_t bleh = noom_format_error(&parser, and_most_importantly_who_am_i, NULL, 0);
-		char* buf = noom_alloc(vm->alloc, 1, bleh);
+		char* buf = noom_alloc(vm->ctx.allocator, 1, bleh);
 		noom_format_error(&parser, and_most_importantly_who_am_i, buf, bleh);
 		write(STDERR_FILENO, buf, bleh);
-		noomP_freeNode(vm->alloc, parser.last_node);
-		noom_free(vm->alloc, buf, 1, bleh);
+		noomP_freeNode(vm->ctx.allocator, parser.last_node);
+		noom_free(vm->ctx.allocator, buf, 1, bleh);
 		return 1;
 	}
 	
 #ifdef PARSE_OUTPUT
 	write(STDOUT_FILENO, "PARSE OUTPUT:\n", 14);
-	pretty(what_am_i, vm->version, program, 0);
+	pretty(what_am_i, vm->ctx.version, program, 0);
 #endif
 	noomV_Value peak;
 
 	const noom_Exit e = noomC_compile(vm, &parser, program, NULL, vm->globals, &peak);
-	noomP_freeNode(vm->alloc, parser.last_node);
+	noomP_freeNode(vm->ctx.allocator, parser.last_node);
 	
 	if (e) {
 		char not_cool[8] = "error: 0";
