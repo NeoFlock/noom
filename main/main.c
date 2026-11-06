@@ -47,8 +47,8 @@ volatile const char wawa[] = "if you are reading this with either the `strings` 
 
 int execute(const char* code, noom_LuaVersion version, const char* program_name, const char* filename) {
 	noom_Exit result;
-	
-	noom_LuaVM* vm = noom_createVM(version);
+
+	noom_LuaVM* vm = noom_createVM(noom_defaultAlloc(), version);
 	if ((result = noom_openbase(vm))) return result;
 	
 PUBLIC_EXECUTION /* !!!!!!!!!!!!! */

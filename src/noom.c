@@ -132,13 +132,13 @@ PUBLIC_EXECUTION /* !!!!!!!!!!!!! */
 	puts("\x1b[0m");
 #endif
 
-	if (noomP_parse(what_am_i, where_am_i, vm->version, &program, &parser) < 0) {
+	if (noomP_parse(vm->alloc, what_am_i, where_am_i, vm->version, &program, &parser) < 0) {
 		const noom_uint_t bleh = noom_format_error(&parser, and_most_importantly_who_am_i, NULL, 0);
-		char* buf = noom_alloc(bleh);
+		char* buf = noom_alloc(vm->alloc, 1, bleh);
 		noom_format_error(&parser, and_most_importantly_who_am_i, buf, bleh);
 		write(STDERR_FILENO, buf, bleh);
-		noomP_freeNode(parser.last_node);
-		noom_free(buf);
+		noomP_freeNode(vm->alloc, parser.last_node);
+		noom_free(vm->alloc, buf, 1, bleh);
 		return 1;
 	}
 	
@@ -149,7 +149,7 @@ PUBLIC_EXECUTION /* !!!!!!!!!!!!! */
 	noomV_Value peak;
 
 	const noom_Exit e = noomC_compile(vm, &parser, program, NULL, vm->globals, &peak);
-	noomP_freeNode(parser.last_node);
+	noomP_freeNode(vm->alloc, parser.last_node);
 	
 	if (e) {
 		char not_cool[8] = "error: 0";

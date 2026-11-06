@@ -232,8 +232,8 @@ void noom_safe_strcpy(char* buffer, noom_uint_t* pos, noom_uint_t buffer_size, c
 	}
 }
 
-char* noom_strndup(const char* s, const noom_uint_t len) {
-	char* whar = noom_alloc(len + 1);
+char* noom_strndup(noom_Alloc alloc, const char* s, const noom_uint_t len) {
+	char* whar = noom_alloc(alloc, 1, len + 1);
 	if (whar == 0) return 0;
 	noom_memcpy(whar, s, len);
 	whar[len] = '\0';
@@ -255,25 +255,80 @@ void noom_memcpy(void* dst, const void* src, noom_uint_t n) {
 	}
 }
 
-#include <stdlib.h> // TODO: remove
-
-void* noom_alloc(noom_uint_t size) {
-	return malloc(size);
+static int mul_will_overflow(noom_uint_t a, noom_uint_t b) {
+	return a != 0 && b > (noom_uint_t)-1 / a;
 }
 
-void noom_free(void* ptr) {
-	free(ptr);
+void* noom_alloc(noom_Alloc alloc, noom_uint_t size, noom_uint_t count) {
+	if (mul_will_overflow(size, count)) return NULL;
+	return alloc.alloc(alloc.ctx, NULL, 0, size * count, 0);
 }
-
-void* noom_realloc(void* ptr, noom_uint_t size) {
-	return realloc(ptr, size);
+void* noom_alloc_aligned(noom_Alloc alloc, noom_uint_t size, noom_uint_t count, noom_uint_t align) {
+	if (mul_will_overflow(size, count)) return NULL;
+	return alloc.alloc(alloc.ctx, NULL, 0, size * count, align);
 }
-
-void* noom_realloc_free(void* ptr, noom_uint_t size) {
-	void* newptr = noom_realloc(ptr, size);
+void noom_free(noom_Alloc alloc, void* ptr, noom_uint_t size, noom_uint_t count) {
+	// if we have an overflow here, user code is wrong as the alloc should have failed
+	alloc.alloc(alloc.ctx, ptr, size * count, 0, 0);
+}
+void noom_free_aligned(noom_Alloc alloc, void* ptr, noom_uint_t size, noom_uint_t count, noom_uint_t align) {
+	// if we have an overflow here, user code is wrong as the alloc should have failed
+	alloc.alloc(alloc.ctx, ptr, size * count, 0, align);
+}
+void* noom_realloc(noom_Alloc alloc, void* ptr, noom_uint_t size, noom_uint_t old_count, noom_uint_t new_count) {
+	if (mul_will_overflow(size, new_count)) return NULL;
+	// if we have an overflow in the old size, user code is wrong as the alloc should have failed
+	return alloc.alloc(alloc.ctx, ptr, size * old_count, size * new_count, 0);
+}
+void* noom_realloc_aligned(noom_Alloc alloc, void* ptr, noom_uint_t size, noom_uint_t old_count, noom_uint_t new_count, noom_uint_t align) {
+	if (mul_will_overflow(size, new_count)) return NULL;
+	// if we have an overflow in the old size, user code is wrong as the alloc should have failed
+	return alloc.alloc(alloc.ctx, ptr, size * old_count, size * new_count, align);
+}
+void* noom_realloc_free(noom_Alloc alloc, void* ptr, noom_uint_t size, noom_uint_t old_count, noom_uint_t new_count) {
+	void* newptr = noom_realloc(alloc, ptr, size, old_count, new_count);
 	if (newptr == 0) {
-		noom_free(ptr);
+		noom_free(alloc, ptr, size, old_count);
 		return 0;
 	}
 	return newptr;
 }
+void* noom_realloc_free_aligned(noom_Alloc alloc, void* ptr, noom_uint_t size, noom_uint_t old_count, noom_uint_t new_count, noom_uint_t align) {
+	void* newptr = noom_realloc_aligned(alloc, ptr, size, old_count, new_count, align);
+	if (newptr == 0) {
+		noom_free_aligned(alloc, ptr, size, old_count, align);
+		return 0;
+	}
+	return newptr;
+}
+
+#ifdef NOOM_USE_LIBC
+#include <stdlib.h>
+static void* defaultAlloc(void* ctx, void* ptr, noom_uint_t old_size, noom_uint_t size, noom_uint_t align) {
+	if (ptr && !old_size) return NULL;
+	if (ptr) {
+		if (size) {
+			// realloc
+			return realloc(ptr, size);
+		} else {
+			// free
+			free(ptr);
+		}
+	} else {
+		if (!size) return NULL;
+		if (align) {
+			return aligned_alloc(align, size);
+		} else {
+			return malloc(size);
+		}
+	}
+	return NULL;
+}
+
+noom_Alloc noom_defaultAlloc() {
+	noom_Alloc alloc;
+	alloc.ctx = NULL;
+	alloc.alloc = defaultAlloc;
+	return alloc;
+}
+#endif

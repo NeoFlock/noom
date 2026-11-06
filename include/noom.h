@@ -134,11 +134,29 @@ typedef enum noom_CoroutineStatus {
 
 typedef struct noom_LuaVM noom_LuaVM;
 
+typedef struct noom_Alloc {
+	void* (* alloc)(void* ctx, void* ptr, noom_uint_t old_size, noom_uint_t new_size, noom_uint_t align);
+	void* ctx;
+} noom_Alloc;
+
+void* noom_alloc(noom_Alloc alloc, noom_uint_t size, noom_uint_t count);
+void* noom_alloc_aligned(noom_Alloc alloc, noom_uint_t size, noom_uint_t count, noom_uint_t align);
+void noom_free(noom_Alloc alloc, void* ptr, noom_uint_t size, noom_uint_t count);
+void noom_free_aligned(noom_Alloc alloc, void* ptr, noom_uint_t size, noom_uint_t count, noom_uint_t align);
+void* noom_realloc(noom_Alloc alloc, void* ptr, noom_uint_t size, noom_uint_t old_count, noom_uint_t new_count);
+void* noom_realloc_aligned(noom_Alloc alloc, void* ptr, noom_uint_t size, noom_uint_t old_count, noom_uint_t new_count, noom_uint_t align);
+void* noom_realloc_free(noom_Alloc alloc, void* ptr, noom_uint_t size, noom_uint_t old_count, noom_uint_t new_count);
+void* noom_realloc_free_aligned(noom_Alloc alloc, void* ptr, noom_uint_t size, noom_uint_t old_count, noom_uint_t new_count, noom_uint_t align);
+
 typedef noom_Exit noom_CFunction(noom_LuaVM* vm);
 typedef noom_Exit noom_KFunction(noom_LuaVM* vm, noom_Exit status, void* ctx);
 
-noom_LuaVM* noom_createVM(noom_LuaVersion version);
+noom_LuaVM* noom_createVM(noom_Alloc alloc, noom_LuaVersion version);
 void noom_destroyVM(noom_LuaVM* vm);
+
+#ifdef NOOM_USE_LIBC
+noom_Alloc noom_defaultAlloc();
+#endif
 
 // type of a stack slot.
 // If negative, its relative to the top where -1 is the top.

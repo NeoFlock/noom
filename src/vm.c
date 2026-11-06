@@ -167,7 +167,7 @@ noomV_DisInfo noomV_disInfo[NOOMV_INSTR_NOP2] = {
 };
 
 noomV_Object* noomV_allocObj(noom_LuaVM* vm, noomV_ObjTag tag, noom_uint_t size) {
-	noomV_Object* o = noom_alloc(size);
+	noomV_Object* o = noom_alloc(vm->alloc, size, 1);
 	if (o == 0) return o;
 
 	o->tag = tag;
@@ -223,7 +223,7 @@ noomV_Table* noomV_allocTable(noom_LuaVM* vm, noom_uint_t arraylen, noom_uint_t 
 	// bit of space between fields in case of hash collisions to not blast them into O(N) hell
 	noom_uint_t cap = fields * 4 + arraylen;
 	t->entries = 0;
-	t->entrydata = noom_alloc(sizeof(noomV_Value) * 2 * cap);
+	t->entrydata = noom_alloc(vm->alloc, sizeof(noomV_Value), 2 * cap);
 	// dw about freeing t, its in the VM heap so it'll get GC'd out
 	if (t->entrydata == 0) return 0;
 	t->entries = cap;
@@ -420,9 +420,9 @@ noomV_Thread* noomV_allocCoroutine(noom_LuaVM* vm) {
 	thrd->errObj = noomV_nil;
 	thrd->yielded = -1;
 
-	thrd->calls = noom_alloc(sizeof(noomV_CallFrame) * thrd->callcap);
+	thrd->calls = noom_alloc(vm->alloc, sizeof(noomV_CallFrame), thrd->callcap);
 	if (thrd->calls == 0) return 0;
-	thrd->stack = noom_alloc(sizeof(noomV_Value) * thrd->stackcap);
+	thrd->stack = noom_alloc(vm->alloc, sizeof(noomV_Value), thrd->stackcap);
 	if (thrd->stack == 0) return 0;
 
 	return thrd;
@@ -431,21 +431,47 @@ noomV_Thread* noomV_allocCoroutine(noom_LuaVM* vm) {
 void noomV_freeObj(noom_LuaVM* vm, noomV_Object* obj) {
 	if (obj->tag == NOOMV_OFUNC) {
 		noomV_Function* f = (noomV_Function*)obj;
-		noom_free(f->consts);
-		noom_free(f->upvals);
-		noom_free(f->locals);
-		noom_free(f->code);
+		noom_free(vm->alloc, f->consts, sizeof(noomV_Value), f->constsize);
+		noom_free(vm->alloc, f->upvals, sizeof(noomV_UpvalDesc), f->upvalsize);
+		noom_free(vm->alloc, f->locals, sizeof(noomV_LocalDesc), f->localsize);
+		noom_free(vm->alloc, f->code, sizeof(noomV_Inst), f->codesize);
 	}
 	if (obj->tag == NOOMV_OTABLE) {
 		noomV_Table* t = (noomV_Table*)obj;
-		noom_free(t->entrydata);
+		noom_free(vm->alloc, t->entrydata, sizeof(noomV_Value), 2 * t->entries);
 	}
 	if (obj->tag == NOOMV_OTHREAD) {
 		noomV_Thread* thrd = (noomV_Thread*)obj;
-		noom_free(thrd->stack);
-		noom_free(thrd->calls);
+		noom_free(vm->alloc, thrd->stack, sizeof(noomV_Value), thrd->stackcap);
+		noom_free(vm->alloc, thrd->calls, sizeof(noomV_CallFrame), thrd->callcap);
 	}
-	noom_free(obj);
+	noom_uint_t size;
+	switch (obj->tag) {
+		case NOOMV_OSTR:
+			size = sizeof(noomV_String) + ((noomV_String *)obj)->len + 1;
+			break;
+		case NOOMV_OFUNC:
+			size = sizeof(noomV_Function);
+			break;
+		case NOOMV_OCLOSURE:
+			// TODO: figure out the real size
+			size = sizeof(noomV_Object);
+			break;
+		case NOOMV_OTABLE:
+			size = sizeof(noomV_Table);
+			break;
+		case NOOMV_OUSERDATA:
+			// TODO: figure out the real size
+			size = sizeof(noomV_Object);
+			break;
+		case NOOMV_OPOINTER:
+			size = sizeof(noomV_Pointer);
+			break;
+		case NOOMV_OTHREAD:
+			size = sizeof(noomV_Thread);
+			break;
+	}
+	noom_free(vm->alloc, obj, size, 1);
 	vm->objCount--;
 }
 
@@ -455,7 +481,7 @@ noom_Exit noomV_pushCallFrame(noom_LuaVM* vm, noomV_Thread* coro, noomV_CallFram
 	}
 	if (coro->calldepth >= coro->callcap) {
 		noom_uint_t newCap = coro->callcap * 2;
-		noomV_CallFrame* newCalls = noom_realloc(coro->calls, sizeof(noomV_CallFrame) * newCap);
+		noomV_CallFrame* newCalls = noom_realloc(vm->alloc, coro->calls, sizeof(noomV_CallFrame), coro->callcap, newCap);
 		if (newCalls == 0) return noom_erroroom(vm);
 		coro->calls = newCalls;
 		coro->callcap = newCap;
@@ -478,7 +504,7 @@ noom_Exit noomV_setThreadStackSize(noom_LuaVM* vm, noomV_Thread* coro, noom_int_
 		noom_uint_t newCap = coro->stackcap;
 		while (newCap < stack) newCap *= 2;
 
-		noomV_Value* newStack = noom_realloc(coro->stack, sizeof(noomV_Value) * newCap);
+		noomV_Value* newStack = noom_realloc(vm->alloc, coro->stack, sizeof(noomV_Value), coro->stackcap, newCap);
 		if (newStack == 0) return noom_erroroom(vm);
 		coro->stack = newStack;
 		coro->stackcap = newCap;
@@ -498,10 +524,11 @@ noom_Exit noomV_setThreadStackSize(noom_LuaVM* vm, noomV_Thread* coro, noom_int_
 	return NOOM_OK;
 }
 
-noom_LuaVM* noom_createVM(noom_LuaVersion version) {
-	noom_LuaVM* vm = noom_alloc(sizeof(*vm));
+noom_LuaVM* noom_createVM(noom_Alloc alloc, noom_LuaVersion version) {
+	noom_LuaVM* vm = noom_alloc(alloc, sizeof(noom_LuaVM), 1);
 	if (vm == 0) return 0;
 	// initialize the universe to NULL, handles partial OOMs nicely
+	vm->alloc = alloc;
 	vm->heap = 0;
 	vm->graySet = 0;
 	vm->oomVal.tag = NOOMV_VOBJ;
@@ -555,7 +582,7 @@ void noom_destroyVM(noom_LuaVM* vm) {
 		iter = iter->next;
 		noomV_freeObj(vm, cur);
 	}
-	noom_free(vm);
+	noom_free(vm->alloc, vm, sizeof(noom_LuaVM), 1);
 }
 
 noom_Exit noomV_pushRawValue(noom_LuaVM *vm, noomV_Value val) {
