@@ -1794,19 +1794,19 @@ int noomP_parse(noom_Alloc alloc, const char* code, const char* filename, noom_L
 
 	noomL_Token token;
 	noomP_Node* node = noomP_allocNode(parser);
-	if (node == 0) return -1;
+	if (node == NULL) return -1;
 
 	node->source_offset = parser->lex_offset;
 	node->type = NOOMP_NODE_PROGRAM;
 
 	while (1) {
-		if (noomP_peek(parser, &token)) return 0;
+		if (noomP_peek(parser, &token)) return -1;
 		if (token.type == NOOML_TOKEN_EOF) break;
 
 		noomP_Node* child = noomP_parseStatement(parser);
-		if (child == 0) return -1;
+		if (child == NULL) return -1;
 
-		if (noomP_addSubnode(parser, node, child)) return 0;
+		if (noomP_addSubnode(parser, node, child)) return -1;
 	}
 
 	*outpointer = node;
