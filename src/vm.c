@@ -928,8 +928,11 @@ noom_Exit noom_cast2num(noom_LuaVM* vm, noom_slot_t x) {
 			return NOOM_OK;
 		case NOOMV_VOBJ:
 			if (value.obj->tag == NOOMV_OSTR) {
-				// TODO: implement this
-				return noom_errorf(vm, "string to number conversion is unimplemented");
+				noomV_Value casted = noom_tonumber_except_different_name_so_public_fucking_api_works(((noomV_String*)value.obj->tag)->data, NULL, vm->version);
+				if (noomV_isNil(casted))
+					return noom_errorf(vm, "failed to parse string to number while casting");
+				noomV_setStackValue(vm, x, casted);
+				return NOOM_OK;
 			}
 		default:
 			return noom_errorf(vm, "attempted to cast invalid value to number");
