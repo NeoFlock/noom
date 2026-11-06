@@ -45,11 +45,18 @@ static const char* lets_noom(void) {
 
 volatile const char wawa[] = "if you are reading this with either the `strings` utility or through a hex viewer please know that you can instead just check out the source code on forgejo: https://git.codersquack.nl/NeoFlock/noom";
 
+char noom_throwawayBuf[1<<20];
+
 int execute(const char* code, noom_LuaVersion version, const char* program_name, const char* filename) {
 	noom_Exit result;
 
 	noom_Context ctx = noom_defaultContext();
 	ctx.version = version;
+
+#if NOOM_NO_LIBC
+	noom_ArenaAllocator arena = noom_createArena(noom_throwawayBuf, sizeof(noom_throwawayBuf));
+	ctx.allocator = noom_arenaAlloc(&arena);
+#endif
 
 	noom_LuaVM* vm = noom_createVM(ctx);
 	if ((result = noom_openbase(vm))) return result;

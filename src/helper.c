@@ -1,6 +1,7 @@
 #include "helper.h"
 #include "lexer.h"
 #include "noom.h"
+#include <stddef.h>
 
 #ifndef NOOM_NO_LIBC
 #include <stdlib.h>
@@ -334,5 +335,33 @@ noom_Context noom_defaultContext(void) {
 	return (noom_Context) {
 		.version = NOOM_VERSION_54,
 		.allocator = noom_defaultAlloc(),
+	};
+}
+
+noom_ArenaAllocator noom_createArena(char *buf, size_t capacity) {
+	return (noom_ArenaAllocator) {
+		.nextPtr = buf,
+		.remaining = capacity,
+		.capacity = capacity,
+	};
+}
+
+void noom_resetArena(noom_ArenaAllocator *arena) {
+	arena->nextPtr -= (arena->capacity - arena->remaining);
+	arena->remaining = 0;
+}
+
+static void *arenaAlloc(void* ctx, void* ptr, noom_uint_t oldSize, noom_uint_t size, noom_uint_t align) {
+	noom_ArenaAllocator *arena = ctx;
+	// TODO: a better way to compute the default alignment, it's just that SIMD vectors have the highest, at 16.
+	if(!align) align = 16;
+	// didn't implement it yet (need to figure out the aligning)
+	return NULL;
+}
+
+noom_Alloc noom_arenaAlloc(noom_ArenaAllocator *arena) {
+	return (noom_Alloc) {
+		.ctx = arena,
+		.alloc = arenaAlloc,
 	};
 }

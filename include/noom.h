@@ -134,8 +134,10 @@ typedef enum noom_CoroutineStatus {
 
 typedef struct noom_LuaVM noom_LuaVM;
 
+typedef void *(noom_AllocFunc)(void *ctx, void *ptr, noom_uint_t oldSize, noom_uint_t newSize, noom_uint_t align);
+
 typedef struct noom_Alloc {
-	void* (* alloc)(void* ctx, void* ptr, noom_uint_t old_size, noom_uint_t new_size, noom_uint_t align);
+	noom_AllocFunc *alloc;
 	void* ctx;
 } noom_Alloc;
 
@@ -162,6 +164,19 @@ typedef struct noom_Context {
 // provided ones if you are in an embedded system.
 noom_Alloc noom_defaultAlloc(void);
 noom_Context noom_defaultContext(void);
+
+// Memory allocators for embedded or performance-oriented code
+
+// TODO: consider making it optionally growing with an optional pointer to a backing allocator
+typedef struct noom_ArenaAllocator {
+	char *nextPtr;
+	size_t remaining;
+	size_t capacity;
+} noom_ArenaAllocator;
+
+noom_ArenaAllocator noom_createArena(char *buf, size_t capacity);
+void noom_resetArena(noom_ArenaAllocator *arena);
+noom_Alloc noom_arenaAlloc(noom_ArenaAllocator *arena);
 
 noom_LuaVM* noom_createVM(noom_Context ctx);
 void noom_destroyVM(noom_LuaVM* vm);
