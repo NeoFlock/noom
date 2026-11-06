@@ -776,7 +776,14 @@ noom_Exit noomC_compile_expr(
 	
 		noomV_Value val = noom_tonumber_except_different_name_so_public_fucking_api_works(parser->code + node->source_offset, 0, parser->version);
 
-		if (val.tag == NOOMV_VNUM && val.number <= USHRT_MAX) { // TODO: support NOOMV_VINT when that is actually used
+		// TODO: on targets where SHRT_MIN and SHRT_MAX round up to a higher int
+		// (eg SHRT_MAX, which could be 32737, could round up to 32738) due to
+		// float promotion, there is a gap where floats that dont fit into shorts
+		// are "in range" of our check, which means they subsequently get casted
+		// to a short causing UB
+		//
+		// TODO: support NOOMV_VINT when that is actually used
+		if (val.tag == NOOMV_VNUM && SHRT_MIN <= val.number && val.number <= SHRT_MAX && val.number == (short)val.number) {
 			// cooler path
 			if (retc != -1) compiler->curstack++;
 
