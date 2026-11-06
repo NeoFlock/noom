@@ -960,7 +960,19 @@ noom_Exit noom_cast2str(noom_LuaVM* vm, noom_slot_t x) {
 			ALLOC_STR(vm, value.obj, buffer);
 			break;
 		case NOOMV_VNUM:
-			stbsp_snprintf(buffer, sizeof(buffer), "%f", value.number);
+			stbsp_snprintf(buffer, sizeof(buffer), "%.14g", value.number);
+			int has_e_or_decimal = 0;
+			char *ptr = buffer;
+			while (*ptr) {
+				if (*ptr != '-' && (*ptr < '0' || *ptr > '9'))
+					has_e_or_decimal = 1;
+				ptr++;
+			}
+			if (!has_e_or_decimal) {
+				ptr[0] = '.';
+				ptr[1] = '0';
+				ptr[2] = 0;
+			}
 			ALLOC_STR(vm, value.obj, buffer);
 			break;
 		case NOOMV_VLUSER:
