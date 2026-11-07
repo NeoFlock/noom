@@ -470,6 +470,7 @@ noom_Exit noomC_compile_proto(
 
 	noomC_Compiler child;
 	noomC_compiler_init(&child);
+	child.vm = vm;
 	child.parent = parent_compiler;
 	child.target = proto;
 
@@ -494,7 +495,7 @@ noom_Exit noomC_compile_proto(
 		self_local.dropped = false;
 		self_local.constant = false;
 		self_local.close = false;
-		if ((result = noomC_addLocal(&child, self_local)) != NOOM_OK) return result;
+		if ((result = noomC_addLocal(&child, self_local)) != NOOM_OK) goto fail;
 		child.curstack = 1;
 		param_count++;
 	} else {
@@ -517,10 +518,13 @@ noom_Exit noomC_compile_proto(
 		a.name = parser->code + p->source_offset;
 		a.namelen = length;
 		a.stackslot = child.curstack++;
-		if ((result = noomC_addLocal(&child, a)) != NOOM_OK) return result;
+		if ((result = noomC_addLocal(&child, a)) != NOOM_OK) goto fail;
 	}
 
-	if ((result = noomC_compile_block(vm, &child, parser, proto, block_node, true)) != NOOM_OK) return result;
+	if ((result = noomC_compile_block(vm, &child, parser, proto, block_node, true)) != NOOM_OK) goto fail;
+
+	noomC_compiler_deinit(&child);
+	child.vm = NULL;
 
 	noomV_Function** newProtos = noom_realloc(vm->ctx.allocator, parent_func->protos, sizeof(noomV_Function*), parent_func->protosize, parent_func->protosize + 1);
 	if (newProtos == NULL) return noom_erroroom(vm);
@@ -529,6 +533,9 @@ noom_Exit noomC_compile_proto(
 
 	*out_proto = proto;
 	return NOOM_OK;
+fail:
+	if(child.vm != NULL) noomC_compiler_deinit(&child);
+	return result;
 }
 
 noom_Exit noomC_emit_assign_location(

@@ -434,6 +434,7 @@ void noomV_freeObj(noom_LuaVM* vm, noomV_Object* obj) {
 		noom_free(vm->ctx.allocator, f->consts, sizeof(noomV_Value), f->constsize);
 		noom_free(vm->ctx.allocator, f->upvals, sizeof(noomV_UpvalDesc), f->upvalsize);
 		noom_free(vm->ctx.allocator, f->locals, sizeof(noomV_LocalDesc), f->localsize);
+		noom_free(vm->ctx.allocator, f->protos, sizeof(noomV_Function *), f->protosize);
 		noom_free(vm->ctx.allocator, f->code, sizeof(noomV_Inst), f->codesize);
 	}
 	if (obj->tag == NOOMV_OTABLE) {
