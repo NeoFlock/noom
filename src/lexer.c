@@ -515,9 +515,12 @@ noomL_ErrorType noomL_lex(const char* s, noom_uint_t start, noomL_Token* token, 
 	}
 
 	if (noomL_iswhitespace(str[0])) {
-		token->type = NOOML_TOKEN_WHITESPACE; // TODO: maybe handle multiple at once? for now it should be okay
+		noom_uint_t len = 1;
+		while (noomL_iswhitespace(str[len])) len++;
+
+		token->type = NOOML_TOKEN_WHITESPACE;
 		token->offset = start;
-		token->length = 1;
+		token->length = len;
 
 		return NOOML_ERROR_NONE;
 	}
