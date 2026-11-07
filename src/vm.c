@@ -1180,11 +1180,29 @@ noom_Exit noom_errorlstr(noom_LuaVM *vm, const char *s, size_t len) {
 noom_Exit noom_errorf(noom_LuaVM *vm, const char *fmt, ...) {
 	va_list args;
 	va_start(args, fmt);
-	// TODO: use a growing allocation!
-	char buffer[4096];
-	int len = stbsp_vsnprintf(buffer, sizeof(buffer), fmt, args);
+	int len = stbsp_vsnprintf(NULL, 0, fmt, args);
 	va_end(args);
-	return noom_errorlstr(vm, buffer, len);
+
+	if (len < 0)
+		return noom_errorstr(vm, "formatting error message failed");
+
+	noomV_String* str = (noomV_String*)noomV_allocObj(vm, NOOMV_OSTR, sizeof(noomV_String) + len + 1);
+	if (!str) {
+		vm->currentThread->errObj = vm->oomVal;
+		return NOOM_ERR;
+	}
+	va_start(args, fmt);
+	stbsp_vsnprintf(str->data, len + 1, fmt, args);
+	va_end(args);
+	str->len = len;
+	str->hash = 0;
+	
+	noomV_Value val = noomV_nil;
+	val.tag = NOOMV_VOBJ;
+	val.obj = (noomV_Object*)str;
+
+	vm->currentThread->errObj = val;
+	return NOOM_ERR;
 }
 
 noom_Exit noom_erroroom(noom_LuaVM *vm) {
