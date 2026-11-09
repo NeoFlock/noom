@@ -85,8 +85,9 @@ typedef struct noomV_Pointer {
 	noomV_Value value;
 } noomV_Pointer;
 
-#define FIXEDP_MIN (-4096.0)
-#define FIXEDP_MAX (4095.875)
+#define FIXEDP_FRAC_BITS (10)
+#define FIXEDP_MIN ((noom_float_t)SHRT_MIN / (1 << FIXEDP_FRAC_BITS))
+#define FIXEDP_MAX ((noom_float_t)SHRT_MAX / (1 << FIXEDP_FRAC_BITS))
 
 typedef enum noomV_Opcode : unsigned char {
 	NOOMV_INSTR_NOP = 0,
