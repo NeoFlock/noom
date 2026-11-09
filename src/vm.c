@@ -21,6 +21,38 @@ noomV_Value noomV_boolVal(bool b) {
 	return (noomV_Value){.tag = NOOMV_VBOOL, .isptr = 0, .autoclose = 0, .boolean = b};
 }
 
+static const char* noomV_typeOfValue(noomV_Value x) {
+	switch (x.tag) {
+	case NOOMV_VNIL:
+		return "nil";
+	case NOOMV_VBOOL:
+		return "boolean";
+	case NOOMV_VINT:
+	case NOOMV_VNUM:
+		return "number";
+	case NOOMV_VLUSER:
+		return "userdata";
+	case NOOMV_VCFUNC:
+		return "function";
+	case NOOMV_VOBJ:
+		switch (x.obj->tag) {
+		case NOOMV_OSTR:
+			return "string";
+		case NOOMV_OFUNC:
+		case NOOMV_OCLOSURE:
+			return "function";
+		case NOOMV_OTABLE:
+			return "table";
+		case NOOMV_OUSERDATA:
+			return "userdata";
+		case NOOMV_OTHREAD:
+			return "coroutine";
+		case NOOMV_OPOINTER:
+			return noomV_typeOfValue(x.ptr->value);
+		}
+	}
+}
+
 noomV_DisInfo noomV_disInfo[NOOMV_INSTR_NOP2] = {
     [NOOMV_INSTR_PUSHVAL] = {
         .name = "PUSHVAL",
@@ -816,6 +848,130 @@ noom_Exit noomV_runCodeResumed(noom_LuaVM* vm, noom_Exit status, void* _ctx) {
 				if (e) return e;
 			}
 			break;
+		case NOOMV_INSTR_OP:
+			{
+				unsigned char op_type = inst.a;
+				unsigned char op = inst.b;
+				switch (op_type) {
+				case 0:;
+					// unary op
+					noomV_Value val = noomV_nil;
+					switch (op) {
+					case NOOM_UNARY_NEGATE:
+						noom_cast2num(vm, -1);
+						if ((e = noomV_getStackValue(vm, -1, &val))) return e;
+						switch (val.tag) {
+						case NOOMV_VINT:
+							val.integer = -val.integer;
+							break;
+						case NOOMV_VNUM:
+							val.number = -val.number;
+							break;
+						default:
+							return noom_errorf(vm, "attempted to negate value of type %s", noomV_typeOfValue(val));
+						}
+						break;
+					case NOOM_UNARY_BNOT:
+						noom_cast2num(vm, -1);
+						if ((e = noomV_getStackValue(vm, -1, &val))) return e;
+						switch (val.tag) {
+						case NOOMV_VINT:
+							val.integer = ~val.integer;
+							break;
+						case NOOMV_VNUM:
+							// the second comparison is not <= because of float rounding bullshit
+							if (!(INTPTR_MIN <= val.number) || !(val.number < (noom_float_t)INTPTR_MAX)) {
+								return noom_errorf(vm, "number has no integer representation");
+							}
+							val.tag = NOOMV_VINT;
+							val.integer = ~(noom_int_t)val.number;
+							break;
+						default:
+							return noom_errorf(vm, "attempted to negate value of type %s", noomV_typeOfValue(val));
+						}
+						break;
+					case NOOM_UNARY_LEN:
+						if ((e = noomV_getStackValue(vm, -1, &val))) return e;
+						switch (val.tag) {
+						case NOOMV_VOBJ:
+							switch (val.obj->tag) {
+							case NOOMV_OSTR:
+								{
+									noom_int_t len = ((noomV_String*)val.obj)->len;
+									val.tag = NOOMV_VINT;
+									val.integer = len;
+								}
+								break;
+							case NOOMV_OTABLE:
+								{
+									noom_int_t len = noomV_rawlenTable((noomV_Table*)val.obj);
+									val.tag = NOOMV_VINT;
+									val.integer = len;
+								}
+								break;
+							default:
+								return noom_errorf(vm, "attempted to find length of value of type %s", noomV_typeOfValue(val));
+							}
+							break;
+						default:
+							return noom_errorf(vm, "attempted to find length of value of type %s", noomV_typeOfValue(val));
+						}
+						break;
+					case NOOM_UNARY_NOT:
+						noom_cast2truthy(vm, -1);
+						if ((e = noomV_getStackValue(vm, -1, &val))) return e;
+						val.boolean = !val.boolean;
+						break;
+					}
+					noomV_setStackValue(vm, -1, val);
+					break;
+				case 1:
+					// binary op
+					switch (op) {
+					case NOOM_BIN_ADD:
+						break;
+					case NOOM_BIN_SUB:
+						break;
+					case NOOM_BIN_MLT:
+						break;
+					case NOOM_BIN_DIV:
+						break;
+					case NOOM_BIN_IDIV:
+						break;
+					case NOOM_BIN_MOD:
+						break;
+					case NOOM_BIN_EXP:
+						break;
+					case NOOM_BIN_EQL:
+						break;
+					case NOOM_BIN_NEQL:
+						break;
+					case NOOM_BIN_LESS:
+						break;
+					case NOOM_BIN_LESSEQL:
+						break;
+					case NOOM_BIN_GREATER:
+						break;
+					case NOOM_BIN_GREATEREQL:
+						break;
+					case NOOM_BIN_BAND:
+						break;
+					case NOOM_BIN_BOR:
+						break;
+					case NOOM_BIN_BXOR:
+						break;
+					case NOOM_BIN_BSHIFTL:
+						break;
+					case NOOM_BIN_BSHIFTR:
+						break;
+					}
+					return noom_errorf(vm, "not impl :(");
+					break;
+				default:
+					return noom_errorf(vm, "invalid NOOMV_INSTR_OP type %x", op_type);
+				}
+			}
+			break;
 		default:
 			{
 				return noom_errorf(vm, "invalid bytecode");
@@ -945,7 +1101,7 @@ noom_Exit noom_cast2num(noom_LuaVM* vm, noom_slot_t x) {
 			return NOOM_OK;
 		case NOOMV_VOBJ:
 			if (value.obj->tag == NOOMV_OSTR) {
-				noomV_Value casted = noom_tonumber_except_different_name_so_public_fucking_api_works(((noomV_String*)value.obj->tag)->data, NULL, vm->ctx.version);
+				noomV_Value casted = noom_tonumber_except_different_name_so_public_fucking_api_works(((noomV_String*)value.obj)->data, NULL, vm->ctx.version);
 				if (noomV_isNil(casted))
 					return noom_errorf(vm, "failed to parse string to number while casting");
 				noomV_setStackValue(vm, x, casted);
