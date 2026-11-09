@@ -45,7 +45,7 @@ int noomL_iswhitespace(char c);
 int noomL_lower(char c);
 int noomL_ishex(char c);
 int noomL_is_ident_start(char c);
-int noomL_is_ident_continue(char c); 
+int noomL_is_ident_continue(char c);
 
 noom_uint_t noomL_getsymbol(const char* s, noom_LuaVersion version);
 noom_uint_t noomL_getnumber(const char* s, noomL_ErrorType* error, noom_LuaVersion version);

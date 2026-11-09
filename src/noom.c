@@ -15,7 +15,7 @@ static void pretty(const char* code, noom_LuaVersion version, const noomP_Node* 
 	write(STDOUT_FILENO, code + node->source_offset, len);
 	if (code[node->source_offset]) write(STDOUT_FILENO, " -", 2);
 	write(STDOUT_FILENO, " ", 1);
-	const char *whatever_it_means = noomP_formatNodeType(node->type);
+	const char* whatever_it_means = noomP_formatNodeType(node->type);
 	write(STDOUT_FILENO, whatever_it_means, noom_strlen(whatever_it_means));
 	if (node->subnodec) {
 		write(STDOUT_FILENO, " with ", 6);
@@ -33,7 +33,7 @@ static void pretty(const char* code, noom_LuaVersion version, const noomP_Node* 
 			nodec %= pow10;
 			pow10 /= 10;
 		}
-		
+
 		write(STDOUT_FILENO, " entr", 5);
 		if (node->subnodec == 1) write(STDOUT_FILENO, "y", 1); else write(STDOUT_FILENO, "ies", 3);
 		write(STDOUT_FILENO, " {\n", 3);
@@ -42,8 +42,7 @@ static void pretty(const char* code, noom_LuaVersion version, const noomP_Node* 
 		}
 		for (noom_uint_t i = 0; i < indent; i++) write(STDOUT_FILENO, "\t", 1);
 		write(STDOUT_FILENO, "}\n", 2);
-	}
-	else
+	} else
 		write(STDOUT_FILENO, "\n", 1);
 }
 
@@ -89,7 +88,7 @@ PUBLIC_EXECUTION /* !!!!!!!!!!!!! */
 (noom_LuaVM* vm, const char* what_am_i, const char* where_am_i, const char *and_most_importantly_who_am_i) {
 	noomP_Parser parser;
 	noomP_Node* program;
-	
+
 #ifdef LEX_OUTPUT
 	puts("LEX OUTPUT:");
 	fputs("\x1b[48;2;10;10;10m", stdout);
@@ -141,7 +140,7 @@ PUBLIC_EXECUTION /* !!!!!!!!!!!!! */
 		noom_free(vm->ctx.allocator, buf, 1, bleh);
 		return 1;
 	}
-	
+
 #ifdef PARSE_OUTPUT
 	write(STDOUT_FILENO, "PARSE OUTPUT:\n", 14);
 	pretty(what_am_i, vm->ctx.version, program, 0);
@@ -150,7 +149,7 @@ PUBLIC_EXECUTION /* !!!!!!!!!!!!! */
 
 	const noom_Exit e = noomC_compile(vm, &parser, program, NULL, vm->globals, &peak);
 	noomP_freeNode(vm->ctx.allocator, parser.last_node);
-	
+
 	if (e) {
 		char not_cool[8] = "error: 0";
 		not_cool[7] += e; // that will work for now
@@ -185,7 +184,7 @@ PUBLIC_EXECUTION /* !!!!!!!!!!!!! */
 #endif
 	noomV_pushRawValue(vm, peak);
 	noom_Exit err = noom_call(vm, 0, 0);
-	if(err == NOOM_YIELD) {
+	if (err == NOOM_YIELD) {
 		fprintf(stderr, "Program yielded\n");
 	}
 	if (err == NOOM_ERR) {

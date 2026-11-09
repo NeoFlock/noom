@@ -76,8 +76,8 @@ static noom_Exit noomC_addUpval(noomC_Compiler* c, noomC_Upval upval) {
 	return NOOM_OK;
 }
 
-static noom_Exit noomC_addconst(noomC_Compiler *c, noomV_Value val) {
-	noomV_Function *func = c->target;
+static noom_Exit noomC_addconst(noomC_Compiler* c, noomV_Value val) {
+	noomV_Function* func = c->target;
 	if (func->constsize == USHRT_MAX) return noom_errorf(c->vm, "too many constants, maximum of %d", USHRT_MAX);
 	noomV_Value* newConsts = noom_realloc(c->vm->ctx.allocator, func->consts, sizeof(noomV_Value), func->constsize, func->constsize + 1);
 	if (newConsts == NULL) return noom_erroroom(c->vm);
@@ -104,7 +104,7 @@ static noom_Exit noomC_addconst_str(noomC_Compiler* c, noom_LuaVM* vm, const cha
 		noomC_Compiler* cp = c;
 		while (cp) {
 			noomV_Function* pf = cp->target; // why were we just checking our own ones on loop before?
-		
+
 			for (int i = 0; i < pf->constsize; i++) {
 				noomV_Value v = pf->consts[i];
 				if (v.tag != NOOMV_VOBJ) continue;
@@ -263,7 +263,7 @@ void noomC_compiler_init(noomC_Compiler* compiler) {
 
 	compiler->labelc = 0;
 	compiler->pendingGotoc = 0;
-	
+
 	compiler->breakPatchCount = 0;
 	compiler->loopDepth = 0;
 }
@@ -272,8 +272,8 @@ void noomC_compiler_deinit(noomC_Compiler* compiler) {
 	noom_free(compiler->vm->ctx.allocator, compiler->stringTmpBuf, 1, compiler->maxStringLen);
 }
 
-noom_Exit noomC_emit(noomC_Compiler *c, noomV_Inst inst) {
-	noomV_Function *func = c->target;
+noom_Exit noomC_emit(noomC_Compiler* c, noomV_Inst inst) {
+	noomV_Function* func = c->target;
 	noomV_Inst* newCode = noom_realloc(c->vm->ctx.allocator, func->code, sizeof(noomV_Inst), func->codesize, func->codesize + 1);
 	if (newCode == NULL) return noom_erroroom(c->vm);
 	func->code = newCode;
@@ -334,15 +334,15 @@ static const char* noomC_decode_string_token(noomC_Compiler* c, const char* s, n
 			i++;
 		}
 		i++; // [
-		
+
 		// Fuck you Microsoft
 		if ((s[i] == '\r' && s[i + 1] == '\n') || (s[i] == '\n' && s[i + 1] == '\r')) i += 2;
 		else if (s[i] == '\n' || s[i] == '\r') i += 1;
-		
+
 		noom_uint_t nooming_my_uint_t = tokenlen - (level + 2) * 2;
-		
+
 		if (c->maxStringLen < nooming_my_uint_t) {
-			char *s2 = noom_realloc_free(c->vm->ctx.allocator, c->stringTmpBuf, 1, c->maxStringLen, nooming_my_uint_t);
+			char* s2 = noom_realloc_free(c->vm->ctx.allocator, c->stringTmpBuf, 1, c->maxStringLen, nooming_my_uint_t);
 			if (s2 == NULL) return NULL;
 			c->stringTmpBuf = s2;
 			c->maxStringLen = nooming_my_uint_t;
@@ -351,7 +351,7 @@ static const char* noomC_decode_string_token(noomC_Compiler* c, const char* s, n
 		*outlen = nooming_my_uint_t;
 		return c->stringTmpBuf;
 	}
-	
+
 	// token is bigger than contents, so if we can't even fit token, we def can't fit contents
 	if (c->maxStringLen < tokenlen) {
 		char* s = noom_realloc(c->vm->ctx.allocator, c->stringTmpBuf, 1, c->maxStringLen, tokenlen);
@@ -389,21 +389,19 @@ static const char* noomC_decode_string_token(noomC_Compiler* c, const char* s, n
 			i++;
 			meow[meowmeow++] = (unsigned char)noomC_hexval(s[i]) * 16 + (unsigned char)noomC_hexval(s[i + 1]);
 			i += 2;
-		}
-		else if (esc == 'z' && version >= NOOM_VERSION_53) {
-			i++; 
+		} else if (esc == 'z' && version >= NOOM_VERSION_53) {
+			i++;
 			while (noomL_iswhitespace(s[i])) i++;
-		}
-		else if (esc == 'u' && version >= NOOM_VERSION_53) {
+		} else if (esc == 'u' && version >= NOOM_VERSION_53) {
 			i += 2; // u{
-			while (s[i] == '0') i++; 
+			while (s[i] == '0') i++;
 			noom_uint_t cp = 0;
 			while (noomL_ishex(s[i])) {
 				cp = cp * 16 + (noom_uint_t)noomC_hexval(s[i]);
 				i++;
 			}
 			i++; // '}'
-			
+
 			if (cp < 0x80) {
 				meow[meowmeow++] = (char)cp;
 			} else if (cp < 0x800) {
@@ -433,8 +431,7 @@ static const char* noomC_decode_string_token(noomC_Compiler* c, const char* s, n
 				meow[meowmeow++] = (char)(0x80 | ((cp >> 6) & 0x3F));
 				meow[meowmeow++] = (char)(0x80 | (cp & 0x3F));
 			}
-		}
-		else if (noomL_isnumber(esc)) {
+		} else if (noomL_isnumber(esc)) {
 			noom_uint_t val = 0;
 			noom_uint_t count = 0;
 			while (count < 3 && noomL_isnumber(s[i])) {
@@ -443,8 +440,7 @@ static const char* noomC_decode_string_token(noomC_Compiler* c, const char* s, n
 				count++;
 			}
 			meow[meowmeow++] = (char)val;
-		}
-		else {
+		} else {
 			meow[meowmeow++] = esc;
 			i++;
 		}
@@ -534,7 +530,7 @@ noom_Exit noomC_compile_proto(
 	*out_proto = proto;
 	return NOOM_OK;
 fail:
-	if(child.vm != NULL) noomC_compiler_deinit(&child);
+	if (child.vm != NULL) noomC_compiler_deinit(&child);
 	return result;
 }
 
@@ -547,7 +543,7 @@ noom_Exit noomC_emit_assign_location(
     noomC_AssignPlace* place) {
 
 	noom_Exit result;
-	
+
 	if (target->type == NOOMP_NODE_VARIABLE) {
 		const char* varname = parser->code + target->source_offset;
 		noom_uint_t namelen = noomL_tokenlen(parser->code, target->source_offset, parser->version);
@@ -624,7 +620,7 @@ noom_Exit noomC_emit_assignment(noom_LuaVM* vm,
 
 			if ((result = noomC_emit_AuD(compiler, NOOMV_INSTR_SETFIELD, 0, assign_place.field_idx))) return result;
 			compiler->curstack -= 2;
-			
+
 			return NOOM_OK;
 		case NOOMC_INDEX:
 			if ((result = noomC_emit_AuD(compiler, NOOMV_INSTR_PUSHVAL, 0, assign_place.table_slot))) return result; // copy table
@@ -640,7 +636,7 @@ noom_Exit noomC_emit_assignment(noom_LuaVM* vm,
 	}
 
 	return noom_errorf(vm, "invalid assingment destination");
- }
+}
 
 // assumes value is at TOP OF STACK!!!!! (idk why it takes a value_slot either but i'm too lazy to change it)
 noom_Exit noomC_emit_assign_to(
@@ -657,17 +653,17 @@ noom_Exit noomC_emit_assign_to(
 		noom_uint_t namelen = noomL_tokenlen(varname, 0, parser->version);
 		return noomC_identifyLocalAndSet(compiler, vm, varname, namelen);
 	}
-	
+
 	if (target->type == NOOMP_NODE_GETFIELD) {
 		// stack: <value>
-	
+
 		if ((result = noomC_compile_expr(vm, compiler, parser, func, target->subnodes[0], 1))) return result;
 		const unsigned char table_slot = (unsigned char)(compiler->curstack - 1);
 
 		// <value, table>
 
 		const noom_uint_t length = noomL_tokenlen(parser->code, target->subnodes[1]->source_offset, parser->version);
-		
+
 		unsigned short constidx;
 		if ((result = noomC_addconst_str(compiler, vm, parser->code + target->subnodes[1]->source_offset, length, &constidx))) return result;
 
@@ -690,7 +686,7 @@ noom_Exit noomC_emit_assign_to(
 
 	if (target->type == NOOMP_NODE_INDEX) {
 		// <value>
-	
+
 		if ((result = noomC_compile_expr(vm, compiler, parser, func, target->subnodes[0], 1))) return result;
 		const unsigned char table_slot = (unsigned char)(compiler->curstack - 1);
 
@@ -743,9 +739,9 @@ noom_Exit noomC_compile_expr(
 
 	if (node->type == NOOMP_NODE_NILLITERAL) {
 		if (retc == 0) return NOOM_OK;
-	
+
 		noom_uint_t nil_c = (retc == -1) ? 1 : retc;
-		
+
 		if (retc != -1) compiler->curstack += nil_c;
 
 		return noomC_emit_nils(vm, compiler, parser, func, nil_c);
@@ -753,9 +749,9 @@ noom_Exit noomC_compile_expr(
 
 	if (node->type == NOOMP_NODE_BOOLEANLITERAL) {
 		if (retc == 0) return NOOM_OK;
-	
+
 		if (retc != -1) compiler->curstack++;
-		
+
 		noom_uint_t length = noomL_tokenlen(parser->code, node->source_offset, parser->version);
 		bool val = noom_memeq(parser->code + node->source_offset, length, "true", 4);
 		// Merge consecutive PUSHBOOLs...
@@ -780,29 +776,27 @@ noom_Exit noomC_compile_expr(
 
 	if (node->type == NOOMP_NODE_NUMBERLITERAL) {
 		if (retc == 0) return NOOM_OK;
-	
+
 		noomV_Value val = noom_tonumber_except_different_name_so_public_fucking_api_works(parser->code + node->source_offset, 0, parser->version);
 
-		// TODO: on targets where SHRT_MIN and SHRT_MAX round up to a higher int
-		// (eg SHRT_MAX, which could be 32737, could round up to 32738) due to
-		// float promotion, there is a gap where floats that dont fit into shorts
-		// are "in range" of our check, which means they subsequently get casted
-		// to a short causing UB
+		// TODO: on targets where floats are fucked up, this multiplication by
+		// `(1 << FIDEXP_FRAC_BITS)` can round up and not fit in a short causing UB on the cast.
+		// what can we do but live in fear and on familiar targets where floats
+		// are IEEE 754 binary32's.
 		//
 		// TODO: support NOOMV_VINT when that is actually used
-		if (val.tag == NOOMV_VNUM && SHRT_MIN <= val.number && val.number <= SHRT_MAX && val.number == (short)val.number) {
+		if (val.tag == NOOMV_VNUM && FIXEDP_MIN <= val.number && val.number <= FIXEDP_MAX && (val.number * (1 << FIXEDP_FRAC_BITS)) == (short)(val.number * (1 << FIXEDP_FRAC_BITS))) {
 			// cooler path
 			if (retc != -1) compiler->curstack++;
 
-			if ((result = noomC_emit_AsD(compiler, NOOMV_INSTR_PUSHINT, 0, (short)val.number))) return result;
+			if ((result = noomC_emit_AsD(compiler, NOOMV_INSTR_PUSHNUM, 0, (short)(val.number * (1 << FIXEDP_FRAC_BITS))))) return result;
 		} else {
 			unsigned short const_idx;
 			if ((result = noomC_addconst_val(compiler, val, &const_idx))) return result;
 			if (retc != -1) compiler->curstack++;
-			
-			if ((result = noomC_emit_AuD(compiler, NOOMV_INSTR_PUSHCONST, 0, const_idx))) return result;
 
-		}	
+			if ((result = noomC_emit_AuD(compiler, NOOMV_INSTR_PUSHCONST, 0, const_idx))) return result;
+		}
 
 		if (retc != -1) {
 			noom_uint_t nil_c = retc - 1;
@@ -816,14 +810,14 @@ noom_Exit noomC_compile_expr(
 
 	if (node->type == NOOMP_NODE_STRINGLITERAL) {
 		if (retc == 0) return NOOM_OK;
-	
+
 		unsigned short const_idx;
 		noom_uint_t len;
 		const char* sptr = noomC_decode_string_token(compiler, parser->code + node->source_offset, noomL_tokenlen(parser->code, node->source_offset, parser->version), parser->version, &len);
 		if (sptr == 0) return noom_erroroom(vm);
 		if ((result = noomC_addconst_str(compiler, vm, sptr, len, &const_idx)) != NOOM_OK) return result;
 		if (retc != -1) compiler->curstack++;
-		
+
 		if ((result = noomC_emit_AuD(compiler, NOOMV_INSTR_PUSHCONST, 0, const_idx))) return result;
 
 		if (retc != -1) {
@@ -991,7 +985,6 @@ noom_Exit noomC_compile_expr(
 
 			func->code[what_are_we_doing_bro].us = (unsigned short)func->codesize;
 
-
 			// see, i have no clue how this code works so i'm just going to ASSUME that this will just work
 			if (retc == 0) {
 				return noomC_emit_AuD(compiler, NOOMV_INSTR_POP, 0, 0); // 0 means 1 pop
@@ -1131,21 +1124,21 @@ noom_Exit noomC_compile_expr(
 				break;
 			case NOOMC_GLOBAL: {
 				unsigned short constidx;
-				if((result = noomC_addconst_str(compiler, vm, varname, namelen, &constidx))) return result;
-				if(parser->version == NOOM_VERSION_51) {
+				if ((result = noomC_addconst_str(compiler, vm, varname, namelen, &constidx))) return result;
+				if (parser->version == NOOM_VERSION_51) {
 					if ((result = noomC_emit_AuD(compiler, NOOMV_INSTR_PUSHGLOBAL, 0, constidx))) return result;
 					break;
 				}
 				noomC_LocalInfo _ENV;
-				if((result = noomC_identifyLocal(compiler, "_ENV", 4, &_ENV))) return result;
+				if ((result = noomC_identifyLocal(compiler, "_ENV", 4, &_ENV))) return result;
 				// not meant to be possible
-				if(_ENV.type == NOOMC_GLOBAL) return noom_errorf(vm, "_ENV is undefined");
+				if (_ENV.type == NOOMC_GLOBAL) return noom_errorf(vm, "_ENV is undefined");
 				// most likely branch in human history
-				if(_ENV.type == NOOMC_UPVAL) {
-					if((result = noomC_emit_AuD(compiler, NOOMV_INSTR_PUSHUPVAL, _ENV.idx, constidx))) return result;
+				if (_ENV.type == NOOMC_UPVAL) {
+					if ((result = noomC_emit_AuD(compiler, NOOMV_INSTR_PUSHUPVAL, _ENV.idx, constidx))) return result;
 				} else {
 					// bitchass
-					if((result = noomC_emit_AuD(compiler, NOOMV_INSTR_PUSHVAL, 0, _ENV.idx))) return result;
+					if ((result = noomC_emit_AuD(compiler, NOOMV_INSTR_PUSHVAL, 0, _ENV.idx))) return result;
 				}
 				if ((result = noomC_emit_AuD(compiler, NOOMV_INSTR_GETFIELD, 0, constidx))) return result;
 				break;
@@ -1200,7 +1193,7 @@ noom_Exit noomC_compile_block(noom_LuaVM* vm, noomC_Compiler* compiler, const no
 	noom_Exit result;
 	unsigned var_count = compiler->localc;
 	unsigned stack_start = compiler->curstack;
-	
+
 	for (noom_uint_t i = 0; i < node->subnodec; i++) {
 		noom_Exit r = noomC_add_stuff_to_function(vm, compiler, parser, func, node->subnodes[i]);
 		if (r != NOOM_OK) return r;
@@ -1221,7 +1214,7 @@ noom_Exit noomC_compile_block(noom_LuaVM* vm, noomC_Compiler* compiler, const no
 		if ((result = noomC_emit_AuD(compiler, NOOMV_INSTR_POP, 0, compiler->curstack - stack_start - 1))) return result;
 		compiler->curstack = stack_start;
 	}
-	
+
 	return NOOM_OK;
 }
 
@@ -1382,21 +1375,21 @@ noom_Exit noomC_add_stuff_to_function(noom_LuaVM* vm, noomC_Compiler* compiler, 
 					break;
 				case NOOMC_GLOBAL: {
 					unsigned short constidx;
-					if((result = noomC_addconst_str(compiler, vm, root_name, root_name_len, &constidx))) return result;
-					if(parser->version == NOOM_VERSION_51) {
+					if ((result = noomC_addconst_str(compiler, vm, root_name, root_name_len, &constidx))) return result;
+					if (parser->version == NOOM_VERSION_51) {
 						if ((result = noomC_emit_AuD(compiler, NOOMV_INSTR_PUSHGLOBAL, 0, constidx))) return result;
 						break; // we done here
 					}
 					noomC_LocalInfo _ENV;
-					if((result = noomC_identifyLocal(compiler, "_ENV", 4, &_ENV))) return result;
+					if ((result = noomC_identifyLocal(compiler, "_ENV", 4, &_ENV))) return result;
 					// not meant to be possible
-					if(_ENV.type == NOOMC_GLOBAL) return noom_errorf(vm, "_ENV is undefined");
+					if (_ENV.type == NOOMC_GLOBAL) return noom_errorf(vm, "_ENV is undefined");
 					// most likely branch in human history
-					if(_ENV.type == NOOMC_UPVAL) {
-						if((result = noomC_emit_AuD(compiler, NOOMV_INSTR_PUSHUPVAL, _ENV.idx, constidx))) return result;
+					if (_ENV.type == NOOMC_UPVAL) {
+						if ((result = noomC_emit_AuD(compiler, NOOMV_INSTR_PUSHUPVAL, _ENV.idx, constidx))) return result;
 					} else {
 						// bitchass
-						if((result = noomC_emit_AuD(compiler, NOOMV_INSTR_PUSHVAL, 0, _ENV.idx))) return result;
+						if ((result = noomC_emit_AuD(compiler, NOOMV_INSTR_PUSHVAL, 0, _ENV.idx))) return result;
 					}
 					if ((result = noomC_emit_AuD(compiler, NOOMV_INSTR_GETFIELD, 0, constidx))) return result;
 					break;
@@ -1424,7 +1417,7 @@ noom_Exit noomC_add_stuff_to_function(noom_LuaVM* vm, noomC_Compiler* compiler, 
 
 			const char* final_name = parser->code + final->source_offset;
 			noom_uint_t fieldlen = noomL_tokenlen(parser->code, final->source_offset, parser->version);
-			
+
 			unsigned short fieldidx;
 			if ((result = noomC_addconst_str(compiler, vm, final_name, fieldlen, &fieldidx))) return result;
 
@@ -1454,7 +1447,7 @@ noom_Exit noomC_add_stuff_to_function(noom_LuaVM* vm, noomC_Compiler* compiler, 
 		noom_uint_t place_count = 0;
 		while (place_count < node->subnodec && node->subnodes[place_count]->type == NOOMP_NODE_ASSIGNPLACE) place_count++;
 		noom_uint_t value_count = node->subnodec - place_count;
-		
+
 		// evil blendi goose evil fixed this
 
 		noomC_AssignPlace* assign_places = noom_alloc(vm->ctx.allocator, sizeof(noomC_AssignPlace), place_count);
@@ -1518,7 +1511,6 @@ noom_Exit noomC_add_stuff_to_function(noom_LuaVM* vm, noomC_Compiler* compiler, 
 			compiler->curstack -= pop_count;
 		}
 
-
 		return NOOM_OK;
 	}
 
@@ -1534,7 +1526,7 @@ noom_Exit noomC_add_stuff_to_function(noom_LuaVM* vm, noomC_Compiler* compiler, 
 		noom_uint_t i = 0;
 		while (i < node->subnodec) {
 			if (i == node->subnodec - 1) break; // must be the else
-		
+
 			if ((result = noomC_compile_expr(vm, compiler, parser, func, node->subnodes[i], 1)) != NOOM_OK) {
 				noom_free(vm->ctx.allocator, end_jumps, sizeof(noom_uint_t), end_jump_cap);
 				return result;
@@ -1636,7 +1628,7 @@ noom_Exit noomC_add_stuff_to_function(noom_LuaVM* vm, noomC_Compiler* compiler, 
 	// for i = start, stop [, step] do block end
 	if (node->type == NOOMP_NODE_FORLOOP) {
 		// [VARNAME, start, stop, step?, BLOCK]
-		noom_uint_t value_count = node->subnodec - 2; 
+		noom_uint_t value_count = node->subnodec - 2;
 
 		const noomP_Node* varname_node = node->subnodes[0];
 		const noom_uint_t varname_len = noomL_tokenlen(parser->code, varname_node->source_offset, parser->version);
@@ -1662,7 +1654,6 @@ noom_Exit noomC_add_stuff_to_function(noom_LuaVM* vm, noomC_Compiler* compiler, 
 
 		if (compiler->loopDepth >= NOOMC_MAXLOOPDEPTH) return noom_errorf(vm, "loops too nested, max of %d", NOOMC_MAXLOOPDEPTH);
 		compiler->loopBreakBase[compiler->loopDepth++] = compiler->breakPatchCount;
-
 
 		// add the local
 		noomC_Local local;
@@ -1703,7 +1694,7 @@ noom_Exit noomC_add_stuff_to_function(noom_LuaVM* vm, noomC_Compiler* compiler, 
 		// set the stack to neutralize any possible state we might have been in upon break
 		if ((result = noomC_emit_AuD(compiler, NOOMV_INSTR_SETSTACK, 0, stack_start))) return result;
 		compiler->curstack = stack_start;
-		
+
 		return NOOM_OK;
 	}
 
@@ -1786,13 +1777,13 @@ noom_Exit noomC_add_stuff_to_function(noom_LuaVM* vm, noomC_Compiler* compiler, 
 
 		if ((result = noomC_emit_AuD(compiler, NOOMV_INSTR_SETSTACK, 0, stack_start))) return result;
 		compiler->curstack = stack_start;
-		
+
 		return NOOM_OK;
 	}
 
 	// break
 	if (node->type == NOOMP_NODE_BREAK) {
-		if (compiler->loopDepth == 0) return noom_errorf(vm, "break found outside of loop"); 
+		if (compiler->loopDepth == 0) return noom_errorf(vm, "break found outside of loop");
 		if (compiler->breakPatchCount >= NOOMC_MAXBREAKS) return noom_errorf(vm, "too many breaks, max of %d", NOOMC_MAXBREAKS);
 		noom_uint_t pc = func->codesize;
 		if ((result = noomC_emit_AuD(compiler, NOOMV_INSTR_JMP, 0, 0))) return result;
@@ -1822,7 +1813,7 @@ noom_Exit noomC_add_stuff_to_function(noom_LuaVM* vm, noomC_Compiler* compiler, 
 	if (node->type == NOOMP_NODE_LABEL) {
 		const char* name = parser->code + node->subnodes[0]->source_offset;
 		noom_uint_t namelen = noomL_tokenlen(name, 0, parser->version);
-		
+
 		if (compiler->labelc >= NOOMC_MAXLABELS) return noom_errorf(vm, "too many labels, max of %d", NOOMC_MAXLABELS);
 		noom_uint_t pc = func->codesize;
 		compiler->labels[compiler->labelc++] = (noomC_Label){ .name = name, .namelen = namelen, pc = (unsigned int)pc };
@@ -1832,8 +1823,7 @@ noom_Exit noomC_add_stuff_to_function(noom_LuaVM* vm, noomC_Compiler* compiler, 
 		for (noom_uint_t i = 0; i < compiler->pendingGotoc; i++) {
 			if (noom_memeq(compiler->pendingGotos[i].name, compiler->pendingGotos[i].namelen, name, namelen)) {
 				func->code[compiler->pendingGotos[i].patchpc].us = (unsigned short)pc;
-			}
-			else {
+			} else {
 				compiler->pendingGotos[w++] = compiler->pendingGotos[i];
 			}
 		}

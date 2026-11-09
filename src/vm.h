@@ -85,6 +85,10 @@ typedef struct noomV_Pointer {
 	noomV_Value value;
 } noomV_Pointer;
 
+#define FIXEDP_FRAC_BITS (10)
+#define FIXEDP_MIN ((noom_float_t)SHRT_MIN / (1 << FIXEDP_FRAC_BITS))
+#define FIXEDP_MAX ((noom_float_t)SHRT_MAX / (1 << FIXEDP_FRAC_BITS))
+
 typedef enum noomV_Opcode : unsigned char {
 	NOOMV_INSTR_NOP = 0,
 
@@ -98,6 +102,8 @@ typedef enum noomV_Opcode : unsigned char {
 	NOOMV_INSTR_PUSHGLOBAL,
 	// Pushes op.sD itself as an integer
 	NOOMV_INSTR_PUSHINT,
+	// Pushes op.sD interpreted as a 13.3 fixed point number, as a number
+	NOOMV_INSTR_PUSHNUM,
 	// Pushes [op.uD+1] nils
 	NOOMV_INSTR_PUSHNIL,
 	// Pushes [op.a+1] booleans, encoded in [op.uD], where the ith (0-indexed) boolean is encoded in `uD & (1 << i)`
@@ -332,7 +338,7 @@ typedef struct noomV_CallFrame {
 	noomV_Pointer** upvals;
 	noom_KFunction* resumeFunc;
 	void* resumeCtx;
-	noomV_Function *proto;
+	noomV_Function* proto;
 	// program counter
 	unsigned int pc;
 	// amount of varargs
@@ -370,7 +376,6 @@ struct noom_LuaVM {
 // for conveniently passing around nil
 extern const noomV_Value noomV_nil;
 
-
 noomV_Value noomV_intVal(noom_int_t i);
 noomV_Value noomV_numVal(noom_float_t n);
 noomV_Value noomV_boolVal(bool b);
@@ -400,8 +405,8 @@ noomV_CallFrame* noomV_topCallFrame(noomV_Thread* coro);
 
 noom_Exit noomV_setThreadStackSize(noom_LuaVM* vm, noomV_Thread* coro, noom_int_t stack);
 
-noom_Exit noomV_pushRawValue(noom_LuaVM *vm, noomV_Value val);
-noom_Exit noomV_pushRawObject(noom_LuaVM *vm, noomV_Object *obj);
-noom_Exit noomV_getStackValue(noom_LuaVM *vm, noom_slot_t slot, noomV_Value *outVal);
-noom_Exit noomV_setStackValue(noom_LuaVM *vm, noom_slot_t slot, noomV_Value val);
+noom_Exit noomV_pushRawValue(noom_LuaVM* vm, noomV_Value val);
+noom_Exit noomV_pushRawObject(noom_LuaVM* vm, noomV_Object* obj);
+noom_Exit noomV_getStackValue(noom_LuaVM* vm, noom_slot_t slot, noomV_Value* outVal);
+noom_Exit noomV_setStackValue(noom_LuaVM* vm, noom_slot_t slot, noomV_Value val);
 #endif

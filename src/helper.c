@@ -104,7 +104,7 @@ noomV_Value noom_tonumber_except_different_name_so_public_fucking_api_works(cons
 				s++;
 			}
 		}
-		if (!any) NOOM_FAIL(); 
+		if (!any) NOOM_FAIL();
 
 		if (noomL_lower(*s) == 'p') {
 			s++;
@@ -318,7 +318,7 @@ static void *defaultAlloc(void* ctx, void* ptr, noom_uint_t oldSize, noom_uint_t
 	}
 	if(!size) return NULL;
 	if(align) {
-		return aligned_alloc(align, size);	
+		return aligned_alloc(align, size);
 	}
 	return malloc(size);
 #endif
@@ -338,7 +338,7 @@ noom_Context noom_defaultContext(void) {
 	};
 }
 
-noom_ArenaAllocator noom_createArena(char *buf, size_t capacity) {
+noom_ArenaAllocator noom_createArena(char* buf, size_t capacity) {
 	return (noom_ArenaAllocator) {
 		.nextPtr = buf,
 		.remaining = capacity,
@@ -346,20 +346,20 @@ noom_ArenaAllocator noom_createArena(char *buf, size_t capacity) {
 	};
 }
 
-void noom_resetArena(noom_ArenaAllocator *arena) {
+void noom_resetArena(noom_ArenaAllocator* arena) {
 	arena->nextPtr -= (arena->capacity - arena->remaining);
 	arena->remaining = 0;
 }
 
-static void *arenaAlloc(void* ctx, void* ptr, noom_uint_t oldSize, noom_uint_t size, noom_uint_t align) {
-	noom_ArenaAllocator *arena = ctx;
+static void* arenaAlloc(void* ctx, void* ptr, noom_uint_t oldSize, noom_uint_t size, noom_uint_t align) {
+	noom_ArenaAllocator* arena = ctx;
 	// TODO: a better way to compute the default alignment, it's just that SIMD vectors have the highest, at 16.
-	if(!align) align = 16;
+	if (!align) align = 16;
 	// didn't implement it yet (need to figure out the aligning)
 	return NULL;
 }
 
-noom_Alloc noom_arenaAlloc(noom_ArenaAllocator *arena) {
+noom_Alloc noom_arenaAlloc(noom_ArenaAllocator* arena) {
 	return (noom_Alloc) {
 		.ctx = arena,
 		.alloc = arenaAlloc,
