@@ -38,6 +38,10 @@ noomV_DisInfo noomV_disInfo[NOOMV_INSTR_NOP2] = {
         .name = "PUSHINT",
         .arg = NOOMV_DIS_sD,
     },
+    [NOOMV_INSTR_PUSHNUM] = {
+        .name = "PUSHNUM",
+        .arg = NOOMV_DIS_sD,
+    },
     [NOOMV_INSTR_PUSHNIL] = {
         .name = "PUSHNIL",
         .arg = NOOMV_DIS_uD,
@@ -749,6 +753,12 @@ noom_Exit noomV_runCodeResumed(noom_LuaVM *vm, noom_Exit status, void *_ctx) {
 				if(e) return e;
 			}
 			break;
+		case NOOMV_INSTR_PUSHNUM:
+			{
+				e = noom_pushnumber(vm, ((noom_float_t)inst.ss) / (1 << 3));
+				if(e) return e;
+			}
+			break;
 		case NOOMV_INSTR_PUSHNIL:
 			{
 				e = noom_pushnils(vm, inst.us+1);
@@ -819,6 +829,13 @@ noom_Exit noom_pushint(noom_LuaVM* vm, noom_int_t integer) {
 	noomV_Value v = noomV_nil;
 	v.tag = NOOMV_VINT;
 	v.integer = integer;
+	return noomV_pushRawValue(vm, v);
+}
+
+noom_Exit noom_pushnumber(noom_LuaVM* vm, noom_float_t number) {
+	noomV_Value v = noomV_nil;
+	v.tag = NOOMV_VNUM;
+	v.number = number;
 	return noomV_pushRawValue(vm, v);
 }
 

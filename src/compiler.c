@@ -783,18 +783,17 @@ noom_Exit noomC_compile_expr(
 	
 		noomV_Value val = noom_tonumber_except_different_name_so_public_fucking_api_works(parser->code + node->source_offset, 0, parser->version);
 
-		// TODO: on targets where SHRT_MIN and SHRT_MAX round up to a higher int
-		// (eg SHRT_MAX, which could be 32737, could round up to 32738) due to
-		// float promotion, there is a gap where floats that dont fit into shorts
-		// are "in range" of our check, which means they subsequently get casted
-		// to a short causing UB
+		// TODO: on targets where floats are fucked up, this multiplication by
+		// `(1 << 3)` can round up and not fit in a short causing UB on the cast.
+		// what can we do but live in fear and on familiar targets where floats
+		// are IEEE 754 binary32's.
 		//
 		// TODO: support NOOMV_VINT when that is actually used
-		if (val.tag == NOOMV_VNUM && SHRT_MIN <= val.number && val.number <= SHRT_MAX && val.number == (short)val.number) {
+		if (val.tag == NOOMV_VNUM && FIXEDP_MIN <= val.number && val.number <= FIXEDP_MAX && (val.number * (1 << 3)) == (short)(val.number * (1 << 3))) {
 			// cooler path
 			if (retc != -1) compiler->curstack++;
 
-			if ((result = noomC_emit_AsD(compiler, NOOMV_INSTR_PUSHINT, 0, (short)val.number))) return result;
+			if ((result = noomC_emit_AsD(compiler, NOOMV_INSTR_PUSHNUM, 0, (short)(val.number * (1 << 3))))) return result;
 		} else {
 			unsigned short const_idx;
 			if ((result = noomC_addconst_val(compiler, val, &const_idx))) return result;

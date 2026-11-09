@@ -85,6 +85,9 @@ typedef struct noomV_Pointer {
 	noomV_Value value;
 } noomV_Pointer;
 
+#define FIXEDP_MIN (-4096.0)
+#define FIXEDP_MAX (4095.875)
+
 typedef enum noomV_Opcode : unsigned char {
 	NOOMV_INSTR_NOP = 0,
 
@@ -98,6 +101,8 @@ typedef enum noomV_Opcode : unsigned char {
 	NOOMV_INSTR_PUSHGLOBAL,
 	// Pushes op.sD itself as an integer
 	NOOMV_INSTR_PUSHINT,
+	// Pushes op.sD interpreted as a 13.3 fixed point number, as a number
+	NOOMV_INSTR_PUSHNUM,
 	// Pushes [op.uD+1] nils
 	NOOMV_INSTR_PUSHNIL,
 	// Pushes [op.a+1] booleans, encoded in [op.uD], where the ith (0-indexed) boolean is encoded in `uD & (1 << i)`
