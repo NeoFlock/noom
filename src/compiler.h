@@ -57,12 +57,12 @@ typedef struct noomC_Compiler {
 	unsigned curstack;
 	noomC_Local locals[NOOMC_MAXLOCAL];
 	noomC_Upval upvals[NOOMC_MAXUPVAL];
-	
+
 	noomC_Label labels[NOOMC_MAXLABELS];
 	unsigned int labelc;
 	noomC_PendingGoto pendingGotos[NOOMC_MAXGOTOS];
 	unsigned int pendingGotoc;
-	
+
 	unsigned int breakPatches[NOOMC_MAXBREAKS];
 	unsigned int breakPatchCount;
 	unsigned int loopBreakBase[NOOMC_MAXLOOPDEPTH];

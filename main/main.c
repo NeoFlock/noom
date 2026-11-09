@@ -60,7 +60,7 @@ int execute(const char* code, noom_LuaVersion version, const char* program_name,
 
 	noom_LuaVM* vm = noom_createVM(ctx);
 	if ((result = noom_openbase(vm))) return result;
-	
+
 PUBLIC_EXECUTION /* !!!!!!!!!!!!! */
 // ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣀⣴⢲⣞⣭⣟⣿⣻⣷⢶⢦⣄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
 // ⠀⠀⠀⠀⠀⠀⠀⠀⣤⣞⣵⢯⣿⣞⣷⣿⣷⣿⣿⣿⣿⣜⣦⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
@@ -88,7 +88,7 @@ PUBLIC_EXECUTION /* !!!!!!!!!!!!! */
 // ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
 // ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡘⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
 	(vm, code, filename, program_name);
-	
+
 	noom_destroyVM(vm);
 	return 0;
 }

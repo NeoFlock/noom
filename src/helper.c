@@ -104,7 +104,7 @@ noomV_Value noom_tonumber_except_different_name_so_public_fucking_api_works(cons
 				s++;
 			}
 		}
-		if (!any) NOOM_FAIL(); 
+		if (!any) NOOM_FAIL();
 
 		if (noomL_lower(*s) == 'p') {
 			s++;
@@ -318,7 +318,7 @@ static void *defaultAlloc(void* ctx, void* ptr, noom_uint_t oldSize, noom_uint_t
 	}
 	if(!size) return NULL;
 	if(align) {
-		return aligned_alloc(align, size);	
+		return aligned_alloc(align, size);
 	}
 	return malloc(size);
 #endif

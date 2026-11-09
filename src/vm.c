@@ -402,13 +402,13 @@ noom_Exit noomV_rawsetTable(noom_LuaVM* vm, noomV_Table* t, noomV_Value key, noo
 
 noom_uint_t noomV_rawlenTable(noomV_Table* t) {
 	noom_uint_t l = 0, h = t->len;
-    
+
 	while (l < h) {
-		const noom_uint_t mid = l + (h - l) / 2 + 1; 
+		const noom_uint_t mid = l + (h - l) / 2 + 1;
 		if (noomV_isNil(noomV_rawgetiTable(t, (noom_int_t)mid))) h = mid - 1;
 		else l = mid;
 	}
-    
+
 	return t->len = l;
 }
 
@@ -689,7 +689,7 @@ noom_Exit noomV_runCodeResumed(noom_LuaVM *vm, noom_Exit status, void *_ctx) {
 	while(1) {
 		// we yielded
 		if(thrd->yielded >= 0) return NOOM_OK;
-		
+
 		noomV_CallFrame *cf = noomV_topCallFrame(thrd);
 		// some mf ran this on C code, idiot!
 		if(cf->isC) return noom_errorf(vm, "attempt to interpret C code");
@@ -1214,7 +1214,7 @@ noom_Exit noom_errorf(noom_LuaVM *vm, const char *fmt, ...) {
 	va_end(args);
 	str->len = len;
 	str->hash = 0;
-	
+
 	noomV_Value val = noomV_nil;
 	val.tag = NOOMV_VOBJ;
 	val.obj = (noomV_Object*)str;

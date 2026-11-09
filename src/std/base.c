@@ -3,11 +3,11 @@
 
 noom_Exit noom_base_print(noom_LuaVM* vm) {
 	noom_Exit result;
-	
+
 	noom_uint_t stack_size = noom_getstacksize(vm);
 
 	const char tab = '\t';
-	const char nl = '\n';	
+	const char nl = '\n';
 
 	for (noom_uint_t i = 0; i < stack_size; i++) {
 		if ((result = noom_cast2str(vm, i))) return result;
@@ -28,7 +28,7 @@ noom_Exit noom_base_print(noom_LuaVM* vm) {
 
 noom_Exit noom_openbase(noom_LuaVM* vm) {
 	noom_Exit result;
-	
+
 	if ((result = noom_pushglobals(vm))) return result;
 	if ((result = noom_pushstring(vm, "print"))) return result;
 	if ((result = noom_pushcfunction(vm, noom_base_print))) return result;

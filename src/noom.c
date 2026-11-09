@@ -33,7 +33,7 @@ static void pretty(const char* code, noom_LuaVersion version, const noomP_Node* 
 			nodec %= pow10;
 			pow10 /= 10;
 		}
-		
+
 		write(STDOUT_FILENO, " entr", 5);
 		if (node->subnodec == 1) write(STDOUT_FILENO, "y", 1); else write(STDOUT_FILENO, "ies", 3);
 		write(STDOUT_FILENO, " {\n", 3);
@@ -89,7 +89,7 @@ PUBLIC_EXECUTION /* !!!!!!!!!!!!! */
 (noom_LuaVM* vm, const char* what_am_i, const char* where_am_i, const char *and_most_importantly_who_am_i) {
 	noomP_Parser parser;
 	noomP_Node* program;
-	
+
 #ifdef LEX_OUTPUT
 	puts("LEX OUTPUT:");
 	fputs("\x1b[48;2;10;10;10m", stdout);
@@ -141,7 +141,7 @@ PUBLIC_EXECUTION /* !!!!!!!!!!!!! */
 		noom_free(vm->ctx.allocator, buf, 1, bleh);
 		return 1;
 	}
-	
+
 #ifdef PARSE_OUTPUT
 	write(STDOUT_FILENO, "PARSE OUTPUT:\n", 14);
 	pretty(what_am_i, vm->ctx.version, program, 0);
@@ -150,7 +150,7 @@ PUBLIC_EXECUTION /* !!!!!!!!!!!!! */
 
 	const noom_Exit e = noomC_compile(vm, &parser, program, NULL, vm->globals, &peak);
 	noomP_freeNode(vm->ctx.allocator, parser.last_node);
-	
+
 	if (e) {
 		char not_cool[8] = "error: 0";
 		not_cool[7] += e; // that will work for now
