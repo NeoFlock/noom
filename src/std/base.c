@@ -14,7 +14,6 @@ noom_Exit noom_base_print(noom_LuaVM* vm) {
 		const char* s;
 		noom_uint_t len;
 
-
 		if ((result = noom_tolstring(vm, i, &s, &len))) return result;
 
 		fwrite(s, sizeof(char), len, stdout);

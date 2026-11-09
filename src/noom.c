@@ -15,7 +15,7 @@ static void pretty(const char* code, noom_LuaVersion version, const noomP_Node* 
 	write(STDOUT_FILENO, code + node->source_offset, len);
 	if (code[node->source_offset]) write(STDOUT_FILENO, " -", 2);
 	write(STDOUT_FILENO, " ", 1);
-	const char *whatever_it_means = noomP_formatNodeType(node->type);
+	const char* whatever_it_means = noomP_formatNodeType(node->type);
 	write(STDOUT_FILENO, whatever_it_means, noom_strlen(whatever_it_means));
 	if (node->subnodec) {
 		write(STDOUT_FILENO, " with ", 6);
@@ -42,8 +42,7 @@ static void pretty(const char* code, noom_LuaVersion version, const noomP_Node* 
 		}
 		for (noom_uint_t i = 0; i < indent; i++) write(STDOUT_FILENO, "\t", 1);
 		write(STDOUT_FILENO, "}\n", 2);
-	}
-	else
+	} else
 		write(STDOUT_FILENO, "\n", 1);
 }
 
@@ -185,7 +184,7 @@ PUBLIC_EXECUTION /* !!!!!!!!!!!!! */
 #endif
 	noomV_pushRawValue(vm, peak);
 	noom_Exit err = noom_call(vm, 0, 0);
-	if(err == NOOM_YIELD) {
+	if (err == NOOM_YIELD) {
 		fprintf(stderr, "Program yielded\n");
 	}
 	if (err == NOOM_ERR) {
