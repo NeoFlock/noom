@@ -755,7 +755,7 @@ noom_Exit noomV_runCodeResumed(noom_LuaVM* vm, noom_Exit status, void* _ctx) {
 			break;
 		case NOOMV_INSTR_PUSHNUM:
 			{
-				e = noom_pushnumber(vm, ((noom_float_t)inst.ss) / (1 << 3));
+				e = noom_pushnumber(vm, ((noom_float_t)inst.ss) / (1 << FIXEDP_FRAC_BITS));
 				if (e) return e;
 			}
 			break;
