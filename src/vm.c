@@ -2,6 +2,7 @@
 #include "helper.h"
 #include "noom.h"
 #include <assert.h>
+#include <limits.h>
 #include <stdio.h>
 #include "stb_sprintf.h"
 
@@ -861,10 +862,10 @@ noom_Exit noomV_runCodeResumed(noom_LuaVM* vm, noom_Exit status, void* _ctx) {
 			{
 				unsigned char op_type = inst.a;
 				unsigned char op = inst.b;
+				noomV_Value val = noomV_nil;
 				switch (op_type) {
-				case 0:;
+				case 0:
 					// unary op
-					noomV_Value val = noomV_nil;
 					switch (op) {
 					case NOOM_UNARY_NEGATE:
 						noom_cast2num(vm, -1);
@@ -932,10 +933,13 @@ noom_Exit noomV_runCodeResumed(noom_LuaVM* vm, noom_Exit status, void* _ctx) {
 						val.boolean = !val.boolean;
 						break;
 					}
-					noomV_setStackValue(vm, -1, val);
+					noom_pop(vm);
+					noomV_pushRawValue(vm, val);
 					break;
-				case 1:
+				case 1: {
 					// binary op
+					noomV_Value a;
+					noomV_Value b;
 					switch (op) {
 					case NOOM_BIN_ADD:
 						break;
@@ -964,18 +968,80 @@ noom_Exit noomV_runCodeResumed(noom_LuaVM* vm, noom_Exit status, void* _ctx) {
 					case NOOM_BIN_GREATEREQL:
 						break;
 					case NOOM_BIN_BAND:
-						break;
 					case NOOM_BIN_BOR:
-						break;
 					case NOOM_BIN_BXOR:
-						break;
 					case NOOM_BIN_BSHIFTL:
-						break;
 					case NOOM_BIN_BSHIFTR:
+					{
+						noom_uint_t u;
+						noom_uint_t v;
+						noom_cast2num(vm, -2);
+						noom_cast2num(vm, -1);
+						if ((e = noomV_getStackValue(vm, -2, &a))) return e;
+						if ((e = noomV_getStackValue(vm, -1, &b))) return e;
+						switch (a.tag) {
+						case NOOMV_VINT:
+							u = a.integer;
+							break;
+						case NOOMV_VNUM:
+							// the second comparison is not <= because of float rounding bullshit
+							if (!(INTPTR_MIN <= a.number) || !(a.number < (noom_float_t)INTPTR_MAX)) {
+								return noom_errorf(vm, "number has no integer representation");
+							}
+							u = a.number;
+							break;
+						default:
+							return noom_errorf(vm, "attempted to perform bitwise operation on value of type %s", noomV_typeOfValue(a));
+						}
+						switch (b.tag) {
+						case NOOMV_VINT:
+							v = b.integer;
+							break;
+						case NOOMV_VNUM:
+							// the second comparison is not <= because of float rounding bullshit
+							if (!(INTPTR_MIN <= b.number) || !(b.number < (noom_float_t)INTPTR_MAX)) {
+								return noom_errorf(vm, "number has no integer representation");
+							}
+							v = b.number;
+							break;
+						default:
+							return noom_errorf(vm, "attempted to perform bitwise operation on value of type %s", noomV_typeOfValue(b));
+						}
+
+						noom_int_t shift = v;
+
+						val.tag = NOOMV_VINT;
+						switch (op) {
+						case NOOM_BIN_BAND:
+							val.integer = u & v;
+							break;
+						case NOOM_BIN_BOR:
+							val.integer = u | v;
+							break;
+						case NOOM_BIN_BXOR:
+							val.integer = u ^ v;
+							break;
+						case NOOM_BIN_BSHIFTR:
+							shift = -shift;
+						case NOOM_BIN_BSHIFTL:
+							// because a shift greater than the number of
+							// bits in our ints is ub for some reason
+							// way to go C99!!
+							if (v <= -(sizeof(noom_uint_t) * CHAR_BIT) || v >= (sizeof(noom_uint_t) * CHAR_BIT))
+								val.integer = 0;
+							else if (v >= 0)
+								val.integer = u << v;
+							else
+								val.integer = u >> (-v);
+							break;
+						}
 						break;
 					}
-					return noom_errorf(vm, "not impl :(");
+					}
+					noom_pop(vm);
+					noomV_setStackValue(vm, -1, val);
 					break;
+					}
 				default:
 					return noom_errorf(vm, "invalid NOOMV_INSTR_OP type %x", op_type);
 				}
