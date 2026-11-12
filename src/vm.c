@@ -3,6 +3,7 @@
 #include "noom.h"
 #include <assert.h>
 #include <limits.h>
+#include <math.h>
 #include <stdio.h>
 #include "stb_sprintf.h"
 
@@ -942,19 +943,168 @@ noom_Exit noomV_runCodeResumed(noom_LuaVM* vm, noom_Exit status, void* _ctx) {
 					noomV_Value b;
 					switch (op) {
 					case NOOM_BIN_ADD:
-						break;
 					case NOOM_BIN_SUB:
-						break;
 					case NOOM_BIN_MLT:
-						break;
-					case NOOM_BIN_DIV:
-						break;
-					case NOOM_BIN_IDIV:
-						break;
 					case NOOM_BIN_MOD:
+					{
+						noom_uint_t u;
+						noom_uint_t v;
+						noom_float_t x;
+						noom_float_t y;
+						bool use_ints = true;
+						noom_cast2num(vm, -2);
+						noom_cast2num(vm, -1);
+						if ((e = noomV_getStackValue(vm, -2, &a))) return e;
+						if ((e = noomV_getStackValue(vm, -1, &b))) return e;
+						switch (a.tag) {
+						case NOOMV_VINT:
+							u = a.integer;
+							x = a.integer;
+							break;
+						case NOOMV_VNUM:
+							use_ints = false;
+							x = a.number;
+							break;
+						default:
+							return noom_errorf(vm, "attempted to perform arithmetic operation on value of type %s", noomV_typeOfValue(a));
+						}
+						switch (b.tag) {
+						case NOOMV_VINT:
+							v = b.integer;
+							y = b.integer;
+							break;
+						case NOOMV_VNUM:
+							use_ints = false;
+							y = b.number;
+							break;
+						default:
+							return noom_errorf(vm, "attempted to perform arithmetic operation on value of type %s", noomV_typeOfValue(b));
+						}
+
+						if (use_ints)
+							val.tag = NOOMV_VINT;
+						else
+							val.tag = NOOMV_VNUM;
+						switch (op) {
+						case NOOM_BIN_ADD:
+							if (use_ints)
+								val.integer = (noom_uint_t)u + (noom_uint_t)v;
+							else
+								val.number = x + y;
+							break;
+						case NOOM_BIN_SUB:
+							if (use_ints)
+								val.integer = (noom_uint_t)u - (noom_uint_t)v;
+							else
+								val.number = x - y;
+							break;
+						case NOOM_BIN_MLT:
+							if (use_ints)
+								val.integer = (noom_uint_t)u * (noom_uint_t)v;
+							else
+								val.number = x * y;
+							break;
+						case NOOM_BIN_MOD:
+							if (use_ints) {
+								if (v == 0)
+									return noom_errorf(vm, "attempted to perform integer modulo 0");
+								val.integer = u % v;
+							} else
+								val.number = fmod(x, y);
+							break;
+						}
+
 						break;
+					}
+					case NOOM_BIN_DIV:
 					case NOOM_BIN_EXP:
+					{
+						noom_float_t x;
+						noom_float_t y;
+						noom_cast2num(vm, -2);
+						noom_cast2num(vm, -1);
+						if ((e = noomV_getStackValue(vm, -2, &a))) return e;
+						if ((e = noomV_getStackValue(vm, -1, &b))) return e;
+						switch (a.tag) {
+						case NOOMV_VINT:
+							x = a.integer;
+							break;
+						case NOOMV_VNUM:
+							x = a.number;
+							break;
+						default:
+							return noom_errorf(vm, "attempted to perform arithmetic operation on value of type %s", noomV_typeOfValue(a));
+						}
+						switch (b.tag) {
+						case NOOMV_VINT:
+							y = b.integer;
+							break;
+						case NOOMV_VNUM:
+							y = b.number;
+							break;
+						default:
+							return noom_errorf(vm, "attempted to perform arithmetic operation on value of type %s", noomV_typeOfValue(b));
+						}
+
+						val.tag = NOOMV_VNUM;
+						switch (op) {
+						case NOOM_BIN_DIV:
+							val.number = x / y;
+							break;
+						case NOOM_BIN_EXP:
+							val.number = pow(x, y);
+							break;
+						}
+
 						break;
+					}
+
+					case NOOM_BIN_IDIV:
+					{
+						noom_uint_t x;
+						noom_uint_t y;
+						noom_cast2num(vm, -2);
+						noom_cast2num(vm, -1);
+						if ((e = noomV_getStackValue(vm, -2, &a))) return e;
+						if ((e = noomV_getStackValue(vm, -1, &b))) return e;
+						switch (a.tag) {
+						case NOOMV_VINT:
+							x = a.integer;
+							break;
+						case NOOMV_VNUM:
+							// the second comparison is not <= because of float rounding bullshit
+							if (!(INTPTR_MIN <= a.number) || !(a.number < (noom_float_t)INTPTR_MAX)) {
+								return noom_errorf(vm, "number has no integer representation");
+							}
+							x = a.number;
+							break;
+						default:
+							return noom_errorf(vm, "attempted to perform arithmetic operation on value of type %s", noomV_typeOfValue(a));
+						}
+						switch (b.tag) {
+						case NOOMV_VINT:
+							y = b.integer;
+							break;
+						case NOOMV_VNUM:
+							// the second comparison is not <= because of float rounding bullshit
+							if (!(INTPTR_MIN <= b.number) || !(b.number < (noom_float_t)INTPTR_MAX)) {
+								return noom_errorf(vm, "number has no integer representation");
+							}
+							y = b.number;
+							break;
+						default:
+							return noom_errorf(vm, "attempted to perform arithmetic operation on value of type %s", noomV_typeOfValue(b));
+						}
+
+						if (y == 0)
+							return noom_errorf(vm, "attempted to divide by 0");
+
+						val.tag = NOOMV_VINT;
+						val.integer = x / y;
+
+						break;
+					}
+
 					case NOOM_BIN_EQL:
 						break;
 					case NOOM_BIN_NEQL:
@@ -1038,8 +1188,8 @@ noom_Exit noomV_runCodeResumed(noom_LuaVM* vm, noom_Exit status, void* _ctx) {
 						break;
 					}
 					}
-					noom_pop(vm);
-					noomV_setStackValue(vm, -1, val);
+					noom_popn(vm, 2);
+					noomV_pushRawValue(vm, val);
 					break;
 					}
 				default:
