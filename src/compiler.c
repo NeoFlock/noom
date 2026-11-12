@@ -783,13 +783,15 @@ noom_Exit noomC_compile_expr(
 		// `(1 << FIDEXP_FRAC_BITS)` can round up and not fit in a short causing UB on the cast.
 		// what can we do but live in fear and on familiar targets where floats
 		// are IEEE 754 binary32's.
-		//
-		// TODO: support NOOMV_VINT when that is actually used
 		if (val.tag == NOOMV_VNUM && FIXEDP_MIN <= val.number && val.number <= FIXEDP_MAX && (val.number * (1 << FIXEDP_FRAC_BITS)) == (short)(val.number * (1 << FIXEDP_FRAC_BITS))) {
 			// cooler path
 			if (retc != -1) compiler->curstack++;
 
 			if ((result = noomC_emit_AsD(compiler, NOOMV_INSTR_PUSHNUM, 0, (short)(val.number * (1 << FIXEDP_FRAC_BITS))))) return result;
+		} else if (val.tag == NOOMV_VINT && SHRT_MIN <= val.integer && val.integer <= SHRT_MAX) {
+			if (retc != -1) compiler->curstack++;
+
+			if ((result = noomC_emit_AsD(compiler, NOOMV_INSTR_PUSHINT, 0, (short)val.integer))) return result;
 		} else {
 			unsigned short const_idx;
 			if ((result = noomC_addconst_val(compiler, val, &const_idx))) return result;
