@@ -1106,9 +1106,80 @@ noom_Exit noomV_runCodeResumed(noom_LuaVM* vm, noom_Exit status, void* _ctx) {
 					}
 
 					case NOOM_BIN_EQL:
-						break;
 					case NOOM_BIN_NEQL:
+					{
+						val.tag = NOOMV_VBOOL;
+
+						if ((e = noomV_getStackValue(vm, -2, &a))) return e;
+						if ((e = noomV_getStackValue(vm, -1, &b))) return e;
+
+						if ((a.tag == NOOMV_VINT || a.tag == NOOMV_VNUM) && (b.tag == NOOMV_VINT || b.tag == NOOMV_VNUM)) {
+							// numerical stuff
+							if (a.tag == NOOMV_VNUM && b.tag == NOOMV_VNUM) {
+								val.boolean = a.number == b.number;
+								goto exit;
+							}
+							if (a.tag == NOOMV_VINT && b.tag == NOOMV_VINT) {
+								val.boolean = a.integer == b.integer;
+								goto exit;
+							}
+
+							if (a.tag == NOOMV_VNUM) {
+								// the second comparison is not <= because of float rounding bullshit
+								if (!(INTPTR_MIN <= a.number) || !(a.number < (noom_float_t)INTPTR_MAX))
+									val.boolean = false;
+								else
+									val.boolean = ((noom_int_t)a.number) == b.integer;
+							} else {
+								// the second comparison is not <= because of float rounding bullshit
+								if (!(INTPTR_MIN <= b.number) || !(b.number < (noom_float_t)INTPTR_MAX))
+									val.boolean = false;
+								else
+									val.boolean = ((noom_int_t)b.number) == a.integer;
+							}
+							goto exit;
+						}
+
+						if (a.tag != b.tag) {
+							val.boolean = false;
+							goto exit;
+						}
+
+						switch (a.tag) {
+						case NOOMV_VINT:
+						case NOOMV_VNUM:
+							return noom_errorf(vm, "literally impossible code path. here is a thingie you can grep for! djskajlksda");
+						case NOOMV_VNIL:
+							val.boolean = true;
+							break;
+						case NOOMV_VBOOL:
+							val.boolean = a.boolean == b.boolean;
+							break;
+						case NOOMV_VLUSER:
+							val.boolean = a.lightuserdata == b.lightuserdata;
+							break;
+						case NOOMV_VCFUNC:
+							val.boolean = a.cfunc == b.cfunc;
+							break;
+						case NOOMV_VOBJ:
+							if (a.obj->tag != b.obj->tag) {
+								val.boolean = false;
+								goto exit;
+							}
+							switch (a.obj->tag) {
+							case NOOMV_OSTR:
+								val.boolean = noom_memeq(((noomV_String*)a.obj)->data, ((noomV_String*)a.obj)->len, ((noomV_String*)b.obj)->data, ((noomV_String*)b.obj)->len);
+								break;
+							default:
+								val.boolean = a.obj == b.obj;
+							}
+						}
+
+					exit:
+						if (op == NOOM_BIN_NEQL)
+							val.boolean = !val.boolean;
 						break;
+					}
 					case NOOM_BIN_LESS:
 						break;
 					case NOOM_BIN_LESSEQL:
