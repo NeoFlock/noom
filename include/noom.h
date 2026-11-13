@@ -299,7 +299,7 @@ noom_LuaType noom_typeof(noom_LuaVM* vm, noom_slot_t x);
 
 // Pops the top 2 values and pushes the result of the operation
 noom_Exit noom_binop(noom_LuaVM* vm, noom_BinOp op);
-// Pops the top 2 values and pushes the result of the operation
+// Pops the top value and pushes the result of the operation
 noom_Exit noom_unaryop(noom_LuaVM* vm, noom_UnaryOp op);
 
 // Pops (table, key) and pushes `table[key]`
