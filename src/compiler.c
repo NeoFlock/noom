@@ -235,13 +235,18 @@ static noom_Exit noomC_identifyLocalAndSet(noomC_Compiler* compiler, noom_LuaVM*
 			noomC_LocalInfo _ENV;
 			e = noomC_identifyLocal(compiler, "_ENV", 4, &_ENV);
 			if (e) return e;
-			if (_ENV.type == NOOMC_GLOBAL) return noom_errorf(vm, "_ENV is undefined");
+			if (_ENV.type == NOOMC_GLOBAL) return noom_errorf(vm, "_ENV is undefined"); // not meant to be possible
 			if (_ENV.type == NOOMC_UPVAL) {
 				compiler->curstack--;
-				return noomC_emit_AuD(compiler, NOOMV_INSTR_SETGLOBAL, 0, fieldIdx);
+				if ((e = noomC_emit_AuD(compiler, NOOMV_INSTR_PUSHUPVAL, 0, _ENV.idx))) return e;
+				if ((e = noomC_emit_AsD(compiler, NOOMV_INSTR_ROTATE, 2, 1))) return e;
+				return noomC_emit_AuD(compiler, NOOMV_INSTR_SETFIELD, 0, (unsigned short)fieldIdx);
 			}
 			compiler->curstack--;
-			return noomC_emit_AuD(compiler, NOOMV_INSTR_SETFIELD, (unsigned char)_ENV.idx, (unsigned short)fieldIdx);
+			// must be a local
+			if ((e = noomC_emit_AuD(compiler, NOOMV_INSTR_PUSHVAL, 0, _ENV.idx))) return e;
+			if ((e = noomC_emit_AsD(compiler, NOOMV_INSTR_ROTATE, 2, 1))) return e;
+			return noomC_emit_AuD(compiler, NOOMV_INSTR_SETFIELD, 0, (unsigned short)fieldIdx);
 		}
 		compiler->curstack--;
 		return noomC_emit_AuD(compiler, NOOMV_INSTR_SETGLOBAL, 0, fieldIdx);
@@ -1137,7 +1142,7 @@ noom_Exit noomC_compile_expr(
 				if (_ENV.type == NOOMC_GLOBAL) return noom_errorf(vm, "_ENV is undefined");
 				// most likely branch in human history
 				if (_ENV.type == NOOMC_UPVAL) {
-					if ((result = noomC_emit_AuD(compiler, NOOMV_INSTR_PUSHUPVAL, _ENV.idx, constidx))) return result;
+					if ((result = noomC_emit_AuD(compiler, NOOMV_INSTR_PUSHUPVAL, 0, _ENV.idx))) return result;
 				} else {
 					// bitchass
 					if ((result = noomC_emit_AuD(compiler, NOOMV_INSTR_PUSHVAL, 0, _ENV.idx))) return result;
