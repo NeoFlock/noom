@@ -330,7 +330,7 @@ typedef struct noomV_Closure {
 	noomV_Object obj;
 	noomV_Value proto;
 	noom_uint_t upvalc;
-	noomV_Pointer *upvals[];
+	noomV_Pointer* upvals[];
 } noomV_Closure;
 
 // exactly 64 bytes, aka one cache line.

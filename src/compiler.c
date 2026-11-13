@@ -4,7 +4,6 @@
 #include "helper.h"
 #include "vm.h"
 #include <limits.h>
-#include <stdio.h>
 
 // FUCK THIS STUPID COMPILER
 // IT DESERVES...
@@ -1882,11 +1881,11 @@ noom_Exit noomC_compile(noom_LuaVM* vm, const noomP_Parser* parser, const noomP_
 	noomV_Value val = { .tag = NOOMV_VOBJ, .obj = &program->obj };
 
 	if(parser->version > NOOM_VERSION_51) {
-		printf("wrapping closure\n");
+		// printf("wrapping closure\n");
 		noomV_Pointer* p = (noomV_Pointer*)noomV_allocObj(vm, NOOMV_OPOINTER, sizeof(noomV_Pointer));
 		if(p == NULL) return noom_erroroom(vm);
 		// make closure
-		noomV_Closure* c = (noomV_Closure*)noomV_allocObj(vm, NOOMV_OCLOSURE, sizeof(noomV_Closure) + sizeof(noomV_Pointer *));
+		noomV_Closure* c = (noomV_Closure*)noomV_allocObj(vm, NOOMV_OCLOSURE, sizeof(noomV_Closure) + sizeof(noomV_Pointer*));
 		if(c == NULL) return noom_erroroom(vm);
 
 		p->value.tag = NOOMV_VOBJ;
