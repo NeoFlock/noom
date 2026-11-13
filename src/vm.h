@@ -326,6 +326,13 @@ typedef struct noomV_Function {
 	unsigned char localsize;
 } noomV_Function;
 
+typedef struct noomV_Closure {
+	noomV_Object obj;
+	noomV_Value proto;
+	noom_uint_t upvalc;
+	noomV_Pointer *upvals[];
+} noomV_Closure;
+
 // exactly 64 bytes, aka one cache line.
 // TODO: ensure it is 64-byte aligned for a perfect 1:1 struct to cache line ratio for perf
 // it IS 64 bit aligned with 7 bytes wasted ^^^^^^^

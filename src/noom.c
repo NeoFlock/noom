@@ -47,16 +47,10 @@ static void pretty(const char* code, noom_LuaVersion version, const noomP_Node* 
 }
 
 // #define LEX_OUTPUT
-#define PARSE_OUTPUT
+// #define PARSE_OUTPUT
 #define COMPILER_OUTPUT
 
-#ifdef LEX_OUTPUT
 #include <stdio.h>
-#endif
-
-#ifdef COMPILER_OUTPUT
-#include <stdio.h>
-#endif
 
 noom_Exit
 PUBLIC_EXECUTION /* !!!!!!!!!!!!! */
@@ -158,7 +152,10 @@ PUBLIC_EXECUTION /* !!!!!!!!!!!!! */
 	}
 
 #ifdef COMPILER_OUTPUT
-	const noomV_Function* f = (noomV_Function*)peak.obj;
+	const noomV_Function* f = NULL;
+	
+	if(peak.obj->tag == NOOMV_OFUNC) f = (noomV_Function*)peak.obj;
+	else f = (noomV_Function*)((noomV_Closure*)peak.obj)->proto.obj;
 
 	for (int i = 0; i < f->codesize; i++) {
 		noomV_Inst inst = f->code[i];

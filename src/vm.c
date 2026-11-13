@@ -492,7 +492,7 @@ void noomV_freeObj(noom_LuaVM* vm, noomV_Object* obj) {
 			break;
 		case NOOMV_OCLOSURE:
 			// TODO: figure out the real size
-			size = sizeof(noomV_Object);
+			size = sizeof(noomV_Closure) + ((noomV_Closure*)obj)->upvalc * sizeof(noomV_Pointer *);
 			break;
 		case NOOMV_OTABLE:
 			size = sizeof(noomV_Table);
@@ -730,15 +730,15 @@ noom_Exit noomV_runCodeResumed(noom_LuaVM* vm, noom_Exit status, void* _ctx) {
 		unsigned int varargc = cf->varargc;
 		noomV_Function* proto = cf->proto;
 		if (cf->pc == 0) {
-			// rotate to position all varargs at the start
 		}
+		noomV_Pointer** upvals = cf->upvals;
 		noomV_Inst inst = proto->code[cf->pc++];
 		noom_Exit e = NOOM_OK;
 
 		// NOTE: if we want fully resumable Lua code, we gotta figure out how to make error handlers and hooks resumable in this system!
 		// This will probably required more info in callframes and perhaps a more complicated C API.
 
-		// printf("%s\n", noomV_disInfo[inst.op].name);
+		//printf("%s\n", noomV_disInfo[inst.op].name);
 		switch(inst.op) {
 		case NOOMV_INSTR_NOP:
 		case NOOMV_INSTR_NOP2:
@@ -808,8 +808,17 @@ noom_Exit noomV_runCodeResumed(noom_LuaVM* vm, noom_Exit status, void* _ctx) {
 			break;
 		case NOOMV_INSTR_PUSHUPVAL:
 			{
-				e = noomV_pushRawValue(vm, cf->upvals[inst.us]->value);
+				e = noomV_pushRawValue(vm, upvals[inst.us]->value);
 				if (e) return e;
+			}
+			break;
+		case NOOMV_INSTR_GETFIELD:
+			{
+				e = noomV_pushRawValue(vm, proto->consts[inst.us]);
+				if(e) return e;
+
+				e = noom_gettable(vm);
+				if(e) return e;
 			}
 			break;
 		case NOOMV_INSTR_PUSHARGS:
@@ -974,7 +983,7 @@ noom_Exit noomV_runCodeResumed(noom_LuaVM* vm, noom_Exit status, void* _ctx) {
 			break;
 		default:
 			{
-				return noom_errorf(vm, "invalid bytecode");
+				return noom_errorf(vm, "invalid bytecode: 0x%x", inst.op);
 			}
 			break;
 		}
@@ -1207,7 +1216,13 @@ noom_Exit noom_callk(noom_LuaVM* vm, noom_uint_t argc, noom_int_t retc, noom_KFu
 	noomV_CallFrame* topCall = noomV_topCallFrame(thrd);
 	noomV_Value v;
 	noom_Exit e = noomV_getStackValue(vm, -argc - 1, &v);
-	// TODO: C functions and closures
+	noomV_Pointer **upvals = NULL;
+
+	if(v.tag == NOOMV_VOBJ && v.obj->tag == NOOMV_OCLOSURE) {
+		noomV_Closure* c = (noomV_Closure*)v.obj;
+		v = c->proto;
+		upvals = c->upvals;
+	}
 
 	if (v.tag == NOOMV_VCFUNC) {
 		noomV_CallFrame cf = {
@@ -1215,7 +1230,7 @@ noom_Exit noom_callk(noom_LuaVM* vm, noom_uint_t argc, noom_int_t retc, noom_KFu
 			.returnCount = retc,
 			.isC = true,
 			.errhandler = noomV_nil,
-			.upvals = NULL,
+			.upvals = upvals,
 			.resumeFunc = NULL,
 			.resumeCtx = NULL,
 			.proto = NULL,
@@ -1242,7 +1257,7 @@ noom_Exit noom_callk(noom_LuaVM* vm, noom_uint_t argc, noom_int_t retc, noom_KFu
 			.returnCount = retc,
 			.isC = false,
 			.errhandler = noomV_nil,
-			.upvals = NULL,
+			.upvals = upvals,
 			.resumeFunc = NULL,
 			.resumeCtx = NULL,
 			.proto = NULL,
@@ -1394,4 +1409,21 @@ const char* noom_getstrerror(noom_LuaVM* vm) {
 		return s->data;
 	}
 	return NULL;
+}
+
+noom_Exit noom_gettable(noom_LuaVM* vm) {
+	noomV_Value table, key;
+	noom_Exit e;
+
+	if(noom_typeof(vm, -2) != NOOM_LUA_TTABLE) {
+		return noom_errorf(vm, "expected a table");
+	}
+
+	if((e = noomV_getStackValue(vm, -2, &table))) return e;
+	if((e = noomV_getStackValue(vm, -1, &key))) return e;
+
+	// TODO: check metatable
+	noomV_Value val = noomV_rawgetTable((noomV_Table* )table.obj, key);
+	if((e = noom_popn(vm, 2))) return e;
+	return noomV_pushRawValue(vm, val);
 }
