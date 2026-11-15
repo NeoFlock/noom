@@ -1417,13 +1417,10 @@ noom_Exit noom_binop(noom_LuaVM* vm, noom_BinOp op) {
 		break;
 	}
 	case NOOM_BIN_LESS:
-		break;
 	case NOOM_BIN_LESSEQL:
-		break;
 	case NOOM_BIN_GREATER:
-		break;
 	case NOOM_BIN_GREATEREQL:
-		break;
+		return noom_errorf(vm, "comparison operators are unimplemented");
 	case NOOM_BIN_BAND:
 	case NOOM_BIN_BOR:
 	case NOOM_BIN_BXOR:
@@ -1496,6 +1493,8 @@ noom_Exit noom_binop(noom_LuaVM* vm, noom_BinOp op) {
 		}
 		break;
 	}
+	default:
+		return noom_errorf(vm, "invalid binary operator: 0x%x", op);
 	}
 	if ((e = noom_popn(vm, 2))) return e;
 	return noomV_pushRawValue(vm, val);
