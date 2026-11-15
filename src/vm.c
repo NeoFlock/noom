@@ -1481,12 +1481,12 @@ noom_Exit noom_binop(noom_LuaVM* vm, noom_BinOp op) {
 			// because a shift greater than the number of
 			// bits in our ints is ub for some reason
 			// way to go C99!!
-			if (v <= -(sizeof(noom_uint_t) * CHAR_BIT) || v >= (sizeof(noom_uint_t) * CHAR_BIT))
+			if (shift <= -(noom_int_t)(sizeof(noom_uint_t) * CHAR_BIT) || shift >= (noom_int_t)(sizeof(noom_uint_t) * CHAR_BIT))
 				val.integer = 0;
-			else if (v >= 0)
-				val.integer = u << v;
+			else if (shift >= 0)
+				val.integer = u << shift;
 			else
-				val.integer = u >> (-v);
+				val.integer = u >> (-shift);
 			break;
 		default:
 			return noom_errorf(vm, "how did we get here??? ub? grep for: 32679");
