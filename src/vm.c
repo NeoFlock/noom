@@ -863,406 +863,13 @@ noom_Exit noomV_runCodeResumed(noom_LuaVM* vm, noom_Exit status, void* _ctx) {
 			{
 				unsigned char op_type = inst.a;
 				unsigned char op = inst.b;
-				noomV_Value val = noomV_nil;
 				switch (op_type) {
 				case 0:
-					// unary op
-					switch (op) {
-					case NOOM_UNARY_NEGATE:
-						noom_cast2num(vm, -1);
-						if ((e = noomV_getStackValue(vm, -1, &val))) return e;
-						switch (val.tag) {
-						case NOOMV_VINT:
-							val.integer = -val.integer;
-							break;
-						case NOOMV_VNUM:
-							val.number = -val.number;
-							break;
-						default:
-							return noom_errorf(vm, "attempted to negate value of type %s", noomV_typeOfValue(val));
-						}
-						break;
-					case NOOM_UNARY_BNOT:
-						noom_cast2num(vm, -1);
-						if ((e = noomV_getStackValue(vm, -1, &val))) return e;
-						switch (val.tag) {
-						case NOOMV_VINT:
-							val.integer = ~val.integer;
-							break;
-						case NOOMV_VNUM:
-							// the second comparison is not <= because of float rounding bullshit
-							if (!(INTPTR_MIN <= val.number) || !(val.number < (noom_float_t)INTPTR_MAX)) {
-								return noom_errorf(vm, "number has no integer representation");
-							}
-							val.tag = NOOMV_VINT;
-							val.integer = ~(noom_int_t)val.number;
-							break;
-						default:
-							return noom_errorf(vm, "attempted to negate value of type %s", noomV_typeOfValue(val));
-						}
-						break;
-					case NOOM_UNARY_LEN:
-						if ((e = noomV_getStackValue(vm, -1, &val))) return e;
-						switch (val.tag) {
-						case NOOMV_VOBJ:
-							switch (val.obj->tag) {
-							case NOOMV_OSTR:
-								{
-									noom_int_t len = ((noomV_String*)val.obj)->len;
-									val.tag = NOOMV_VINT;
-									val.integer = len;
-								}
-								break;
-							case NOOMV_OTABLE:
-								{
-									noom_int_t len = noomV_rawlenTable((noomV_Table*)val.obj);
-									val.tag = NOOMV_VINT;
-									val.integer = len;
-								}
-								break;
-							default:
-								return noom_errorf(vm, "attempted to find length of value of type %s", noomV_typeOfValue(val));
-							}
-							break;
-						default:
-							return noom_errorf(vm, "attempted to find length of value of type %s", noomV_typeOfValue(val));
-						}
-						break;
-					case NOOM_UNARY_NOT:
-						noom_cast2truthy(vm, -1);
-						if ((e = noomV_getStackValue(vm, -1, &val))) return e;
-						val.boolean = !val.boolean;
-						break;
-					}
-					noom_pop(vm);
-					noomV_pushRawValue(vm, val);
+					if ((e = noom_unaryop(vm, op))) return e;
 					break;
-				case 1: {
-					// binary op
-					noomV_Value a;
-					noomV_Value b;
-					switch (op) {
-					case NOOM_BIN_ADD:
-					case NOOM_BIN_SUB:
-					case NOOM_BIN_MLT:
-					case NOOM_BIN_MOD:
-					{
-						noom_uint_t u;
-						noom_uint_t v;
-						noom_float_t x;
-						noom_float_t y;
-						bool use_ints = true;
-						noom_cast2num(vm, -2);
-						noom_cast2num(vm, -1);
-						if ((e = noomV_getStackValue(vm, -2, &a))) return e;
-						if ((e = noomV_getStackValue(vm, -1, &b))) return e;
-						switch (a.tag) {
-						case NOOMV_VINT:
-							u = a.integer;
-							x = a.integer;
-							break;
-						case NOOMV_VNUM:
-							use_ints = false;
-							x = a.number;
-							break;
-						default:
-							return noom_errorf(vm, "attempted to perform arithmetic operation on value of type %s", noomV_typeOfValue(a));
-						}
-						switch (b.tag) {
-						case NOOMV_VINT:
-							v = b.integer;
-							y = b.integer;
-							break;
-						case NOOMV_VNUM:
-							use_ints = false;
-							y = b.number;
-							break;
-						default:
-							return noom_errorf(vm, "attempted to perform arithmetic operation on value of type %s", noomV_typeOfValue(b));
-						}
-
-						if (use_ints)
-							val.tag = NOOMV_VINT;
-						else
-							val.tag = NOOMV_VNUM;
-						switch (op) {
-						case NOOM_BIN_ADD:
-							if (use_ints)
-								val.integer = (noom_uint_t)u + (noom_uint_t)v;
-							else
-								val.number = x + y;
-							break;
-						case NOOM_BIN_SUB:
-							if (use_ints)
-								val.integer = (noom_uint_t)u - (noom_uint_t)v;
-							else
-								val.number = x - y;
-							break;
-						case NOOM_BIN_MLT:
-							if (use_ints)
-								val.integer = (noom_uint_t)u * (noom_uint_t)v;
-							else
-								val.number = x * y;
-							break;
-						case NOOM_BIN_MOD:
-							if (use_ints) {
-								if (v == 0)
-									return noom_errorf(vm, "attempted to perform integer modulo 0");
-								val.integer = u % v;
-							} else
-								val.number = fmod(x, y);
-							break;
-						}
-
-						break;
-					}
-					case NOOM_BIN_DIV:
-					case NOOM_BIN_EXP:
-					{
-						noom_float_t x;
-						noom_float_t y;
-						noom_cast2num(vm, -2);
-						noom_cast2num(vm, -1);
-						if ((e = noomV_getStackValue(vm, -2, &a))) return e;
-						if ((e = noomV_getStackValue(vm, -1, &b))) return e;
-						switch (a.tag) {
-						case NOOMV_VINT:
-							x = a.integer;
-							break;
-						case NOOMV_VNUM:
-							x = a.number;
-							break;
-						default:
-							return noom_errorf(vm, "attempted to perform arithmetic operation on value of type %s", noomV_typeOfValue(a));
-						}
-						switch (b.tag) {
-						case NOOMV_VINT:
-							y = b.integer;
-							break;
-						case NOOMV_VNUM:
-							y = b.number;
-							break;
-						default:
-							return noom_errorf(vm, "attempted to perform arithmetic operation on value of type %s", noomV_typeOfValue(b));
-						}
-
-						val.tag = NOOMV_VNUM;
-						switch (op) {
-						case NOOM_BIN_DIV:
-							val.number = x / y;
-							break;
-						case NOOM_BIN_EXP:
-							val.number = pow(x, y);
-							break;
-						}
-
-						break;
-					}
-
-					case NOOM_BIN_IDIV:
-					{
-						noom_uint_t x;
-						noom_uint_t y;
-						noom_cast2num(vm, -2);
-						noom_cast2num(vm, -1);
-						if ((e = noomV_getStackValue(vm, -2, &a))) return e;
-						if ((e = noomV_getStackValue(vm, -1, &b))) return e;
-						switch (a.tag) {
-						case NOOMV_VINT:
-							x = a.integer;
-							break;
-						case NOOMV_VNUM:
-							// the second comparison is not <= because of float rounding bullshit
-							if (!(INTPTR_MIN <= a.number) || !(a.number < (noom_float_t)INTPTR_MAX)) {
-								return noom_errorf(vm, "number has no integer representation");
-							}
-							x = a.number;
-							break;
-						default:
-							return noom_errorf(vm, "attempted to perform arithmetic operation on value of type %s", noomV_typeOfValue(a));
-						}
-						switch (b.tag) {
-						case NOOMV_VINT:
-							y = b.integer;
-							break;
-						case NOOMV_VNUM:
-							// the second comparison is not <= because of float rounding bullshit
-							if (!(INTPTR_MIN <= b.number) || !(b.number < (noom_float_t)INTPTR_MAX)) {
-								return noom_errorf(vm, "number has no integer representation");
-							}
-							y = b.number;
-							break;
-						default:
-							return noom_errorf(vm, "attempted to perform arithmetic operation on value of type %s", noomV_typeOfValue(b));
-						}
-
-						if (y == 0)
-							return noom_errorf(vm, "attempted to divide by 0");
-
-						val.tag = NOOMV_VINT;
-						val.integer = x / y;
-
-						break;
-					}
-
-					case NOOM_BIN_EQL:
-					case NOOM_BIN_NEQL:
-					{
-						val.tag = NOOMV_VBOOL;
-
-						if ((e = noomV_getStackValue(vm, -2, &a))) return e;
-						if ((e = noomV_getStackValue(vm, -1, &b))) return e;
-
-						if ((a.tag == NOOMV_VINT || a.tag == NOOMV_VNUM) && (b.tag == NOOMV_VINT || b.tag == NOOMV_VNUM)) {
-							// numerical stuff
-							if (a.tag == NOOMV_VNUM && b.tag == NOOMV_VNUM) {
-								val.boolean = a.number == b.number;
-								goto exit;
-							}
-							if (a.tag == NOOMV_VINT && b.tag == NOOMV_VINT) {
-								val.boolean = a.integer == b.integer;
-								goto exit;
-							}
-
-							if (a.tag == NOOMV_VNUM) {
-								// the second comparison is not <= because of float rounding bullshit
-								if (!(INTPTR_MIN <= a.number) || !(a.number < (noom_float_t)INTPTR_MAX))
-									val.boolean = false;
-								else
-									val.boolean = ((noom_int_t)a.number) == b.integer;
-							} else {
-								// the second comparison is not <= because of float rounding bullshit
-								if (!(INTPTR_MIN <= b.number) || !(b.number < (noom_float_t)INTPTR_MAX))
-									val.boolean = false;
-								else
-									val.boolean = ((noom_int_t)b.number) == a.integer;
-							}
-							goto exit;
-						}
-
-						if (a.tag != b.tag) {
-							val.boolean = false;
-							goto exit;
-						}
-
-						switch (a.tag) {
-						case NOOMV_VINT:
-						case NOOMV_VNUM:
-							return noom_errorf(vm, "literally impossible code path. here is a thingie you can grep for! djskajlksda");
-						case NOOMV_VNIL:
-							val.boolean = true;
-							break;
-						case NOOMV_VBOOL:
-							val.boolean = a.boolean == b.boolean;
-							break;
-						case NOOMV_VLUSER:
-							val.boolean = a.lightuserdata == b.lightuserdata;
-							break;
-						case NOOMV_VCFUNC:
-							val.boolean = a.cfunc == b.cfunc;
-							break;
-						case NOOMV_VOBJ:
-							if (a.obj->tag != b.obj->tag) {
-								val.boolean = false;
-								goto exit;
-							}
-							switch (a.obj->tag) {
-							case NOOMV_OSTR:
-								val.boolean = noom_memeq(((noomV_String*)a.obj)->data, ((noomV_String*)a.obj)->len, ((noomV_String*)b.obj)->data, ((noomV_String*)b.obj)->len);
-								break;
-							default:
-								val.boolean = a.obj == b.obj;
-							}
-						}
-
-					exit:
-						if (op == NOOM_BIN_NEQL)
-							val.boolean = !val.boolean;
-						break;
-					}
-					case NOOM_BIN_LESS:
-						break;
-					case NOOM_BIN_LESSEQL:
-						break;
-					case NOOM_BIN_GREATER:
-						break;
-					case NOOM_BIN_GREATEREQL:
-						break;
-					case NOOM_BIN_BAND:
-					case NOOM_BIN_BOR:
-					case NOOM_BIN_BXOR:
-					case NOOM_BIN_BSHIFTL:
-					case NOOM_BIN_BSHIFTR:
-					{
-						noom_uint_t u;
-						noom_uint_t v;
-						noom_cast2num(vm, -2);
-						noom_cast2num(vm, -1);
-						if ((e = noomV_getStackValue(vm, -2, &a))) return e;
-						if ((e = noomV_getStackValue(vm, -1, &b))) return e;
-						switch (a.tag) {
-						case NOOMV_VINT:
-							u = a.integer;
-							break;
-						case NOOMV_VNUM:
-							// the second comparison is not <= because of float rounding bullshit
-							if (!(INTPTR_MIN <= a.number) || !(a.number < (noom_float_t)INTPTR_MAX)) {
-								return noom_errorf(vm, "number has no integer representation");
-							}
-							u = a.number;
-							break;
-						default:
-							return noom_errorf(vm, "attempted to perform bitwise operation on value of type %s", noomV_typeOfValue(a));
-						}
-						switch (b.tag) {
-						case NOOMV_VINT:
-							v = b.integer;
-							break;
-						case NOOMV_VNUM:
-							// the second comparison is not <= because of float rounding bullshit
-							if (!(INTPTR_MIN <= b.number) || !(b.number < (noom_float_t)INTPTR_MAX)) {
-								return noom_errorf(vm, "number has no integer representation");
-							}
-							v = b.number;
-							break;
-						default:
-							return noom_errorf(vm, "attempted to perform bitwise operation on value of type %s", noomV_typeOfValue(b));
-						}
-
-						noom_int_t shift = v;
-
-						val.tag = NOOMV_VINT;
-						switch (op) {
-						case NOOM_BIN_BAND:
-							val.integer = u & v;
-							break;
-						case NOOM_BIN_BOR:
-							val.integer = u | v;
-							break;
-						case NOOM_BIN_BXOR:
-							val.integer = u ^ v;
-							break;
-						case NOOM_BIN_BSHIFTR:
-							shift = -shift;
-						case NOOM_BIN_BSHIFTL:
-							// because a shift greater than the number of
-							// bits in our ints is ub for some reason
-							// way to go C99!!
-							if (v <= -(sizeof(noom_uint_t) * CHAR_BIT) || v >= (sizeof(noom_uint_t) * CHAR_BIT))
-								val.integer = 0;
-							else if (v >= 0)
-								val.integer = u << v;
-							else
-								val.integer = u >> (-v);
-							break;
-						}
-						break;
-					}
-					}
-					noom_popn(vm, 2);
-					noomV_pushRawValue(vm, val);
+				case 1:
+					if ((e = noom_binop(vm, op))) return e;
 					break;
-					}
 				default:
 					return noom_errorf(vm, "invalid NOOMV_INSTR_OP type %x", op_type);
 				}
@@ -1486,6 +1093,412 @@ noom_Exit noom_cast2str(noom_LuaVM* vm, noom_slot_t x) {
 	value.tag = NOOMV_VOBJ;
 
 	return noomV_setStackValue(vm, x, value);
+}
+
+noom_Exit noom_unaryop(noom_LuaVM* vm, noom_UnaryOp op) {
+	noom_Exit e;
+	noomV_Value val = noomV_nil;
+	switch (op) {
+	case NOOM_UNARY_NEGATE:
+		noom_cast2num(vm, -1);
+		if ((e = noomV_getStackValue(vm, -1, &val))) return e;
+		switch (val.tag) {
+		case NOOMV_VINT:
+			val.integer = -val.integer;
+			break;
+		case NOOMV_VNUM:
+			val.number = -val.number;
+			break;
+		default:
+			return noom_errorf(vm, "attempted to negate value of type %s", noomV_typeOfValue(val));
+		}
+		break;
+	case NOOM_UNARY_BNOT:
+		noom_cast2num(vm, -1);
+		if ((e = noomV_getStackValue(vm, -1, &val))) return e;
+		switch (val.tag) {
+		case NOOMV_VINT:
+			val.integer = ~val.integer;
+			break;
+		case NOOMV_VNUM:
+			// the second comparison is not <= because of float rounding bullshit
+			if (!(INTPTR_MIN <= val.number) || !(val.number < (noom_float_t)INTPTR_MAX)) {
+				return noom_errorf(vm, "number has no integer representation");
+			}
+			val.tag = NOOMV_VINT;
+			val.integer = ~(noom_int_t)val.number;
+			break;
+		default:
+			return noom_errorf(vm, "attempted to negate value of type %s", noomV_typeOfValue(val));
+		}
+		break;
+	case NOOM_UNARY_LEN:
+		if ((e = noomV_getStackValue(vm, -1, &val))) return e;
+		switch (val.tag) {
+		case NOOMV_VOBJ:
+			switch (val.obj->tag) {
+			case NOOMV_OSTR:
+				{
+					noom_int_t len = ((noomV_String*)val.obj)->len;
+					val.tag = NOOMV_VINT;
+					val.integer = len;
+				}
+				break;
+			case NOOMV_OTABLE:
+				{
+					noom_int_t len = noomV_rawlenTable((noomV_Table*)val.obj);
+					val.tag = NOOMV_VINT;
+					val.integer = len;
+				}
+				break;
+			default:
+				return noom_errorf(vm, "attempted to find length of value of type %s", noomV_typeOfValue(val));
+			}
+			break;
+		default:
+			return noom_errorf(vm, "attempted to find length of value of type %s", noomV_typeOfValue(val));
+		}
+		break;
+	case NOOM_UNARY_NOT:
+		noom_cast2truthy(vm, -1);
+		if ((e = noomV_getStackValue(vm, -1, &val))) return e;
+		val.boolean = !val.boolean;
+		break;
+	}
+	if ((e = noom_pop(vm))) return e;
+	return noomV_pushRawValue(vm, val);
+}
+noom_Exit noom_binop(noom_LuaVM* vm, noom_BinOp op) {
+	noom_Exit e;
+	noomV_Value val = noomV_nil;
+	noomV_Value a;
+	noomV_Value b;
+	switch (op) {
+	case NOOM_BIN_ADD:
+	case NOOM_BIN_SUB:
+	case NOOM_BIN_MLT:
+	case NOOM_BIN_MOD:
+	{
+		noom_uint_t u;
+		noom_uint_t v;
+		noom_float_t x;
+		noom_float_t y;
+		bool use_ints = true;
+		noom_cast2num(vm, -2);
+		noom_cast2num(vm, -1);
+		if ((e = noomV_getStackValue(vm, -2, &a))) return e;
+		if ((e = noomV_getStackValue(vm, -1, &b))) return e;
+		switch (a.tag) {
+		case NOOMV_VINT:
+			u = a.integer;
+			x = a.integer;
+			break;
+		case NOOMV_VNUM:
+			use_ints = false;
+			x = a.number;
+			break;
+		default:
+			return noom_errorf(vm, "attempted to perform arithmetic operation on value of type %s", noomV_typeOfValue(a));
+		}
+		switch (b.tag) {
+		case NOOMV_VINT:
+			v = b.integer;
+			y = b.integer;
+			break;
+		case NOOMV_VNUM:
+			use_ints = false;
+			y = b.number;
+			break;
+		default:
+			return noom_errorf(vm, "attempted to perform arithmetic operation on value of type %s", noomV_typeOfValue(b));
+		}
+
+		if (use_ints)
+			val.tag = NOOMV_VINT;
+		else
+			val.tag = NOOMV_VNUM;
+		switch (op) {
+		case NOOM_BIN_ADD:
+			if (use_ints)
+				val.integer = (noom_uint_t)u + (noom_uint_t)v;
+			else
+				val.number = x + y;
+			break;
+		case NOOM_BIN_SUB:
+			if (use_ints)
+				val.integer = (noom_uint_t)u - (noom_uint_t)v;
+			else
+				val.number = x - y;
+			break;
+		case NOOM_BIN_MLT:
+			if (use_ints)
+				val.integer = (noom_uint_t)u * (noom_uint_t)v;
+			else
+				val.number = x * y;
+			break;
+		case NOOM_BIN_MOD:
+			if (use_ints) {
+				if (v == 0)
+					return noom_errorf(vm, "attempted to perform integer modulo 0");
+				val.integer = u % v;
+			} else
+				val.number = fmod(x, y);
+			break;
+		default:
+			return noom_errorf(vm, "how did we get here??? ub? grep for: 12398");
+		}
+
+		break;
+	}
+	case NOOM_BIN_DIV:
+	case NOOM_BIN_EXP:
+	{
+		noom_float_t x;
+		noom_float_t y;
+		noom_cast2num(vm, -2);
+		noom_cast2num(vm, -1);
+		if ((e = noomV_getStackValue(vm, -2, &a))) return e;
+		if ((e = noomV_getStackValue(vm, -1, &b))) return e;
+		switch (a.tag) {
+		case NOOMV_VINT:
+			x = a.integer;
+			break;
+		case NOOMV_VNUM:
+			x = a.number;
+			break;
+		default:
+			return noom_errorf(vm, "attempted to perform arithmetic operation on value of type %s", noomV_typeOfValue(a));
+		}
+		switch (b.tag) {
+		case NOOMV_VINT:
+			y = b.integer;
+			break;
+		case NOOMV_VNUM:
+			y = b.number;
+			break;
+		default:
+			return noom_errorf(vm, "attempted to perform arithmetic operation on value of type %s", noomV_typeOfValue(b));
+		}
+
+		val.tag = NOOMV_VNUM;
+		switch (op) {
+		case NOOM_BIN_DIV:
+			val.number = x / y;
+			break;
+		case NOOM_BIN_EXP:
+			val.number = pow(x, y);
+			break;
+		default:
+			return noom_errorf(vm, "how did we get here??? ub? grep for: 98035");
+		}
+
+		break;
+	}
+
+	case NOOM_BIN_IDIV:
+	{
+		noom_uint_t x;
+		noom_uint_t y;
+		noom_cast2num(vm, -2);
+		noom_cast2num(vm, -1);
+		if ((e = noomV_getStackValue(vm, -2, &a))) return e;
+		if ((e = noomV_getStackValue(vm, -1, &b))) return e;
+		switch (a.tag) {
+		case NOOMV_VINT:
+			x = a.integer;
+			break;
+		case NOOMV_VNUM:
+			// the second comparison is not <= because of float rounding bullshit
+			if (!(INTPTR_MIN <= a.number) || !(a.number < (noom_float_t)INTPTR_MAX)) {
+				return noom_errorf(vm, "number has no integer representation");
+			}
+			x = a.number;
+			break;
+		default:
+			return noom_errorf(vm, "attempted to perform arithmetic operation on value of type %s", noomV_typeOfValue(a));
+		}
+		switch (b.tag) {
+		case NOOMV_VINT:
+			y = b.integer;
+			break;
+		case NOOMV_VNUM:
+			// the second comparison is not <= because of float rounding bullshit
+			if (!(INTPTR_MIN <= b.number) || !(b.number < (noom_float_t)INTPTR_MAX)) {
+				return noom_errorf(vm, "number has no integer representation");
+			}
+			y = b.number;
+			break;
+		default:
+			return noom_errorf(vm, "attempted to perform arithmetic operation on value of type %s", noomV_typeOfValue(b));
+		}
+
+		if (y == 0)
+			return noom_errorf(vm, "attempted to divide by 0");
+
+		val.tag = NOOMV_VINT;
+		val.integer = x / y;
+
+		break;
+	}
+
+	case NOOM_BIN_EQL:
+	case NOOM_BIN_NEQL:
+	{
+		val.tag = NOOMV_VBOOL;
+
+		if ((e = noomV_getStackValue(vm, -2, &a))) return e;
+		if ((e = noomV_getStackValue(vm, -1, &b))) return e;
+
+		if ((a.tag == NOOMV_VINT || a.tag == NOOMV_VNUM) && (b.tag == NOOMV_VINT || b.tag == NOOMV_VNUM)) {
+			// numerical stuff
+			if (a.tag == NOOMV_VNUM && b.tag == NOOMV_VNUM) {
+				val.boolean = a.number == b.number;
+				goto exit;
+			}
+			if (a.tag == NOOMV_VINT && b.tag == NOOMV_VINT) {
+				val.boolean = a.integer == b.integer;
+				goto exit;
+			}
+
+			if (a.tag == NOOMV_VNUM) {
+				// the second comparison is not <= because of float rounding bullshit
+				if (!(INTPTR_MIN <= a.number) || !(a.number < (noom_float_t)INTPTR_MAX))
+					val.boolean = false;
+				else
+					val.boolean = ((noom_int_t)a.number) == b.integer;
+			} else {
+				// the second comparison is not <= because of float rounding bullshit
+				if (!(INTPTR_MIN <= b.number) || !(b.number < (noom_float_t)INTPTR_MAX))
+					val.boolean = false;
+				else
+					val.boolean = ((noom_int_t)b.number) == a.integer;
+			}
+			goto exit;
+		}
+
+		if (a.tag != b.tag) {
+			val.boolean = false;
+			goto exit;
+		}
+
+		switch (a.tag) {
+		case NOOMV_VINT:
+		case NOOMV_VNUM:
+			return noom_errorf(vm, "literally impossible code path. here is a thingie you can grep for! djskajlksda");
+		case NOOMV_VNIL:
+			val.boolean = true;
+			break;
+		case NOOMV_VBOOL:
+			val.boolean = a.boolean == b.boolean;
+			break;
+		case NOOMV_VLUSER:
+			val.boolean = a.lightuserdata == b.lightuserdata;
+			break;
+		case NOOMV_VCFUNC:
+			val.boolean = a.cfunc == b.cfunc;
+			break;
+		case NOOMV_VOBJ:
+			if (a.obj->tag != b.obj->tag) {
+				val.boolean = false;
+				goto exit;
+			}
+			switch (a.obj->tag) {
+			case NOOMV_OSTR:
+				val.boolean = noom_memeq(((noomV_String*)a.obj)->data, ((noomV_String*)a.obj)->len, ((noomV_String*)b.obj)->data, ((noomV_String*)b.obj)->len);
+				break;
+			default:
+				val.boolean = a.obj == b.obj;
+			}
+		}
+
+	exit:
+		if (op == NOOM_BIN_NEQL)
+			val.boolean = !val.boolean;
+		break;
+	}
+	case NOOM_BIN_LESS:
+		break;
+	case NOOM_BIN_LESSEQL:
+		break;
+	case NOOM_BIN_GREATER:
+		break;
+	case NOOM_BIN_GREATEREQL:
+		break;
+	case NOOM_BIN_BAND:
+	case NOOM_BIN_BOR:
+	case NOOM_BIN_BXOR:
+	case NOOM_BIN_BSHIFTL:
+	case NOOM_BIN_BSHIFTR:
+	{
+		noom_uint_t u;
+		noom_uint_t v;
+		noom_cast2num(vm, -2);
+		noom_cast2num(vm, -1);
+		if ((e = noomV_getStackValue(vm, -2, &a))) return e;
+		if ((e = noomV_getStackValue(vm, -1, &b))) return e;
+		switch (a.tag) {
+		case NOOMV_VINT:
+			u = a.integer;
+			break;
+		case NOOMV_VNUM:
+			// the second comparison is not <= because of float rounding bullshit
+			if (!(INTPTR_MIN <= a.number) || !(a.number < (noom_float_t)INTPTR_MAX)) {
+				return noom_errorf(vm, "number has no integer representation");
+			}
+			u = a.number;
+			break;
+		default:
+			return noom_errorf(vm, "attempted to perform bitwise operation on value of type %s", noomV_typeOfValue(a));
+		}
+		switch (b.tag) {
+		case NOOMV_VINT:
+			v = b.integer;
+			break;
+		case NOOMV_VNUM:
+			// the second comparison is not <= because of float rounding bullshit
+			if (!(INTPTR_MIN <= b.number) || !(b.number < (noom_float_t)INTPTR_MAX)) {
+				return noom_errorf(vm, "number has no integer representation");
+			}
+			v = b.number;
+			break;
+		default:
+			return noom_errorf(vm, "attempted to perform bitwise operation on value of type %s", noomV_typeOfValue(b));
+		}
+
+		noom_int_t shift = v;
+
+		val.tag = NOOMV_VINT;
+		switch (op) {
+		case NOOM_BIN_BAND:
+			val.integer = u & v;
+			break;
+		case NOOM_BIN_BOR:
+			val.integer = u | v;
+			break;
+		case NOOM_BIN_BXOR:
+			val.integer = u ^ v;
+			break;
+		case NOOM_BIN_BSHIFTR:
+			shift = -shift;
+		case NOOM_BIN_BSHIFTL:
+			// because a shift greater than the number of
+			// bits in our ints is ub for some reason
+			// way to go C99!!
+			if (v <= -(sizeof(noom_uint_t) * CHAR_BIT) || v >= (sizeof(noom_uint_t) * CHAR_BIT))
+				val.integer = 0;
+			else if (v >= 0)
+				val.integer = u << v;
+			else
+				val.integer = u >> (-v);
+			break;
+		default:
+			return noom_errorf(vm, "how did we get here??? ub? grep for: 32679");
+		}
+		break;
+	}
+	}
+	if ((e = noom_popn(vm, 2))) return e;
+	return noomV_pushRawValue(vm, val);
 }
 
 noom_Exit noom_callk(noom_LuaVM* vm, noom_uint_t argc, noom_int_t retc, noom_KFunction* f, void* ctx) {
