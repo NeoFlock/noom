@@ -289,14 +289,6 @@ noom_Exit noomC_emit(noomC_Compiler* c, noomV_Inst inst) {
 noom_BinOp noomC_lex_bin_op(const noomP_Parser* parser, noom_uint_t offset) {
 	const char* op = parser->code + offset;
 	// I AM THE LEXER NOW!!!!!!!!!
-	if (noom_startswith(op, "==")) return NOOM_BIN_EQL;
-	if (noom_startswith(op, "~=")) return NOOM_BIN_NEQL;
-	if (noom_startswith(op, "<=")) return NOOM_BIN_LESSEQL;
-	if (noom_startswith(op, ">=")) return NOOM_BIN_GREATEREQL;
-	if (noom_startswith(op, "<")) return NOOM_BIN_LESS;
-	if (noom_startswith(op, ">")) return NOOM_BIN_GREATER;
-	// no .., that is special cased due to funky behavior
-
 	if (parser->version >= NOOM_VERSION_53) {
 		if (noom_startswith(op, "//")) return NOOM_BIN_IDIV;
 		if (noom_startswith(op, ">>")) return NOOM_BIN_BSHIFTR;
@@ -305,6 +297,14 @@ noom_BinOp noomC_lex_bin_op(const noomP_Parser* parser, noom_uint_t offset) {
 		if (noom_startswith(op, "|")) return NOOM_BIN_BOR;
 		if (noom_startswith(op, "~")) return NOOM_BIN_BXOR;
 	}
+
+	if (noom_startswith(op, "==")) return NOOM_BIN_EQL;
+	if (noom_startswith(op, "~=")) return NOOM_BIN_NEQL;
+	if (noom_startswith(op, "<=")) return NOOM_BIN_LESSEQL;
+	if (noom_startswith(op, ">=")) return NOOM_BIN_GREATEREQL;
+	if (noom_startswith(op, "<")) return NOOM_BIN_LESS;
+	if (noom_startswith(op, ">")) return NOOM_BIN_GREATER;
+	// no .., that is special cased due to funky behavior
 
 	if (noom_startswith(op, "+")) return NOOM_BIN_ADD;
 	if (noom_startswith(op, "-")) return NOOM_BIN_SUB;
