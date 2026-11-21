@@ -1439,7 +1439,7 @@ noom_Exit noom_binop(noom_LuaVM* vm, noom_BinOp op) {
 			break;
 		case NOOMV_VNUM:
 			// the second comparison is not <= because of float rounding bullshit
-			if (!(INTPTR_MIN <= a.number) || !(a.number < (noom_float_t)INTPTR_MAX)) {
+			if (!(INTPTR_MIN <= a.number) || !(a.number < (noom_float_t)INTPTR_MAX) || !(a.number == (noom_int_t)a.number)) {
 				return noom_errorf(vm, "number has no integer representation");
 			}
 			u = a.number;
