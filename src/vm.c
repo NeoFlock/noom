@@ -831,7 +831,11 @@ noom_Exit noomV_runCodeResumed(noom_LuaVM* vm, noom_Exit status, void* _ctx) {
 			break;
 		case NOOMV_INSTR_CREATETABLE:
 			{
-				return noom_errorf(vm, "createtable is unimplemented");
+				noomV_Object* obj = (noomV_Object*)noomV_allocTable(vm, 0, inst.us);
+				if (obj == NULL) return noom_erroroom(vm);
+
+				e = noomV_pushRawObject(vm, obj);
+				if (e) return e;
 			}
 			break;
 		case NOOMV_INSTR_PUSHCLOSURE:
