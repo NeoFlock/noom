@@ -9,7 +9,7 @@ static void noomG_grayValue(noom_LuaVM* vm, noomV_Value value) {
 }
 
 static void noomG_grayObj(noom_LuaVM* vm, noomV_Object* obj) {
-	if (obj == 0) return;
+	if (obj == NULL) return;
 	if (obj->marked) return;
 	obj->marked = true;
 	obj->nextGray = vm->graySet;
@@ -59,13 +59,15 @@ void noomG_markObj(noom_LuaVM* vm, noomV_Object* obj) {
 }
 
 void noom_gc(noom_LuaVM* vm) {
-	vm->graySet = 0;
+	vm->graySet = NULL;
 
 	noomG_grayObj(vm, (noomV_Object*)vm->mainThread);
+	noomG_grayObj(vm, (noomV_Object*)vm->currentThread);
 	noomG_grayObj(vm, (noomV_Object*)vm->globals);
 	noomG_grayObj(vm, (noomV_Object*)vm->registry);
+	noomG_grayValue(vm, vm->oomVal);
 
-	while (vm->graySet) {
+	while (vm->graySet != NULL) {
 		noomG_markObj(vm, vm->graySet);
 		vm->graySet = vm->graySet->nextGray;
 	}
