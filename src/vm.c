@@ -815,13 +815,62 @@ noom_Exit noomV_runCodeResumed(noom_LuaVM* vm, noom_Exit status, void* _ctx) {
 				if (e) return e;
 			}
 			break;
+		case NOOMV_INSTR_GETTABLE:
+			e = noom_gettable(vm);
+			if (e) return e;
+			break;
+		case NOOMV_INSTR_SETTABLE:
+			e = noom_settable(vm);
+			if (e) return e;
+			break;
+		case NOOMV_INSTR_SETLIST:
+			{
+				noomV_Value v;
+				e = noomV_getStackValue(vm, -inst.us - 2, &v);
+				if (e) return e;
+
+				if (v.tag != NOOMV_VOBJ || v.obj->tag != NOOMV_OTABLE) return noom_errorf(vm, "value is not a table adjksadas");
+
+				noomV_Table* table = (noomV_Table*)v.obj;
+
+				noomV_Value key = noomV_nil;
+				key.tag = NOOMV_VINT;
+				for (noom_int_t i = 0; i < inst.us; i++) {
+					e = noomV_getStackValue(vm, -inst.us - 1 + i, &v);
+					if (e) return e;
+
+					key.integer = inst.a + 1 + i;
+
+					e = noomV_rawsetTable(vm, table, key, v);
+					if (e) return e;
+				}
+				if ((e = noom_popn(vm, inst.us + 1))) return e;
+			}
+			break;
 		case NOOMV_INSTR_GETFIELD:
 			{
 				e = noomV_pushRawValue(vm, proto->consts[inst.us]);
-				if(e) return e;
+				if (e) return e;
 
 				e = noom_gettable(vm);
-				if(e) return e;
+				if (e) return e;
+			}
+			break;
+		case NOOMV_INSTR_SETFIELD:
+			{
+				noomV_Value value;
+				e = noomV_getStackValue(vm, -1, &value);
+				if (e) return e;
+
+				if ((e = noom_pop(vm))) return e;
+
+				e = noomV_pushRawValue(vm, proto->consts[inst.us]);
+				if (e) return e;
+				e = noomV_pushRawValue(vm, value);
+				if (e) return e;
+
+				e = noom_settable(vm);
+				if (e) return e;
 			}
 			break;
 		case NOOMV_INSTR_PUSHARGS:
@@ -831,7 +880,11 @@ noom_Exit noomV_runCodeResumed(noom_LuaVM* vm, noom_Exit status, void* _ctx) {
 			break;
 		case NOOMV_INSTR_CREATETABLE:
 			{
-				return noom_errorf(vm, "createtable is unimplemented");
+				noomV_Object* obj = (noomV_Object*)noomV_allocTable(vm, 0, inst.us);
+				if (obj == NULL) return noom_erroroom(vm);
+
+				e = noomV_pushRawObject(vm, obj);
+				if (e) return e;
 			}
 			break;
 		case NOOMV_INSTR_PUSHCLOSURE:
