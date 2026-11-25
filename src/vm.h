@@ -128,6 +128,9 @@ typedef enum noomV_Opcode : unsigned char {
 	// pops (table, field, value), and sets `table[field] = value`
 	NOOMV_INSTR_SETTABLE,
 	// pops op.uD+1 values, then sets it as an array starting at op.a+1 in the table at the new top;
+	// if that is confusing, it basically does this:
+	// int table = stacksize - op.uD;
+	// for(int i = 0; i < op.uD + 1; i++) `stack[table][op.a + 1 + i] = stack[table + i + 1];`
 	NOOMV_INSTR_SETLIST,
 	// pops table, pushes `table[consts[op.uD]]`, an optimization for indexing fields
 	NOOMV_INSTR_GETFIELD,

@@ -893,7 +893,7 @@ noom_Exit noomC_compile_expr(
 				const bool is_last = i == node->subnodec - 1;
 				if ((result = noomC_compile_expr(vm, compiler, parser, func, entry, is_last ? -1 : 1))) return result;
 				if (is_last) {
-					if ((result = noomC_emit_AuD(compiler, NOOMV_INSTR_SETLIST, table_slot, (unsigned short)array_idx))) return result;
+					if ((result = noomC_emit_AuD(compiler, NOOMV_INSTR_SETLIST, table_slot - 1, (unsigned short)(array_idx - 1)))) return result;
 					compiler->curstack = table_slot;
 				} else {
 					array_idx++;
