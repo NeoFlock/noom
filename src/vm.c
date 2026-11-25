@@ -260,6 +260,7 @@ noomV_Table* noomV_allocTable(noom_LuaVM* vm, noom_uint_t arraylen, noom_uint_t 
 	t->used = 0;
 	// bit of space between fields in case of hash collisions to not blast them into O(N) hell
 	noom_uint_t cap = fields * 4 + arraylen;
+	if(cap == 0) cap = 64; // fuck you malloc(0) semantics
 	t->entries = 0;
 	t->entrydata = noom_alloc(vm->ctx.allocator, sizeof(noomV_Value), 2 * cap);
 	// dw about freeing t, its in the VM heap so it'll get GC'd out
